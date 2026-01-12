@@ -5,9 +5,9 @@ import {
   MessageSquare, LayoutGrid, X, Key, Upload, Cpu, HelpCircle, Save, FilePlus, Paperclip, Eraser, Copy, Check,
   Trash2, Layers, Languages, Globe, RotateCcw, MonitorX, Send, Play, Download,
   Type as TextIcon, BrainCircuit, Sparkles, ChevronLeft, ChevronRight, ImagePlus, FileText, Info, Loader2, ArrowUpRight,
-  ChevronDown, Database, Sliders, ExternalLink, ShieldCheck, ListOrdered
+  ChevronDown, Database, Sliders, ExternalLink, ShieldCheck, ListOrdered, FolderOpen
 } from 'lucide-react';
-import { Block, Connection, BlockType, ModelConfig, ProviderType, BatchConfig, BatchGenerationState, ExportLayout, FrameData, PresetPrompt } from './types';
+import { Block, Connection, BlockType, ModelConfig, ProviderType, BatchConfig, BatchGenerationState, ExportLayout, FrameData, PresetPrompt, CanvasState } from './types';
 import Canvas from './components/Canvas';
 import BatchVideoModal from './components/BatchVideoModal';
 import MinimizedProgressWindow from './components/MinimizedProgressWindow';
@@ -15,11 +15,13 @@ import ExportLayoutSelector from './components/ExportLayoutSelector';
 import APIProviderConfig from './components/APIProviderConfig';
 import PresetPromptButton from './components/PresetPromptButton';
 import PresetPromptModal from './components/PresetPromptModal';
+import TemplateManager from './components/TemplateManager';
 import { aiService } from './services/geminiService';
 import { MultiProviderAIService } from './adapters/AIServiceAdapter';
 import { BatchProcessor } from './services/BatchProcessor';
 import { ExportService } from './services/ExportService';
 import { loadPresetPrompts, savePresetPrompts } from './services/PresetPromptStorage';
+import { connectionEngine } from './services/ConnectionEngine';
 import { COLORS, I18N, MIN_ZOOM, MAX_ZOOM } from './constants';
 
 interface ChatMessage {
@@ -36,7 +38,7 @@ interface ChatMessage {
 const App: React.FC = () => {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(0.5);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [theme, setTheme] = useState<'light' | 'dark'>('light'); 
   const [lang, setLang] = useState<'zh' | 'en'>('zh');
@@ -55,6 +57,7 @@ const App: React.FC = () => {
   // New functionality state
   const [showExportModal, setShowExportModal] = useState(false);
   const [showBatchVideoModal, setShowBatchVideoModal] = useState(false);
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
   const [batchState, setBatchState] = useState<BatchGenerationState | undefined>();
   const [isProgressMinimized, setIsProgressMinimized] = useState(false);
   const [aiServiceAdapter] = useState(() => new MultiProviderAIService());
@@ -129,7 +132,7 @@ const App: React.FC = () => {
       if (trimmedLine.startsWith('```') && trimmedLine.endsWith('```') && trimmedLine.length > 6) {
         const codeContent = trimmedLine.slice(3, -3);
         return (
-          <pre key={lineIndex} className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 my-2 overflow-x-auto">
+          <pre key={lineIndex} className="bg-gray-100 dark:bg-gray-800 rounded-3xl p-3 my-2 overflow-x-auto">
             <code className="text-xs font-mono">{codeContent}</code>
           </pre>
         );
@@ -202,7 +205,7 @@ const App: React.FC = () => {
           codeParts.push(
             <code 
               key={`code-${lineIndex}-${partIndex}-${codeMatch.index}`}
-              className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs font-mono"
+              className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-xl text-xs font-mono"
             >
               {codeMatch[1]}
             </code>
@@ -329,7 +332,10 @@ const App: React.FC = () => {
       let result = '';
       if (block.type === 'text') result = await aiServiceAdapter.generateText({ parts }, modelConfig.text);
       else if (block.type === 'image') result = await aiServiceAdapter.generateImage({ parts }, modelConfig.image);
-      else result = await aiServiceAdapter.generateVideo(prompt, modelConfig.video);
+      else {
+        // 视频生成：传递完整的parts信息，包含文字和图片
+        result = await aiServiceAdapter.generateVideo({ parts }, modelConfig.video);
+      }
       
       setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, content: result, status: 'idle' } : b));
     } catch (err) {
@@ -400,7 +406,7 @@ ${inputText || "Generate from attachment"}
 
       if (currentMode === 'text') result = await aiServiceAdapter.generateText({ parts }, settings);
       else if (currentMode === 'image') result = await aiServiceAdapter.generateImage({ parts }, settings);
-      else result = await aiServiceAdapter.generateVideo(finalMessage, settings);
+      else result = await aiServiceAdapter.generateVideo({ parts }, settings);
       
       setMessages(prev => prev.map(msg => msg.id === assistantMsgId ? { ...msg, content: result, isGenerating: false } : msg));
     } catch (error) {
@@ -430,8 +436,22 @@ ${inputText || "Generate from attachment"}
   const addBlock = (type: BlockType, initialContent: string = '', x?: number, y?: number) => {
     const prefix = type === 'text' ? 'A' : type === 'image' ? 'B' : 'V';
     const idNum = String(blocks.filter(b => b.type === type).length + 1).padStart(2, '0');
+    
+    // Calculate default position with offset based on existing blocks
+    let defaultX = 1000;
+    let defaultY = 800;
+    
+    // If there are existing blocks, place new block with offset
+    if (blocks.length > 0) {
+      // Find the most recently added block
+      const lastBlock = blocks[blocks.length - 1];
+      // Offset new block by 50px in both directions from the last block
+      defaultX = lastBlock.x + 50;
+      defaultY = lastBlock.y + 50;
+    }
+    
     const newBlock: Block = {
-      id: crypto.randomUUID(), type, x: x || 1000, y: y || 800, width: 500, height: 350,
+      id: crypto.randomUUID(), type, x: x || defaultX, y: y || defaultY, width: 500, height: 350,
       content: initialContent, status: 'idle', number: `${prefix}${idNum}`,
       fontSize: type === 'text' ? 24 : undefined
     };
@@ -548,6 +568,50 @@ ${inputText || "Generate from attachment"}
     savePresetPrompts(presetPrompts, newIndex);
   };
 
+  // Template Management handlers
+  const handleOpenTemplateManager = () => {
+    setShowTemplateManager(true);
+  };
+
+  const handleCloseTemplateManager = () => {
+    setShowTemplateManager(false);
+  };
+
+  const getCurrentCanvasState = (): CanvasState => {
+    // Convert basic connections to enhanced connections
+    const enhancedConnections = connections.map(conn => 
+      connectionEngine.getEnhancedConnection(conn.id) || {
+        ...conn,
+        dataFlow: {
+          enabled: true,
+          lastUpdate: Date.now(),
+          dataType: 'text' as const,
+          lastData: undefined
+        }
+      }
+    );
+
+    return {
+      blocks: [...blocks],
+      connections: enhancedConnections,
+      settings: {
+        zoom,
+        pan: { ...pan }
+      }
+    };
+  };
+
+  const handleLoadTemplate = (canvasState: CanvasState) => {
+    setBlocks(canvasState.blocks);
+    setConnections(canvasState.connections);
+    setZoom(canvasState.settings.zoom);
+    setPan(canvasState.settings.pan);
+    setSelectedIds([]);
+    
+    // Update connection engine with loaded connections
+    connectionEngine.updateConnections(canvasState.connections);
+  };
+
   const getSelectedPromptContent = (): string | null => {
     if (selectedPromptIndex !== null && presetPrompts[selectedPromptIndex]) {
       return presetPrompts[selectedPromptIndex].content;
@@ -628,11 +692,46 @@ ${inputText || "Generate from attachment"}
       {/* Header */}
       <header className={`fixed top-0 left-0 right-0 h-28 flex items-center justify-between px-16 z-[300] border-b-2 backdrop-blur-3xl ${theme === 'dark' ? 'bg-slate-900/80 border-white/5' : 'bg-white/80 border-black/5 shadow-sm'}`}>
         <div className="flex items-center gap-8">
-           <div className="w-14 h-14 bg-amber-500 rounded-2xl flex items-center justify-center text-white shadow-2xl rotate-3"><LayoutGrid size={28} strokeWidth={3} /></div>
-           <h1 className="font-black text-2xl uppercase tracking-tighter">Creative <span className="text-amber-500">Center</span></h1>
+           <div className="flex items-center justify-center">
+             <svg width="48" height="48" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+               {/* 背景圆形 - 浅灰色 */}
+               <circle cx="16" cy="16" r="15" fill="#f8fafc" stroke="#8b5cf6" strokeWidth="1"/>
+               
+               {/* 眼睛轮廓 - 紫色流畅曲线构成上下眼睑 */}
+               <path d="M6 16c0-6 4.5-10 10-10s10 4 10 10" stroke="#8b5cf6" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+               <path d="M6 16c0 6 4.5 10 10 10s10-4 10-10" stroke="#8b5cf6" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+               
+               {/* 眼睛内部白色椭圆区域 */}
+               <ellipse cx="16" cy="16" rx="7" ry="5" fill="white"/>
+               
+               {/* 虹膜 - 紫色半透明圆环 */}
+               <circle cx="16" cy="16" r="4" fill="#8b5cf6" fillOpacity="0.2" stroke="#8b5cf6" strokeWidth="1"/>
+               
+               {/* 瞳孔 - 深蓝色圆形 */}
+               <circle cx="16" cy="16" r="2.5" fill="#1e40af"/>
+               
+               {/* 高光点 - 白色装饰点 */}
+               <circle cx="17.5" cy="14.5" r="1" fill="white"/>
+               
+               {/* 左右两侧对称曲线装饰 */}
+               <path d="M3 12c2-1.5 4-1.5 6 0" stroke="#8b5cf6" strokeWidth="2" fill="none" strokeLinecap="round"/>
+               <path d="M3 20c2 1.5 4 1.5 6 0" stroke="#8b5cf6" strokeWidth="2" fill="none" strokeLinecap="round"/>
+               <path d="M23 12c2-1.5 4-1.5 6 0" stroke="#8b5cf6" strokeWidth="2" fill="none" strokeLinecap="round"/>
+               <path d="M23 20c2 1.5 4 1.5 6 0" stroke="#8b5cf6" strokeWidth="2" fill="none" strokeLinecap="round"/>
+             </svg>
+           </div>
+           <h1 className="font-black text-2xl uppercase tracking-tighter">AUTO <span className="text-amber-500">CANVAS</span></h1>
         </div>
 
         <div className="flex items-center gap-6">
+           <button 
+            onClick={handleOpenTemplateManager} 
+            className={`p-5 rounded-2xl border-2 transition-all flex items-center gap-3 ${theme === 'dark' ? 'bg-white/5 border-white/5 hover:bg-blue-500/20 text-blue-500' : 'bg-white border-black/5 hover:shadow-xl text-blue-600'}`}
+           >
+             <FolderOpen size={24} strokeWidth={3} />
+             <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">{lang === 'zh' ? '模板' : 'Templates'}</span>
+           </button>
+           
            <button 
             onClick={() => setShowConfig(true)} 
             className={`p-5 rounded-2xl border-2 transition-all flex items-center gap-3 ${theme === 'dark' ? 'bg-white/5 border-white/5 hover:bg-amber-500/20 text-amber-500' : 'bg-white border-black/5 hover:shadow-xl text-amber-600'}`}
@@ -669,7 +768,7 @@ ${inputText || "Generate from attachment"}
               <div className="flex-1 p-16 overflow-y-auto scrollbar-hide">
                  <div className="flex items-center justify-between mb-12">
                     <h2 className="text-4xl font-black uppercase tracking-tighter">{t.configure} <span className="text-amber-500">{activeConfigTab} Engine</span></h2>
-                    <div className="px-4 py-2 bg-green-500/10 text-green-500 rounded-full text-[10px] font-black flex items-center gap-2 border border-green-500/20"><ShieldCheck size={12} /> {t.active}</div>
+                    <div className="px-4 py-2 bg-green-500/10 text-green-500 rounded-3xl text-[10px] font-black flex items-center gap-2 border border-green-500/20"><ShieldCheck size={12} /> {t.active}</div>
                  </div>
                  
                  <APIProviderConfig
@@ -703,7 +802,7 @@ ${inputText || "Generate from attachment"}
         
         <div className="w-16 h-px bg-slate-300/30" />
         
-        <button onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} className="p-6 text-slate-400 hover:text-amber-500 transition-all" title={t.ctxReset}><RotateCcw size={28} /></button>
+        <button onClick={() => { setZoom(0.5); setPan({ x: 0, y: 0 }); }} className="p-6 text-slate-400 hover:text-amber-500 transition-all" title={t.ctxReset}><RotateCcw size={28} /></button>
       </aside>
 
       <main className="flex-1 h-full pt-28 pl-44" style={{ marginRight: showSidebar ? sidebarWidth : 0 }}>
@@ -727,7 +826,7 @@ ${inputText || "Generate from attachment"}
           <div className="p-8 border-b-2 border-black/5 flex flex-col gap-4">
              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3"><BrainCircuit className="text-amber-500" /> <h2 className="font-black text-lg uppercase tracking-widest">{t.aiAssistant}</h2></div>
-                <button onClick={() => setShowSidebar(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-slate-400"><X size={20} /></button>
+                <button onClick={() => setShowSidebar(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-2xl text-slate-400"><X size={20} /></button>
              </div>
           </div>
 
@@ -742,7 +841,7 @@ ${inputText || "Generate from attachment"}
               <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2`}>
                 <div className={`max-w-[95%] p-6 rounded-[2rem] shadow-xl border-2 ${msg.role === 'user' ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}>
                   {msg.attachmentName && msg.role === 'user' && (
-                    <div className="mb-3 px-3 py-1 bg-white/10 rounded-lg border border-white/5 text-[9px] font-black uppercase flex items-center gap-2">
+                    <div className="mb-3 px-3 py-1 bg-white/10 rounded-2xl border border-white/5 text-[9px] font-black uppercase flex items-center gap-2">
                       {msg.attachmentContent?.startsWith('data:image') ? <ImageIcon size={14} /> : <FileText size={14} />}
                       <span className="truncate max-w-[150px]">{msg.attachmentName}</span>
                     </div>
@@ -781,21 +880,21 @@ ${inputText || "Generate from attachment"}
               {pendingChatImage && (
                 <div className="relative w-20 h-20 rounded-xl overflow-hidden border-4 border-amber-500 shadow-xl animate-in zoom-in">
                   <img src={pendingChatImage} className="w-full h-full object-cover" />
-                  <button onClick={() => setPendingChatImage(null)} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"><X size={10} /></button>
+                  <button onClick={() => setPendingChatImage(null)} className="absolute top-1 right-1 bg-red-500 text-white rounded-2xl p-1"><X size={10} /></button>
                 </div>
               )}
               {pendingChatFile && (
                 <div className="h-20 px-4 rounded-xl bg-blue-500/10 border-2 border-blue-500/30 flex items-center gap-3 animate-in slide-in-from-left">
                   <FileText className="text-blue-500" size={18} />
                   <span className="text-[9px] font-black uppercase text-blue-700 max-w-[80px] truncate">{pendingChatFile.name}</span>
-                  <button onClick={() => setPendingChatFile(null)} className="bg-red-500 text-white rounded-full p-1"><X size={10} /></button>
+                  <button onClick={() => setPendingChatFile(null)} className="bg-red-500 text-white rounded-2xl p-1"><X size={10} /></button>
                 </div>
               )}
             </div>
 
-            <div className="flex items-center gap-2 mb-6 p-1 bg-black/5 rounded-2xl w-fit">
+            <div className={`flex items-center gap-2 mb-6 p-1 rounded-2xl w-fit ${theme === 'dark' ? 'bg-white/5' : 'bg-black/5'}`}>
               {(['text', 'image', 'video'] as BlockType[]).map(mode => (
-                <button key={mode} onClick={() => setChatMode(mode)} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${chatMode === mode ? 'bg-white shadow-md text-amber-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                <button key={mode} onClick={() => setChatMode(mode)} className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${chatMode === mode ? (theme === 'dark' ? 'bg-slate-700 shadow-md text-amber-400' : 'bg-white shadow-md text-amber-600') : (theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-400 hover:text-slate-600')}`}>
                    {mode === 'text' ? t.addText.split('模块')[0] : mode === 'image' ? t.addImage.split('模块')[0] : t.addVideo.split('模块')[0]}
                 </button>
               ))}
@@ -863,6 +962,17 @@ ${inputText || "Generate from attachment"}
           onSave={handleSavePresetPrompts}
           onSelect={handleSelectPresetPrompt}
           theme={theme}
+          lang={lang}
+        />
+      )}
+
+      {/* Template Manager Modal */}
+      {showTemplateManager && (
+        <TemplateManager
+          isOpen={showTemplateManager}
+          onClose={handleCloseTemplateManager}
+          currentCanvas={getCurrentCanvasState()}
+          onLoadTemplate={handleLoadTemplate}
           lang={lang}
         />
       )}
