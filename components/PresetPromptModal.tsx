@@ -39,7 +39,7 @@ const PresetPromptModal: React.FC<PresetPromptModalProps> = ({
       cancel: '取消',
       emptySlot: '空槽位',
       promptSlot: '提示词槽位',
-      tooLong: '提示词内容不能超过2000字符',
+      tooLong: '提示词内容不能超过3000字符',
       selectPrompt: '选择提示词'
     },
     en: {
@@ -50,7 +50,7 @@ const PresetPromptModal: React.FC<PresetPromptModalProps> = ({
       cancel: 'Cancel',
       emptySlot: 'Empty Slot',
       promptSlot: 'Prompt Slot',
-      tooLong: 'Prompt content cannot exceed 2000 characters',
+      tooLong: 'Prompt content cannot exceed 3000 characters',
       selectPrompt: 'Select Prompt'
     }
   }[lang];
@@ -117,8 +117,8 @@ const PresetPromptModal: React.FC<PresetPromptModalProps> = ({
   };
 
   const handleContentChange = (content: string) => {
-    // Enforce 2000 character limit
-    if (content.length > 2000) {
+    // Enforce 3000 character limit
+    if (content.length > 3000) {
       return;
     }
     
@@ -249,20 +249,25 @@ const PresetPromptModal: React.FC<PresetPromptModalProps> = ({
                         onChange={(e) => handleContentChange(e.target.value)}
                         placeholder={t.placeholder}
                         className={`
-                          flex-1 w-full p-3 rounded-xl border resize-none text-sm
+                          flex-1 w-full p-4 rounded-xl border-2 resize-none text-sm
                           ${theme === 'dark'
-                            ? 'bg-white/10 border-white/20 text-white placeholder-white/50'
-                            : 'bg-white border-black/20 text-black placeholder-black/50'
+                            ? 'bg-white/10 border-amber-400 text-white placeholder-white/50'
+                            : 'bg-white border-amber-500 text-black placeholder-black/50'
                           }
                           focus:outline-none focus:ring-2 focus:ring-blue-500
                         `}
-                        rows={6}
+                        rows={1}
+                        onInput={(e) => {
+                          const textarea = e.target as HTMLTextAreaElement;
+                          textarea.style.height = 'auto';
+                          textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+                        }}
                       />
                       <div className={`mt-2 text-xs flex justify-between items-center ${
-                        characterCount > 1800 ? 'text-red-500' : theme === 'dark' ? 'text-white/60' : 'text-black/60'
+                        characterCount > 2700 ? 'text-red-500' : theme === 'dark' ? 'text-white/60' : 'text-black/60'
                       }`}>
-                        <span>{t.characterCount}: {characterCount}/2000</span>
-                        {characterCount > 2000 && (
+                        <span>{t.characterCount}: {characterCount}/3000</span>
+                        {characterCount > 3000 && (
                           <span className="text-red-500 font-bold">{t.tooLong}</span>
                         )}
                       </div>

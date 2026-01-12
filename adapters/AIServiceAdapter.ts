@@ -15,7 +15,7 @@ import { ProviderSettings, ModelConfig } from '../types.js';
 export interface AIServiceAdapter {
   generateText(contents: any, settings: ProviderSettings): Promise<string>;
   generateImage(contents: any, settings: ProviderSettings): Promise<string>;
-  generateVideo(prompt: string, settings: ProviderSettings): Promise<string>;
+  generateVideo(contents: any, settings: ProviderSettings): Promise<string>;
   testConnection(settings: ProviderSettings): Promise<boolean>;
 }
 
@@ -145,18 +145,38 @@ export class MultiProviderAIService implements AIServiceAdapter {
   /**
    * 扩展视频生成
    */
-  async generateVideo(prompt: string, settings: ProviderSettings): Promise<string> {
+  async generateVideo(contents: any, settings: ProviderSettings): Promise<string> {
     this.initializeProviders(settings);
+    
+    // 从contents中提取文字提示和图片
+    let prompt = '';
+    let referenceImage = '';
+    
+    if (contents && contents.parts) {
+      contents.parts.forEach((part: any) => {
+        if (part.text) {
+          prompt += part.text;
+        } else if (part.inlineData) {
+          // 从inlineData中获取图片数据
+          referenceImage = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+        }
+      });
+    } else {
+      // 兼容旧的调用方式
+      prompt = contents;
+    }
 
     if (settings.provider === 'shenma' && this.shenmaService) {
       return await this.shenmaService.generateVideo(prompt, {
-        aspectRatio: '16:9'
+        aspectRatio: '16:9',
+        referenceImage: referenceImage
       });
     }
 
     if (settings.provider === 'zhipu' && this.zhipuService) {
       const result = await this.zhipuService.generateVideo(prompt, {
-        duration: 10
+        duration: 10,
+        imageUrl: referenceImage
       });
       
       // 处理异步视频生成

@@ -79,12 +79,26 @@ export class ShenmaService {
     
     const endpoint = `${this.config.baseUrl}/v1/chat/completions`;
     
+    // 处理文件附件
+    let processedPrompt = prompt;
+    
+    // 检测是否包含Word或PDF文件引用
+    if (prompt.includes('[Word文件内容将通过AI服务解析]') || prompt.includes('[PDF文件内容将通过AI服务解析]')) {
+      // 提取文件名
+      const fileNameMatch = prompt.match(/Generate from attachment:\s*([^\n]+)/i) || prompt.match(/\[(Word|PDF)文件内容将通过AI服务解析\]/);
+      if (fileNameMatch) {
+        const fileName = fileNameMatch[1] || '文件';
+        // 修改提示，让AI知道这是文件内容请求
+        processedPrompt = `请告诉我如何解析这个${prompt.includes('Word') ? 'Word' : 'PDF'}文件: ${fileName}\n\n用户想要：${prompt.replace(/\[.*?\]/g, '').replace('Generate from attachment', '').trim()}`;
+      }
+    }
+    
     const requestBody = {
-      model: this.config.llmModel || 'gpt-4o', // 修正为正确的默认模型
+      model: this.config.llmModel || 'gpt-4o', // 神马AI的标准对话模型
       messages: [
         {
           role: 'user',
-          content: prompt
+          content: processedPrompt
         }
       ],
       temperature: options?.temperature || 0.7,

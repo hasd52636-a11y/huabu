@@ -62,9 +62,9 @@ const APIProviderConfig: React.FC<APIProviderConfigProps> = ({
         video: 'CogVideoX-Flash'
       },
       shenmaModels: {
-        text: '对话模型',
+        text: 'gpt-4o, gpt-4o-mini',
         image: 'nano-banana',
-        video: 'sora2'
+        video: 'sora_video2'
       }
     },
     en: {
@@ -103,9 +103,9 @@ const APIProviderConfig: React.FC<APIProviderConfigProps> = ({
         video: 'CogVideoX-Flash'
       },
       shenmaModels: {
-        text: 'Chat Model',
+        text: 'gpt-4o, gpt-4o-mini',
         image: 'nano-banana',
-        video: 'sora2'
+        video: 'sora_video2'
       }
     }
   }[lang];
@@ -146,9 +146,9 @@ const APIProviderConfig: React.FC<APIProviderConfigProps> = ({
         video: 'CogVideoX-Flash'
       },
       shenma: {
-        text: 'chat',
+        text: 'gpt-4o',
         image: 'nano-banana',
-        video: 'sora2'
+        video: 'sora_video2'
       }
     };
     return defaults[provider][type];

@@ -1,0 +1,408 @@
+/* 浏览器兼容性样式和重置 */
+
+/* ========================================================================== */
+/* 基础重置样式 */
+/* ========================================================================== */
+
+/* CSS Reset - 确保跨浏览器一致性 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* HTML5 元素显示修复 */
+article, aside, details, figcaption, figure, footer, header, hgroup, menu, nav, section {
+  display: block;
+}
+
+/* 图片和媒体元素修复 */
+img {
+  max-width: 100%;
+  height: auto;
+  border: 0;
+}
+
+video, audio, canvas {
+  display: inline-block;
+  max-width: 100%;
+}
+
+/* 表单元素修复 */
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* 表格修复 */
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+/* 列表修复 */
+ul, ol {
+  list-style: none;
+}
+
+/* ========================================================================== */
+/* 浏览器兼容性修复 */
+/* ========================================================================== */
+
+/* 盒模型修复（IE8及以下） */
+.ie8 * {
+  box-sizing: content-box;
+}
+
+/* Flexbox 兼容性 */
+@supports not (display: flex) {
+  .flex {
+    display: inline-block;
+  }
+
+  .flex-col {
+    display: block;
+  }
+
+  .justify-between {
+    text-align: justify;
+  }
+
+  .justify-between:after {
+    content: '';
+    display: inline-block;
+    width: 100%;
+  }
+
+  .items-center {
+    vertical-align: middle;
+  }
+}
+
+/* Grid 兼容性 */
+@supports not (display: grid) {
+  .grid {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .grid-cols-2 > * {
+    width: 50%;
+  }
+
+  .grid-cols-3 > * {
+    width: 33.333%;
+  }
+
+  .grid-cols-4 > * {
+    width: 25%;
+  }
+}
+
+/* 变量兼容性（使用Sass或PostCSS变量的回退） */
+:root {
+  --primary-color: #3b82f6;
+  --secondary-color: #6b7280;
+  --background-color: #ffffff;
+  --text-color: #111827;
+  --border-color: #e5e7eb;
+}
+
+.dark {
+  --primary-color: #60a5fa;
+  --secondary-color: #9ca3af;
+  --background-color: #1f2937;
+  --text-color: #f9fafb;
+  --border-color: #374151;
+}
+
+/* 回退到具体颜色值 */
+.bg-blue-600 {
+  background-color: var(--primary-color, #3b82f6);
+}
+
+.text-gray-800 {
+  color: var(--text-color, #111827);
+}
+
+.border-gray-200 {
+  border-color: var(--border-color, #e5e7eb);
+}
+
+/* ========================================================================== */
+/* 旧版浏览器特定修复 */
+/* ========================================================================== */
+
+/* IE11 修复 */
+@media all and (-ms-high-contrast: none), (-ms-high-contrast: active) {
+  /* IE11 Flexbox 修复 */
+  .flex {
+    display: -ms-flexbox;
+    display: flex;
+  }
+
+  .flex-col {
+    -ms-flex-direction: column;
+    flex-direction: column;
+  }
+
+  .justify-between {
+    -ms-flex-pack: justify;
+    justify-content: space-between;
+  }
+
+  .items-center {
+    -ms-flex-align: center;
+    align-items: center;
+  }
+
+  /* IE11 Grid 修复 */
+  .grid {
+    display: -ms-grid;
+    display: grid;
+  }
+
+  /* IE11 滚动修复 */
+  .overflow-auto {
+    -ms-overflow-style: scrollbar;
+  }
+
+  /* IE11 透明度修复 */
+  .opacity-50 {
+    -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=50)";
+    filter: alpha(opacity=50);
+  }
+}
+
+/* Firefox 特定修复 */
+@-moz-document url-prefix() {
+  /* Firefox 滚动条修复 */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+  }
+}
+
+/* Safari 特定修复 */
+@supports (-webkit-hyphens: none) {
+  /* Safari 渐变修复 */
+  .bg-gradient-to-r {
+    background: -webkit-linear-gradient(left, var(--primary-color), var(--secondary-color));
+  }
+
+  /* Safari 弹性盒修复 */
+  .flex-grow {
+    -webkit-box-flex: 1;
+    -webkit-flex-grow: 1;
+    flex-grow: 1;
+  }
+
+  /* Safari 固定定位修复 */
+  .fixed {
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+}
+
+/* ========================================================================== */
+/* 响应式设计兼容性 */
+/* ========================================================================== */
+
+/* 旧版浏览器媒体查询修复 */
+@-ms-viewport {
+  width: device-width;
+}
+
+@viewport {
+  width: device-width;
+}
+
+/* 触摸设备修复 */
+@media (hover: none) and (pointer: coarse) {
+  /* 触摸设备上的按钮样式 */
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* 触摸设备上的滚动修复 */
+  .overflow-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ========================================================================== */
+/* 与现有项目兼容的样式 */
+/* ========================================================================== */
+
+/* 确保与现有样式不冲突 */
+#app .new-feature {
+  /* 新功能样式将不会影响现有#app下的其他元素 */
+}
+
+/* 覆盖可能的冲突样式 */
+.new-component {
+  /* 使用!important谨慎覆盖现有样式 */
+  font-family: inherit !important;
+  font-size: inherit !important;
+}
+
+/* 继承现有主题颜色 */
+.theme-aware {
+  color: inherit !important;
+  background-color: inherit !important;
+}
+
+/* 确保新组件使用现有项目的字体 */
+.new-component {
+  font-family: var(--font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif);
+}
+
+/* ========================================================================== */
+/* CSS变量兼容性 */
+/* ========================================================================== */
+
+/* 确保CSS变量在旧版浏览器中正常工作 */
+@supports not (--css: variables) {
+  /* 回退到硬编码颜色值 */
+  .bg-white {
+    background-color: #ffffff;
+  }
+
+  .text-gray-800 {
+    color: #1f2937;
+  }
+
+  .dark .bg-gray-800 {
+    background-color: #1f2937;
+  }
+
+  .dark .text-white {
+    color: #ffffff;
+  }
+}
+
+/* ========================================================================== */
+/* 性能优化 */
+/* ========================================================================== */
+
+/* 减少重绘和重排 */
+.transform {
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* 避免布局抖动 */
+.aspect-ratio-container {
+  position: relative;
+  padding-bottom: 56.25%; /* 16:9 */
+  height: 0;
+}
+
+.aspect-ratio-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ========================================================================== */
+/* 高对比度模式支持 */
+/* ========================================================================== */
+
+@media (prefers-contrast: high) {
+  /* 增加对比度 */
+  .btn-primary {
+    background-color: #0066cc !important;
+    color: white !important;
+  }
+
+  .card {
+    border: 2px solid currentColor !important;
+  }
+
+  /* 确保文本可见 */
+  .text-sm {
+    font-size: 0.9rem !important;
+  }
+}
+
+/* ========================================================================== */
+/* 减少动画模式支持 */
+/* ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  /* 禁用或简化动画 */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* 简化过渡效果 */
+  .transition-colors {
+    transition: none !important;
+  }
+}
+
+/* ========================================================================== */
+/* 辅助功能支持 */
+/* ========================================================================== */
+
+/* 确保焦点样式可见 */
+:focus {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+/* 高对比度焦点样式 */
+@media (prefers-contrast: high) {
+  :focus {
+    outline: 3px solid var(--primary-color);
+  }
+}
+
+/* 屏幕阅读器支持 */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* 打印样式兼容性 */
+@media print {
+  /* 确保在所有浏览器中正确打印 */
+  * {
+    background: transparent !important;
+    color: black !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* 确保链接可打印 */
+  a,
+  a:visited {
+    text-decoration: underline;
+  }
+
+  a[href]:after {
+    content: " (" attr(href) ")";
+  }
+
+  /* 隐藏非打印元素 */
+  .no-print,
+  nav,
+  footer {
+    display: none !important;
+  }
+}

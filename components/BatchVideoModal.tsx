@@ -5,7 +5,8 @@ import {
   RefreshCw, CheckCircle, XCircle, Info, AlertCircle
 } from 'lucide-react';
 import { Block, BatchConfig } from '../types';
-import ErrorHandler, { ErrorInfo, ErrorLog } from '../services/ErrorHandler';
+import { ErrorHandler } from '../services/ErrorHandler';
+import { ErrorInfo, ExecutionError } from '../types';
 
 interface FrameData {
   id: string;
@@ -971,16 +972,20 @@ const BatchVideoModal: React.FC<BatchVideoModalProps> = ({
                       value={videoPrompts[block.id] || ''}
                       onChange={(e) => handlePromptChange(block.id, e.target.value)}
                       placeholder={lang === 'zh' ? '输入视频生成提示词...' : 'Enter video generation prompt...'}
-                      className={`w-full px-3 py-2 rounded-lg border text-sm resize-none ${
-                        validationErrors[`prompt_${block.id}`]
-                          ? theme === 'dark'
-                            ? 'bg-slate-600 border-red-400 text-white placeholder-slate-400 focus:border-red-400'
-                            : 'bg-white border-red-500 text-black placeholder-slate-500 focus:border-red-500'
-                          : theme === 'dark'
-                            ? 'bg-slate-600 border-white/20 text-white placeholder-slate-400 focus:border-purple-400'
-                            : 'bg-white border-black/20 text-black placeholder-slate-500 focus:border-purple-500'
+                      className={`w-full px-4 py-3 rounded-xl border-2 text-sm resize-none ${validationErrors[`prompt_${block.id}`]
+                        ? theme === 'dark'
+                          ? 'bg-slate-600 border-red-400 text-white placeholder-slate-400 focus:border-red-400'
+                          : 'bg-white border-red-500 text-black placeholder-slate-500 focus:border-red-500'
+                        : theme === 'dark'
+                          ? 'bg-slate-600 border-amber-400 text-white placeholder-slate-400 focus:border-purple-400'
+                          : 'bg-white border-amber-500 text-black placeholder-slate-500 focus:border-purple-500'
                       } focus:outline-none focus:ring-2 focus:ring-purple-500/20`}
-                      rows={3}
+                      rows={1}
+                      onInput={(e) => {
+                        const textarea = e.target as HTMLTextAreaElement;
+                        textarea.style.height = 'auto';
+                        textarea.style.height = `${Math.min(textarea.scrollHeight, 300)}px`;
+                      }}
                     />
                     {validationErrors[`prompt_${block.id}`] && (
                       <p className={`text-xs mt-1 ${
@@ -1175,7 +1180,7 @@ const BatchVideoModal: React.FC<BatchVideoModalProps> = ({
                   step="500"
                   value={config.processingInterval}
                   onChange={(e) => setConfig(prev => ({ ...prev, processingInterval: Number(e.target.value) }))}
-                  className={`w-full px-3 py-2 rounded-lg border text-sm ${
+                  className={`w-full px-2 py-1 border-b border-l border-r rounded-t text-sm ${
                     validationErrors.interval
                       ? theme === 'dark'
                         ? 'bg-slate-600 border-red-400 text-white'
@@ -1210,7 +1215,7 @@ const BatchVideoModal: React.FC<BatchVideoModalProps> = ({
                   max="10"
                   value={config.maxRetries}
                   onChange={(e) => setConfig(prev => ({ ...prev, maxRetries: Number(e.target.value) }))}
-                  className={`w-full px-3 py-2 rounded-lg border text-sm ${
+                  className={`w-full px-2 py-1 border-b border-l border-r rounded-t text-sm ${
                     validationErrors.maxRetries
                       ? theme === 'dark'
                         ? 'bg-slate-600 border-red-400 text-white'
@@ -1246,7 +1251,7 @@ const BatchVideoModal: React.FC<BatchVideoModalProps> = ({
                   value={config.downloadPath || ''}
                   onChange={(e) => setConfig(prev => ({ ...prev, downloadPath: e.target.value }))}
                   placeholder={text.downloadPathHint}
-                  className={`flex-1 px-3 py-2 rounded-lg border text-sm ${
+                  className={`flex-1 px-2 py-1 border-b border-l border-r rounded-t text-sm ${
                     validationErrors.downloadPath
                       ? theme === 'dark'
                         ? 'bg-slate-600 border-red-400 text-white placeholder-slate-400'

@@ -237,6 +237,52 @@ export interface Connection {
   instruction: string;
 }
 
+// Enhanced Connection interface for automation data flow
+export interface EnhancedConnection extends Connection {
+  dataFlow: {
+    enabled: boolean;
+    lastUpdate: number;
+    dataType: 'text' | 'image' | 'video';
+    lastData?: string; // Cache of last transmitted data
+  };
+}
+
+// Data structure for block output/input
+export interface BlockData {
+  blockId: string;
+  blockNumber: string;
+  content: string;
+  type: BlockType;
+  timestamp: number;
+}
+
+// Variable reference for prompt enhancement
+export interface VariableReference {
+  variable: string;        // e.g., "[A01]"
+  blockNumber: string;     // e.g., "A01"
+  position: [number, number]; // start, end positions in text
+}
+
+// Validation result for connections and variables
+export interface ValidationResult {
+  isValid: boolean;
+  errors: ValidationError[];
+  warnings: ValidationWarning[];
+}
+
+export interface ValidationError {
+  type: 'circular_dependency' | 'invalid_variable' | 'missing_block' | 'type_mismatch';
+  message: string;
+  blockId?: string;
+  connectionId?: string;
+}
+
+export interface ValidationWarning {
+  type: 'performance' | 'compatibility' | 'best_practice';
+  message: string;
+  blockId?: string;
+}
+
 export interface AppState {
   blocks: Block[];
   connections: Connection[];
@@ -268,4 +314,229 @@ export interface PresetPromptStorage {
   prompts: PresetPrompt[];
   selectedIndex: number | null;
   lastUpdated: Date;
+}
+
+// Template Management types for automation
+export interface Template {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  canvasState: CanvasState;
+  metadata: {
+    blockCount: number;
+    connectionCount: number;
+    hasFileInput: boolean;
+  };
+}
+
+export interface CanvasState {
+  blocks: Block[];
+  connections: EnhancedConnection[];
+  settings: {
+    zoom: number;
+    pan: { x: number; y: number };
+  };
+  attachments?: AttachmentData[];
+}
+
+export interface AttachmentData {
+  id: string;
+  name: string;
+  type: 'text' | 'image';
+  content: string;
+  size: number;
+}
+
+export interface TemplateStorage {
+  version: string;
+  templates: Template[];
+  lastUpdated: Date;
+}
+// Execution History types for automation
+export interface ExecutionRecord {
+  id: string;
+  templateId?: string;
+  templateName: string;
+  executionType: 'manual' | 'scheduled' | 'batch';
+  startTime: number;
+  endTime?: number;
+  duration?: number;
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  totalBlocks: number;
+  completedBlocks: number;
+  failedBlocks: number;
+  skippedBlocks: number;
+  results: ExecutionBlockResult[];
+  configuration: ExecutionConfiguration;
+  error?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface ExecutionBlockResult {
+  blockId: string;
+  blockNumber: string;
+  blockType: 'text' | 'image' | 'video';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  startTime?: number;
+  endTime?: number;
+  duration?: number;
+  input?: string;
+  output?: string;
+  outputUrl?: string;
+  error?: string;
+  retryCount?: number;
+}
+
+export interface ExecutionConfiguration {
+  templateId?: string;
+  batchInputs?: string[];
+  variables?: Record<string, string>;
+  scheduledTime?: number;
+  downloadConfig?: {
+    enabled: boolean;
+    directory?: string;
+    organizationPattern?: string;
+  };
+  retryConfig?: {
+    maxRetries: number;
+    retryDelay: number;
+  };
+}
+
+export interface ExecutionStatistics {
+  totalExecutions: number;
+  completedExecutions: number;
+  failedExecutions: number;
+  cancelledExecutions: number;
+  averageDuration: number;
+  totalBlocksProcessed: number;
+  successRate: number;
+  mostUsedTemplates: Array<{ templateName: string; count: number }>;
+  executionsByType: Record<string, number>;
+  executionsByDay: Array<{ date: string; count: number }>;
+}
+
+export interface HistoryFilter {
+  templateId?: string;
+  templateName?: string;
+  executionType?: 'manual' | 'scheduled' | 'batch';
+  status?: 'running' | 'completed' | 'failed' | 'cancelled';
+  dateRange?: {
+    start: number;
+    end: number;
+  };
+  limit?: number;
+  offset?: number;
+}
+// Error Handling Types
+export type ErrorType = 'network' | 'api' | 'rate_limit' | 'validation' | 'system';
+
+export interface ErrorInfo {
+  type: ErrorType;
+  message: string;
+  stack?: string;
+  context: {
+    blockId: string;
+    executionId: string;
+    operation: string;
+    attempt: number;
+  };
+  timestamp: number;
+  recoverable: boolean;
+}
+
+export interface RetryPolicy {
+  maxRetries: number;
+  baseDelay: number;
+  maxDelay: number;
+  backoffMultiplier: number;
+  jitter: boolean;
+}
+
+export interface ExecutionError {
+  blockId: string;
+  message: string;
+  timestamp: number;
+  type?: ErrorType;
+  context?: string;
+  stack?: string;
+}
+
+// Resource Management Types
+export interface ResourceUsage {
+  memory: number; // MB
+  cpu: number; // percentage
+  activeConnections: number;
+}
+
+export interface ResourceLimits {
+  maxMemory: number;
+  maxCpu: number;
+  maxConnections: number;
+  maxConcurrentExecutions: number;
+  apiRateLimit: number; // requests per minute
+}
+
+export interface ResourceAllocation {
+  executionId: string;
+  allocatedResources: ResourceUsage;
+  priority: ExecutionPriority;
+  timestamp: number;
+}
+
+export type ExecutionPriority = 'low' | 'normal' | 'high';
+
+// Security and Privacy Types
+export interface SecurityConfig {
+  localProcessingOnly: boolean;
+  autoCleanup: boolean;
+  encryptSensitiveData: boolean;
+  secureNetworkOnly: boolean;
+  dataRetentionDays: number;
+}
+
+export interface EncryptionKey {
+  id: string;
+  key: string;
+  algorithm: string;
+  created: number;
+}
+
+export interface SecureData {
+  encrypted: boolean;
+  data: string;
+  classification: DataClassification;
+  timestamp: number;
+}
+
+export type DataClassification = 'public' | 'personal' | 'sensitive';
+
+// State Management Types for Recovery
+export interface ExecutionState {
+  id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  currentBlockId: string;
+  completedBlocks: string[];
+  progress: number;
+  startTime: number;
+  variables: Record<string, any>;
+  errors: ExecutionError[];
+}
+
+export interface WorkflowState {
+  id: string;
+  blocks: Block[];
+  connections: EnhancedConnection[];
+  variables: Record<string, any>;
+  lastModified: number;
+}
+
+export interface AutomationState {
+  isRunning: boolean;
+  currentExecution?: string;
+  queuedExecutions: string[];
+  activeSchedules: string[];
+  resourceUsage: ResourceUsage;
 }

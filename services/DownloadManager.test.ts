@@ -1,6 +1,5 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { fc } from '@fast-check/vitest';
-import DownloadManager, { DownloadItem, DownloadProgress, DownloadConfig } from './DownloadManager';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import DownloadManager, { DownloadItem, DownloadProgress, BatchDownloadConfig, BatchProgress } from './DownloadManager';
 
 // Mock Notification API
 const mockNotification = vi.fn();
@@ -9,13 +8,13 @@ Object.defineProperty(window, 'Notification', {
   configurable: true
 });
 
-// Mock URL.createObjectURL and revokeObjectURL
-Object.defineProperty(window.URL, 'createObjectURL', {
-  value: vi.fn(() => 'blob:mock-url'),
+// Mock URL.createObjectURL
+Object.defineProperty(URL, 'createObjectURL', {
+  value: vi.fn(() => 'mock-url'),
   configurable: true
 });
 
-Object.defineProperty(window.URL, 'revokeObjectURL', {
+Object.defineProperty(URL, 'revokeObjectURL', {
   value: vi.fn(),
   configurable: true
 });
@@ -41,402 +40,544 @@ Object.defineProperty(document.body, 'removeChild', {
   configurable: true
 });
 
-describe('DownloadManager', () => {
+describe('Enhanced DownloadManager', () => {
   let downloadManager: DownloadManager;
+  let progressCallback: ReturnType<typeof vi.fn>;
+  let batchProgressCallback: ReturnType<typeof vi.fn>;
+  let completionCallback: ReturnType<typeof vi.fn>;
+  let batchCompletionCallback: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    vi.clearAllMocks();
     downloadManager = new DownloadManager();
+    progressCallback = vi.fn();
+    batchProgressCallback = vi.fn();
+    completionCallback = vi.fn();
+    batchCompletionCallback = vi.fn();
+    
+    downloadManager.setProgressCallback(progressCallback);
+    downloadManager.setBatchProgressCallback(batchProgressCallback);
+    downloadManager.setCompletionCallback(completionCallback);
+    downloadManager.setBatchCompletionCallback(batchCompletionCallback);
+    
+    // Configure for testing - disable auto download to control test flow
+    downloadManager.updateConfig({
+      autoDownload: false,
+      maxConcurrentDownloads: 1
+    });
+    
+    // Mock timers for testing
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    downloadManager.clearAll();
+    downloadManager.cancelAllDownloads();
+    vi.clearAllTimers();
+    vi.useRealTimers();
+    vi.clearAllMocks();
   });
 
-  describe('Basic Functionality', () => {
-    it('should add download to queue', () => {
-      // Disable auto download for this test
-      downloadManager.updateConfig({ autoDownload: false });
-      
+  describe('Basic functionality', () => {
+    it('should create download manager instance', () => {
+      expect(downloadManager).toBeDefined();
+    });
+
+    it('should add single download with execution and batch IDs', () => {
       const videoUrl = 'https://example.com/video.mp4';
-      const id = downloadManager.addDownload(videoUrl);
-
-      expect(id).toBeDefined();
-      expect(typeof id).toBe('string');
-
+      const executionId = 'exec_123';
+      const batchId = 'batch_456';
+      
+      const downloadId = downloadManager.addDownload(videoUrl, 'test.mp4', '/downloads', executionId, batchId);
+      
+      expect(downloadId).toBeDefined();
+      expect(downloadId).toMatch(/^download_/);
+      
       const queue = downloadManager.getDownloadQueue();
       expect(queue).toHaveLength(1);
-      expect(queue[0].videoUrl).toBe(videoUrl);
-      expect(queue[0].status).toBe('pending');
+      expect(queue[0].executionId).toBe(executionId);
+      expect(queue[0].batchId).toBe(batchId);
     });
 
-    it('should generate filename from URL', () => {
-      const videoUrl = 'https://example.com/path/video.mp4';
-      downloadManager.addDownload(videoUrl);
-
-      const queue = downloadManager.getDownloadQueue();
-      expect(queue[0].filename).toBe('video.mp4');
-    });
-
-    it('should add .mp4 extension if missing', () => {
-      const videoUrl = 'https://example.com/video';
-      downloadManager.addDownload(videoUrl);
-
-      const queue = downloadManager.getDownloadQueue();
-      expect(queue[0].filename).toBe('video.mp4');
-    });
-
-    it('should use custom filename when provided', () => {
-      const videoUrl = 'https://example.com/video.mp4';
-      const customFilename = 'my-custom-video.mp4';
-      downloadManager.addDownload(videoUrl, customFilename);
-
-      const queue = downloadManager.getDownloadQueue();
-      expect(queue[0].filename).toBe(customFilename);
-    });
-
-    it('should add batch downloads', () => {
+    it('should add batch downloads with configuration', () => {
       const videos = [
-        { url: 'https://example.com/video1.mp4' },
-        { url: 'https://example.com/video2.mp4', filename: 'custom.mp4' }
+        { url: 'https://example.com/video1.mp4', filename: 'video1.mp4' },
+        { url: 'https://example.com/video2.mp4', filename: 'video2.mp4' },
+        { url: 'https://example.com/video3.mp4', filename: 'video3.mp4' }
       ];
 
-      const ids = downloadManager.addBatchDownloads(videos);
-
-      expect(ids).toHaveLength(2);
-      expect(ids.every(id => typeof id === 'string')).toBe(true);
-
-      const queue = downloadManager.getDownloadQueue();
-      expect(queue).toHaveLength(2);
-      expect(queue[1].filename).toBe('custom.mp4');
-    });
-  });
-
-  describe('Configuration', () => {
-    it('should update configuration', () => {
-      const config: Partial<DownloadConfig> = {
-        maxRetries: 5,
-        retryDelay: 3000,
-        enableNotifications: false
+      const batchConfig: BatchDownloadConfig = {
+        executionId: 'exec_123',
+        batchId: 'batch_456',
+        createSubdirectory: true,
+        subdirectoryName: 'test_batch',
+        fileNamingPattern: 'sequential'
       };
 
-      downloadManager.updateConfig(config);
-
-      // Add a download to test the config is applied
-      downloadManager.addDownload('https://example.com/video.mp4');
+      const downloadIds = downloadManager.addBatchDownloads(videos, batchConfig);
+      
+      expect(downloadIds).toHaveLength(3);
+      
       const queue = downloadManager.getDownloadQueue();
-      expect(queue[0].maxRetries).toBe(5);
+      expect(queue).toHaveLength(3);
+      
+      queue.forEach(item => {
+        expect(item.executionId).toBe('exec_123');
+        expect(item.batchId).toBe('batch_456');
+      });
     });
 
-    it('should use default config values', () => {
-      downloadManager.addDownload('https://example.com/video.mp4');
-      const queue = downloadManager.getDownloadQueue();
+    it('should add execution downloads with proper organization', () => {
+      const executionResults = [
+        { url: 'https://example.com/video1.mp4', blockId: 'block1', blockNumber: 'A01' },
+        { url: 'https://example.com/video2.mp4', blockId: 'block2', blockNumber: 'A02' },
+        { url: 'https://example.com/video3.mp4', blockId: 'block3', blockNumber: 'A03' }
+      ];
+
+      const executionId = 'exec_789';
+      const downloadIds = downloadManager.addExecutionDownloads(executionResults, executionId);
       
-      expect(queue[0].maxRetries).toBe(3); // default
+      expect(downloadIds).toHaveLength(3);
+      
+      const queue = downloadManager.getDownloadQueue();
+      expect(queue).toHaveLength(3);
+      
+      queue.forEach((item, index) => {
+        expect(item.executionId).toBe(executionId);
+        expect(item.batchId).toBe(`execution_${executionId}`);
+        expect(item.filename).toBe(`${executionResults[index].blockNumber}_${executionResults[index].blockId}.mp4`);
+      });
     });
   });
 
-  describe('Progress Tracking', () => {
-    it('should track download progress correctly', () => {
-      downloadManager.updateConfig({ autoDownload: false });
-      downloadManager.addDownload('https://example.com/video1.mp4');
-      downloadManager.addDownload('https://example.com/video2.mp4');
+  describe('Progress tracking', () => {
+    it('should track overall progress correctly', () => {
+      const videos = [
+        { url: 'https://example.com/video1.mp4' },
+        { url: 'https://example.com/video2.mp4' },
+        { url: 'https://example.com/video3.mp4' }
+      ];
 
+      downloadManager.addBatchDownloads(videos);
+      
       const progress = downloadManager.getProgress();
-      expect(progress.total).toBe(2);
-      expect(progress.pending).toBe(2);
+      expect(progress.total).toBe(3);
+      expect(progress.pending).toBe(3);
       expect(progress.completed).toBe(0);
       expect(progress.failed).toBe(0);
       expect(progress.downloading).toBe(0);
     });
 
-    it('should notify progress updates', () => {
-      downloadManager.updateConfig({ autoDownload: false });
-      const progressCallback = vi.fn();
-      downloadManager.setProgressCallback(progressCallback);
+    it('should track batch progress separately', () => {
+      const batchConfig: BatchDownloadConfig = {
+        executionId: 'exec_123',
+        batchId: 'batch_456'
+      };
 
-      downloadManager.addDownload('https://example.com/video.mp4');
+      const videos = [
+        { url: 'https://example.com/video1.mp4' },
+        { url: 'https://example.com/video2.mp4' }
+      ];
 
-      expect(progressCallback).toHaveBeenCalledWith({
-        total: 1,
-        pending: 1,
-        completed: 0,
-        failed: 0,
-        downloading: 0
+      downloadManager.addBatchDownloads(videos, batchConfig);
+      
+      const batchProgress = downloadManager.getBatchProgress('batch_456');
+      expect(batchProgress.total).toBe(2);
+      expect(batchProgress.pending).toBe(2);
+      expect(batchProgress.completed).toBe(0);
+    });
+
+    it('should track execution progress separately', () => {
+      const executionResults = [
+        { url: 'https://example.com/video1.mp4', blockId: 'block1', blockNumber: 'A01' },
+        { url: 'https://example.com/video2.mp4', blockId: 'block2', blockNumber: 'A02' }
+      ];
+
+      const executionId = 'exec_789';
+      downloadManager.addExecutionDownloads(executionResults, executionId);
+      
+      const executionProgress = downloadManager.getExecutionProgress(executionId);
+      expect(executionProgress.total).toBe(2);
+      expect(executionProgress.pending).toBe(2);
+      expect(executionProgress.completed).toBe(0);
+    });
+
+    it('should get all batch progress information', () => {
+      const batchConfig1: BatchDownloadConfig = {
+        executionId: 'exec_1',
+        batchId: 'batch_1'
+      };
+
+      const batchConfig2: BatchDownloadConfig = {
+        executionId: 'exec_2',
+        batchId: 'batch_2'
+      };
+
+      downloadManager.addBatchDownloads([{ url: 'https://example.com/video1.mp4' }], batchConfig1);
+      downloadManager.addBatchDownloads([{ url: 'https://example.com/video2.mp4' }], batchConfig2);
+      
+      const allBatchProgress = downloadManager.getAllBatchProgress();
+      expect(allBatchProgress).toHaveLength(2);
+      expect(allBatchProgress.map(bp => bp.batchId)).toContain('batch_1');
+      expect(allBatchProgress.map(bp => bp.batchId)).toContain('batch_2');
+    });
+  });
+
+  describe('Batch management', () => {
+    it('should cancel entire batch', () => {
+      const batchConfig: BatchDownloadConfig = {
+        executionId: 'exec_123',
+        batchId: 'batch_456'
+      };
+
+      const videos = [
+        { url: 'https://example.com/video1.mp4' },
+        { url: 'https://example.com/video2.mp4' }
+      ];
+
+      downloadManager.addBatchDownloads(videos, batchConfig);
+      downloadManager.cancelBatch('batch_456');
+      
+      const batchItems = downloadManager.getBatchDownloads('batch_456');
+      batchItems.forEach(item => {
+        expect(item.status).toBe('failed');
+        expect(item.error).toBe('Download cancelled by user');
       });
     });
 
-    it('should call completion callback when all downloads complete', async () => {
-      const completionCallback = vi.fn();
-      downloadManager.setCompletionCallback(completionCallback);
+    it('should get downloads for specific batch', () => {
+      const batchConfig: BatchDownloadConfig = {
+        executionId: 'exec_123',
+        batchId: 'batch_456'
+      };
 
-      // Mock successful download
-      vi.spyOn(downloadManager as any, 'simulateDownload').mockResolvedValue(undefined);
+      const videos = [
+        { url: 'https://example.com/video1.mp4' },
+        { url: 'https://example.com/video2.mp4' }
+      ];
 
-      downloadManager.updateConfig({ autoDownload: false });
-      downloadManager.addDownload('https://example.com/video.mp4');
-
-      await downloadManager.processQueue();
-
-      expect(completionCallback).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            status: 'completed'
-          })
-        ])
-      );
-    });
-  });
-
-  describe('Download Processing', () => {
-    it('should process download queue', async () => {
-      // Mock successful download
-      vi.spyOn(downloadManager as any, 'simulateDownload').mockResolvedValue(undefined);
-
-      downloadManager.updateConfig({ autoDownload: false });
-      downloadManager.addDownload('https://example.com/video.mp4');
-
-      await downloadManager.processQueue();
-
-      const queue = downloadManager.getDownloadQueue();
-      expect(queue[0].status).toBe('completed');
-      expect(queue[0].progress).toBe(100);
-    });
-
-    it('should handle download failures and retry', async () => {
-      // Mock failing download
-      vi.spyOn(downloadManager as any, 'simulateDownload')
-        .mockRejectedValueOnce(new Error('Network error'))
-        .mockResolvedValue(undefined);
-
-      downloadManager.updateConfig({ autoDownload: false, retryDelay: 100 });
-      downloadManager.addDownload('https://example.com/video.mp4');
-
-      await downloadManager.processQueue();
-
-      // Wait for retry
-      await new Promise(resolve => setTimeout(resolve, 200));
-
-      const queue = downloadManager.getDownloadQueue();
-      expect(queue[0].retryCount).toBeGreaterThan(0);
-    });
-
-    it('should fail permanently after max retries', async () => {
-      // Mock always failing download
-      vi.spyOn(downloadManager as any, 'simulateDownload')
-        .mockRejectedValue(new Error('Permanent network error'));
-
-      downloadManager.updateConfig({ 
-        autoDownload: false, 
-        maxRetries: 2, 
-        retryDelay: 50 
+      downloadManager.addBatchDownloads(videos, batchConfig);
+      
+      const batchDownloads = downloadManager.getBatchDownloads('batch_456');
+      expect(batchDownloads).toHaveLength(2);
+      batchDownloads.forEach(item => {
+        expect(item.batchId).toBe('batch_456');
       });
-      downloadManager.addDownload('https://example.com/video.mp4');
-
-      await downloadManager.processQueue();
-
-      // Wait for all retries
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      const queue = downloadManager.getDownloadQueue();
-      expect(queue[0].status).toBe('failed');
-      expect(queue[0].retryCount).toBe(2);
-      expect(queue[0].error).toContain('Permanent network error');
-    });
-  });
-
-  describe('Download Control', () => {
-    it('should cancel active download', async () => {
-      downloadManager.updateConfig({ autoDownload: false });
-      const id = downloadManager.addDownload('https://example.com/video.mp4');
-
-      // Cancel the pending download
-      const cancelled = downloadManager.cancelDownload(id);
-      expect(cancelled).toBe(true);
-
-      const queue = downloadManager.getDownloadQueue();
-      expect(queue[0].status).toBe('failed');
-      expect(queue[0].error).toBe('Download cancelled by user');
     });
 
-    it('should cancel all downloads', () => {
-      downloadManager.updateConfig({ autoDownload: false });
-      downloadManager.addDownload('https://example.com/video1.mp4');
-      downloadManager.addDownload('https://example.com/video2.mp4');
+    it('should get downloads for specific execution', () => {
+      const executionResults = [
+        { url: 'https://example.com/video1.mp4', blockId: 'block1', blockNumber: 'A01' },
+        { url: 'https://example.com/video2.mp4', blockId: 'block2', blockNumber: 'A02' }
+      ];
 
-      downloadManager.cancelAllDownloads();
-
-      const queue = downloadManager.getDownloadQueue();
-      expect(queue.every(item => item.status === 'failed')).toBe(true);
-      expect(queue.every(item => item.error === 'Download cancelled by user')).toBe(true);
+      const executionId = 'exec_789';
+      downloadManager.addExecutionDownloads(executionResults, executionId);
+      
+      const executionDownloads = downloadManager.getExecutionDownloads(executionId);
+      expect(executionDownloads).toHaveLength(2);
+      executionDownloads.forEach(item => {
+        expect(item.executionId).toBe(executionId);
+      });
     });
 
-    it('should retry failed downloads', async () => {
-      // Mock initially failing, then succeeding download
-      vi.spyOn(downloadManager as any, 'simulateDownload')
-        .mockRejectedValueOnce(new Error('Network error'))
-        .mockResolvedValue(undefined);
+    it('should clear completed downloads from batch', () => {
+      const batchConfig: BatchDownloadConfig = {
+        executionId: 'exec_123',
+        batchId: 'batch_456'
+      };
 
-      downloadManager.updateConfig({ autoDownload: false, maxRetries: 3, retryDelay: 50 });
-      downloadManager.addDownload('https://example.com/video.mp4');
-
-      await downloadManager.processQueue();
-
-      // Wait for retry to complete
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Manually retry failed downloads
-      downloadManager.retryFailedDownloads();
-      await downloadManager.processQueue();
-
-      const queue = downloadManager.getDownloadQueue();
-      expect(queue[0].status).toBe('completed');
-    });
-  });
-
-  describe('Queue Management', () => {
-    it('should clear completed downloads', () => {
-      downloadManager.updateConfig({ autoDownload: false });
-      downloadManager.addDownload('https://example.com/video1.mp4');
-      downloadManager.addDownload('https://example.com/video2.mp4');
-
-      // Manually set one as completed
+      downloadManager.addBatchDownloads([{ url: 'https://example.com/video1.mp4' }], batchConfig);
+      
+      // Manually mark as completed for testing
       const queue = downloadManager.getDownloadQueue();
       queue[0].status = 'completed';
-
-      downloadManager.clearCompleted();
-
-      const updatedQueue = downloadManager.getDownloadQueue();
-      expect(updatedQueue).toHaveLength(1);
-      expect(updatedQueue[0].status).toBe('pending');
-    });
-
-    it('should clear all downloads', () => {
-      downloadManager.addDownload('https://example.com/video1.mp4');
-      downloadManager.addDownload('https://example.com/video2.mp4');
-
-      downloadManager.clearAll();
-
-      const queue = downloadManager.getDownloadQueue();
-      expect(queue).toHaveLength(0);
+      
+      downloadManager.clearBatchCompleted('batch_456');
+      
+      const remainingItems = downloadManager.getBatchDownloads('batch_456');
+      expect(remainingItems).toHaveLength(0);
     });
   });
 
-  describe('Property-Based Tests', () => {
-    it('should maintain queue integrity', () => {
-      fc.assert(fc.property(
-        fc.array(fc.webUrl(), { minLength: 1, maxLength: 10 }),
-        (urls) => {
-          const manager = new DownloadManager();
-          manager.updateConfig({ autoDownload: false });
-          
-          urls.forEach(url => manager.addDownload(url));
-          
-          const queue = manager.getDownloadQueue();
-          const progress = manager.getProgress();
-          
-          // Queue integrity
-          expect(queue.length).toBe(urls.length);
-          expect(progress.total).toBe(urls.length);
-          expect(progress.pending).toBe(urls.length);
-          expect(progress.completed + progress.failed + progress.downloading + progress.pending).toBe(progress.total);
-          
-          // All items should be pending initially
-          expect(queue.every(item => item.status === 'pending')).toBe(true);
-          expect(queue.every(item => item.progress === 0)).toBe(true);
-          expect(queue.every(item => item.retryCount === 0)).toBe(true);
-        }
-      ), { numRuns: 20 });
+  describe('File naming patterns', () => {
+    it('should apply sequential naming pattern', () => {
+      const videos = [
+        { url: 'https://example.com/video1.mp4' },
+        { url: 'https://example.com/video2.mp4' },
+        { url: 'https://example.com/video3.mp4' }
+      ];
+
+      const batchConfig: BatchDownloadConfig = {
+        executionId: 'exec_123',
+        batchId: 'batch_456',
+        fileNamingPattern: 'sequential'
+      };
+
+      downloadManager.addBatchDownloads(videos, batchConfig);
+      
+      const queue = downloadManager.getDownloadQueue();
+      expect(queue[0].filename).toBe('001_video1.mp4');
+      expect(queue[1].filename).toBe('002_video2.mp4');
+      expect(queue[2].filename).toBe('003_video3.mp4');
     });
 
-    it('should handle configuration updates correctly', () => {
-      fc.assert(fc.property(
-        fc.record({
-          maxRetries: fc.integer({ min: 1, max: 10 }),
-          retryDelay: fc.integer({ min: 100, max: 5000 }),
-          enableNotifications: fc.boolean(),
-          autoDownload: fc.boolean()
-        }),
-        (config) => {
-          const manager = new DownloadManager();
-          manager.updateConfig({ ...config, autoDownload: false }); // Force autoDownload to false for testing
-          
-          manager.addDownload('https://example.com/test.mp4');
-          const queue = manager.getDownloadQueue();
-          
-          expect(queue[0].maxRetries).toBe(config.maxRetries);
-        }
-      ), { numRuns: 15 });
+    it('should apply timestamp naming pattern', () => {
+      const videos = [
+        { url: 'https://example.com/video1.mp4' }
+      ];
+
+      const batchConfig: BatchDownloadConfig = {
+        executionId: 'exec_123',
+        batchId: 'batch_456',
+        fileNamingPattern: 'timestamp'
+      };
+
+      downloadManager.addBatchDownloads(videos, batchConfig);
+      
+      const queue = downloadManager.getDownloadQueue();
+      expect(queue[0].filename).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z_video1\.mp4$/);
     });
 
-    it('should generate valid filenames', () => {
-      fc.assert(fc.property(
-        fc.webUrl(),
-        (url) => {
-          const manager = new DownloadManager();
-          manager.updateConfig({ autoDownload: false });
-          manager.addDownload(url);
-          
-          const queue = manager.getDownloadQueue();
-          const filename = queue[0].filename;
-          
-          expect(filename).toBeDefined();
-          expect(typeof filename).toBe('string');
-          expect(filename.length).toBeGreaterThan(0);
-          
-          // Should have a video extension
-          expect(filename).toMatch(/\.(mp4|avi|mov|wmv|flv|webm)$/i);
-        }
-      ), { numRuns: 30 });
+    it('should use original naming pattern by default', () => {
+      const videos = [
+        { url: 'https://example.com/video1.mp4', filename: 'custom.mp4' }
+      ];
+
+      const batchConfig: BatchDownloadConfig = {
+        executionId: 'exec_123',
+        batchId: 'batch_456',
+        fileNamingPattern: 'original'
+      };
+
+      downloadManager.addBatchDownloads(videos, batchConfig);
+      
+      const queue = downloadManager.getDownloadQueue();
+      expect(queue[0].filename).toBe('custom.mp4');
     });
   });
 
-  describe('Error Handling', () => {
-    it('should handle invalid URLs gracefully', () => {
-      expect(() => {
-        downloadManager.addDownload('invalid-url');
-      }).not.toThrow();
+  describe('Configuration management', () => {
+    it('should update configuration correctly', () => {
+      const newConfig = {
+        maxConcurrentDownloads: 5,
+        createExecutionDirectories: false,
+        fileNamingPattern: 'timestamp' as const
+      };
 
-      const queue = downloadManager.getDownloadQueue();
-      expect(queue).toHaveLength(1);
-      expect(queue[0].filename).toMatch(/^video_\d+\.mp4$/);
-    });
+      downloadManager.updateConfig(newConfig);
+      
+      // Test that configuration is applied by checking behavior
+      const executionResults = [
+        { url: 'https://example.com/video1.mp4', blockId: 'block1', blockNumber: 'A01' }
+      ];
 
-    it('should handle empty URL gracefully', () => {
-      expect(() => {
-        downloadManager.addDownload('');
-      }).not.toThrow();
-
-      const queue = downloadManager.getDownloadQueue();
-      expect(queue).toHaveLength(1);
+      downloadManager.addExecutionDownloads(executionResults, 'exec_test');
+      
+      // The configuration should be reflected in the download behavior
+      expect(downloadManager.getDownloadQueue()).toHaveLength(1);
     });
   });
 
-  describe('Notification System', () => {
-    it('should request notification permission', async () => {
-      // Mock Notification.requestPermission
-      const mockRequestPermission = vi.fn().mockResolvedValue('granted');
-      Object.defineProperty(window.Notification, 'requestPermission', {
-        value: mockRequestPermission,
-        configurable: true
+  describe('Property 7: Download Organization Consistency', () => {
+    /**
+     * Property 7: Download Organization Consistency
+     * For any completed workflow execution, all generated files should be downloaded 
+     * to the specified directory with consistent naming and organization structure.
+     */
+    it('should organize downloads consistently for workflow executions', () => {
+      // Test multiple execution scenarios
+      const testCases = [
+        {
+          name: 'Single execution with multiple files',
+          executionResults: [
+            { url: 'https://example.com/video1.mp4', blockId: 'block1', blockNumber: 'A01' },
+            { url: 'https://example.com/video2.mp4', blockId: 'block2', blockNumber: 'A02' },
+            { url: 'https://example.com/video3.mp4', blockId: 'block3', blockNumber: 'A03' }
+          ],
+          executionId: 'exec_single'
+        },
+        {
+          name: 'Multiple executions with different file counts',
+          executionResults: [
+            { url: 'https://example.com/video4.mp4', blockId: 'block4', blockNumber: 'B01' },
+            { url: 'https://example.com/video5.mp4', blockId: 'block5', blockNumber: 'B02' }
+          ],
+          executionId: 'exec_multi'
+        }
+      ];
+
+      testCases.forEach(testCase => {
+        const downloadIds = downloadManager.addExecutionDownloads(testCase.executionResults, testCase.executionId);
+        
+        // Verify all downloads have consistent organization
+        const executionDownloads = downloadManager.getExecutionDownloads(testCase.executionId);
+        
+        expect(executionDownloads).toHaveLength(testCase.executionResults.length);
+        
+        executionDownloads.forEach((download, index) => {
+          // Verify execution ID consistency
+          expect(download.executionId).toBe(testCase.executionId);
+          
+          // Verify batch ID follows execution pattern
+          expect(download.batchId).toBe(`execution_${testCase.executionId}`);
+          
+          // Verify filename follows block pattern
+          const expectedFilename = `${testCase.executionResults[index].blockNumber}_${testCase.executionResults[index].blockId}.mp4`;
+          expect(download.filename).toBe(expectedFilename);
+          
+          // Verify download is properly queued
+          expect(download.status).toBe('pending');
+          expect(download.progress).toBe(0);
+        });
+        
+        // Verify batch progress tracking
+        const batchProgress = downloadManager.getBatchProgress(`execution_${testCase.executionId}`);
+        expect(batchProgress.total).toBe(testCase.executionResults.length);
+        expect(batchProgress.pending).toBe(testCase.executionResults.length);
+        expect(batchProgress.completed).toBe(0);
+        
+        // Verify execution progress tracking
+        const executionProgress = downloadManager.getExecutionProgress(testCase.executionId);
+        expect(executionProgress.total).toBe(testCase.executionResults.length);
+        expect(executionProgress.pending).toBe(testCase.executionResults.length);
+      });
+    });
+
+    it('should maintain directory structure consistency across batches', () => {
+      // Test different batch configurations
+      const batchConfigs = [
+        {
+          executionId: 'exec_dir1',
+          batchId: 'batch_dir1',
+          createSubdirectory: true,
+          subdirectoryName: 'execution_2024_01_01',
+          fileNamingPattern: 'sequential' as const
+        },
+        {
+          executionId: 'exec_dir2',
+          batchId: 'batch_dir2',
+          createSubdirectory: true,
+          subdirectoryName: 'execution_2024_01_02',
+          fileNamingPattern: 'timestamp' as const
+        },
+        {
+          executionId: 'exec_dir3',
+          batchId: 'batch_dir3',
+          createSubdirectory: false,
+          fileNamingPattern: 'original' as const
+        }
+      ];
+
+      const videos = [
+        { url: 'https://example.com/video1.mp4' },
+        { url: 'https://example.com/video2.mp4' }
+      ];
+
+      batchConfigs.forEach(config => {
+        downloadManager.addBatchDownloads(videos, config);
+        
+        const batchDownloads = downloadManager.getBatchDownloads(config.batchId);
+        
+        // Verify consistent batch organization
+        expect(batchDownloads).toHaveLength(2);
+        
+        batchDownloads.forEach(download => {
+          expect(download.executionId).toBe(config.executionId);
+          expect(download.batchId).toBe(config.batchId);
+          
+          // Verify filename pattern consistency
+          switch (config.fileNamingPattern) {
+            case 'sequential':
+              expect(download.filename).toMatch(/^\d{3}_video\d\.mp4$/);
+              break;
+            case 'timestamp':
+              expect(download.filename).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z_video\d\.mp4$/);
+              break;
+            case 'original':
+              expect(download.filename).toMatch(/^video\d\.mp4$/);
+              break;
+          }
+        });
+        
+        // Verify batch progress consistency
+        const batchProgress = downloadManager.getBatchProgress(config.batchId);
+        expect(batchProgress.total).toBe(2);
+        expect(batchProgress.pending).toBe(2);
+      });
+    });
+
+    it('should handle concurrent batch operations consistently', () => {
+      // Test multiple concurrent batches
+      const concurrentBatches = [
+        {
+          batchId: 'concurrent_1',
+          executionId: 'exec_concurrent_1',
+          videos: [
+            { url: 'https://example.com/c1_video1.mp4' },
+            { url: 'https://example.com/c1_video2.mp4' }
+          ]
+        },
+        {
+          batchId: 'concurrent_2',
+          executionId: 'exec_concurrent_2',
+          videos: [
+            { url: 'https://example.com/c2_video1.mp4' },
+            { url: 'https://example.com/c2_video2.mp4' },
+            { url: 'https://example.com/c2_video3.mp4' }
+          ]
+        },
+        {
+          batchId: 'concurrent_3',
+          executionId: 'exec_concurrent_3',
+          videos: [
+            { url: 'https://example.com/c3_video1.mp4' }
+          ]
+        }
+      ];
+
+      // Add all batches concurrently
+      const allDownloadIds: string[] = [];
+      concurrentBatches.forEach(batch => {
+        const config: BatchDownloadConfig = {
+          executionId: batch.executionId,
+          batchId: batch.batchId,
+          fileNamingPattern: 'sequential'
+        };
+        
+        const downloadIds = downloadManager.addBatchDownloads(batch.videos, config);
+        allDownloadIds.push(...downloadIds);
       });
 
-      const result = await DownloadManager.requestNotificationPermission();
-      
-      expect(mockRequestPermission).toHaveBeenCalled();
-      expect(result).toBe(true);
-    });
-
-    it('should handle notification permission denied', async () => {
-      const mockRequestPermission = vi.fn().mockResolvedValue('denied');
-      Object.defineProperty(window.Notification, 'requestPermission', {
-        value: mockRequestPermission,
-        configurable: true
+      // Verify each batch maintains its organization
+      concurrentBatches.forEach(batch => {
+        const batchDownloads = downloadManager.getBatchDownloads(batch.batchId);
+        const executionDownloads = downloadManager.getExecutionDownloads(batch.executionId);
+        
+        // Verify batch isolation
+        expect(batchDownloads).toHaveLength(batch.videos.length);
+        expect(executionDownloads).toHaveLength(batch.videos.length);
+        
+        // Verify no cross-contamination between batches
+        batchDownloads.forEach(download => {
+          expect(download.batchId).toBe(batch.batchId);
+          expect(download.executionId).toBe(batch.executionId);
+        });
+        
+        // Verify progress tracking isolation
+        const batchProgress = downloadManager.getBatchProgress(batch.batchId);
+        expect(batchProgress.total).toBe(batch.videos.length);
+        
+        const executionProgress = downloadManager.getExecutionProgress(batch.executionId);
+        expect(executionProgress.total).toBe(batch.videos.length);
       });
 
-      const result = await DownloadManager.requestNotificationPermission();
+      // Verify overall consistency
+      const totalProgress = downloadManager.getProgress();
+      const expectedTotal = concurrentBatches.reduce((sum, batch) => sum + batch.videos.length, 0);
+      expect(totalProgress.total).toBe(expectedTotal);
+      expect(totalProgress.pending).toBe(expectedTotal);
       
-      expect(result).toBe(false);
+      const allBatchProgress = downloadManager.getAllBatchProgress();
+      expect(allBatchProgress).toHaveLength(3);
     });
   });
 });

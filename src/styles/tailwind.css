@@ -1,0 +1,259 @@
+/* Tailwind CSS 基础配置和自定义样式 */
+
+/* 引入Tailwind CSS的基础、组件和工具类 */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 自定义基础样式 */
+@layer base {
+  /* 全局字体和文本设置 */
+  body {
+    @apply font-sans antialiased;
+  }
+
+  /* 链接样式 */
+  a {
+    @apply text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors;
+  }
+
+  /* 按钮基础样式 */
+  button {
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* 输入框基础样式 */
+  input, textarea, select {
+    @apply border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+  }
+
+  /* 暗黑模式基础样式 */
+  .dark {
+    @apply bg-gray-900 text-gray-100;
+  }
+}
+
+/* 自定义组件样式 */
+@layer components {
+  /* 主按钮样式 */
+  .btn-primary {
+    @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors duration-200 shadow-sm;
+  }
+
+  /* 次要按钮样式 */
+  .btn-secondary {
+    @apply bg-gray-200 hover:bg-gray-300 text-gray-800 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200 font-medium py-2 px-4 rounded-md transition-colors duration-200;
+  }
+
+  /* 危险按钮样式 */
+  .btn-danger {
+    @apply bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-md transition-colors duration-200;
+  }
+
+  /* 卡片样式 */
+  .card {
+    @apply bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden;
+  }
+
+  /* 表单组样式 */
+  .form-group {
+    @apply mb-4;
+  }
+
+  /* 表单标签样式 */
+  .form-label {
+    @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1;
+  }
+
+  /* 进度条样式 */
+  .progress-bar {
+    @apply h-2 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden;
+  }
+
+  .progress-bar-fill {
+    @apply h-full transition-all duration-500 ease-out;
+  }
+
+  /* 加载状态样式 */
+  .loading-spinner {
+    @apply animate-spin rounded-full h-5 w-5 border-2 border-t-transparent;
+  }
+
+  /* 工具提示样式 */
+  .tooltip {
+    @apply absolute z-50 px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded shadow-lg opacity-0 invisible transition-all duration-200;
+  }
+
+  /* 弹窗样式 */
+  .modal-overlay {
+    @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50;
+  }
+
+  .modal-content {
+    @apply bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6;
+  }
+
+  /* 下拉菜单样式 */
+  .dropdown-menu {
+    @apply absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 focus:outline-none z-50;
+  }
+
+  /* 响应式容器 */
+  .container {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+}
+
+/* 自定义工具类 */
+@layer utilities {
+  /* 文本截断 */
+  .truncate-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .truncate-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+  }
+
+  /* 滚动条样式 */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgba(156, 163, 175, 0.5);
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(156, 163, 175, 0.7);
+  }
+
+  /* 暗黑模式滚动条 */
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgba(107, 114, 128, 0.5);
+  }
+
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(107, 114, 128, 0.7);
+  }
+
+  /* 网格布局工具类 */
+  .grid-cols-auto-fill {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+
+  .grid-cols-auto-fit {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+
+  /* 动画延迟工具类 */
+  .delay-100 {
+    animation-delay: 100ms;
+  }
+
+  .delay-200 {
+    animation-delay: 200ms;
+  }
+
+  .delay-300 {
+    animation-delay: 300ms;
+  }
+
+  /* 过渡动画工具类 */
+  .transition-all-200 {
+    transition: all 200ms ease-in-out;
+  }
+
+  .transition-all-300 {
+    transition: all 300ms ease-in-out;
+  }
+
+  /* 遮罩效果 */
+  .mask-gradient {
+    mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 70%, rgba(0, 0, 0, 0));
+    -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 70%, rgba(0, 0, 0, 0));
+  }
+}
+
+/* 响应式设计断点 */
+@media (max-width: 640px) {
+  /* 移动端特定样式 */
+  .btn {
+    @apply py-2 px-3 text-sm;
+  }
+
+  .modal-content {
+    @apply p-4 mx-2;
+  }
+}
+
+@media (min-width: 768px) {
+  /* 平板端特定样式 */
+  .container {
+    @apply px-6;
+  }
+}
+
+@media (min-width: 1024px) {
+  /* 桌面端特定样式 */
+  .container {
+    @apply px-8;
+  }
+}
+
+/* 打印样式 */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    @apply bg-white text-black;
+  }
+}
+
+/* 主题切换过渡 */
+* {
+  @apply transition-colors duration-200;
+}
+
+/* 辅助功能样式 */
+.sr-only {
+  @apply absolute w-px h-px p-0 -m-px overflow-hidden clip-rect(0, 0, 0, 0) whitespace-nowrap border-0;
+}
+
+/* 高对比度模式支持 */
+@media (prefers-contrast: high) {
+  .btn-primary {
+    @apply bg-blue-700;
+  }
+
+  .card {
+    @apply border-2;
+  }
+}
+
+/* 减少动画模式支持 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

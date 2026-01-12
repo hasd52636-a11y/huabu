@@ -1,374 +1,407 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { fc } from '@fast-check/vitest';
-import ErrorHandler, { ErrorInfo, RetryConfig, ErrorLog } from './ErrorHandler';
+import { ErrorHandler } from './ErrorHandler';
+import { ErrorType, RetryPolicy } from '../types';
 
 describe('ErrorHandler', () => {
   let errorHandler: ErrorHandler;
 
   beforeEach(() => {
     errorHandler = new ErrorHandler();
+    vi.clearAllMocks();
   });
 
-  describe('Error Processing', () => {
-    it('should process network errors correctly', () => {
-      const networkError = new Error('Network connection failed');
-      const errorInfo = errorHandler.processError(networkError);
+  describe('Error Classification', () => {
+    it('should classify network errors correctly', async () => {
+      const networkErrors = [
+        new Error('Network request failed'),
+        new Error('fetch error occurred'),
+        new Error('Connection timeout'),
+        Object.assign(new Error('Request failed'), { name: 'NetworkError' })
+      ];
 
-      expect(errorInfo.code).toBe('NETWORK_ERROR');
-      expect(errorInfo.retryable).toBe(true);
-      expect(errorInfo.userMessage).toBe('网络连接失败，请检查网络连接');
-      expect(errorInfo.suggestedAction).toBe('请检查网络连接后重试');
+      for (const error of networkErrors) {
+        const result = await errorHandler.handleError(error, {
+          blockId: 'test-block',
+          executionId: 'test-exec',
+          operation: 'test-op',
+          attempt: 0
+        });
+
+        expect(result.errorInfo.type).toBe('network');
+      }
     });
 
-    it('should process timeout errors correctly', () => {
-      const timeoutError = new Error('Request timed out');
-      const errorInfo = errorHandler.processError(timeoutError);
+    it('should classify API errors correctly', async () => {
+      const apiErrors = [
+        new Error('API key unauthorized'),
+        new Error('Bad request to API'),
+        new Error('Forbidden access'),
+        new Error('API endpoint not found')
+      ];
 
-      expect(errorInfo.code).toBe('TIMEOUT_ERROR');
-      expect(errorInfo.retryable).toBe(true);
-      expect(errorInfo.userMessage).toBe('请求超时，服务器响应缓慢');
+      for (const error of apiErrors) {
+        const result = await errorHandler.handleError(error, {
+          blockId: 'test-block',
+          executionId: 'test-exec',
+          operation: 'test-op',
+          attempt: 0
+        });
+
+        expect(result.errorInfo.type).toBe('api');
+      }
     });
 
-    it('should process API errors correctly', () => {
-      const apiError = new Error('Internal server error 500');
-      const errorInfo = errorHandler.processError(apiError);
+    it('should classify rate limit errors correctly', async () => {
+      const rateLimitErrors = [
+        new Error('Rate limit exceeded'),
+        new Error('Too many requests'),
+        new Error('Quota exceeded for API')
+      ];
 
-      expect(errorInfo.code).toBe('API_ERROR');
-      expect(errorInfo.retryable).toBe(true); // 500 is retryable
-      expect(errorInfo.userMessage).toBe('API 服务出现问题');
+      for (const error of rateLimitErrors) {
+        const result = await errorHandler.handleError(error, {
+          blockId: 'test-block',
+          executionId: 'test-exec',
+          operation: 'test-op',
+          attempt: 0
+        });
+
+        expect(result.errorInfo.type).toBe('rate_limit');
+      }
     });
 
-    it('should process rate limit errors correctly', () => {
-      const rateLimitError = new Error('Too many requests - rate limit exceeded');
-      const errorInfo = errorHandler.processError(rateLimitError);
+    it('should classify validation errors correctly', async () => {
+      const validationErrors = [
+        new Error('Validation failed for input'),
+        new Error('Invalid parameter provided'),
+        new Error('Required field missing'),
+        Object.assign(new Error('Invalid data'), { name: 'ValidationError' })
+      ];
 
-      expect(errorInfo.code).toBe('RATE_LIMIT_ERROR');
-      expect(errorInfo.retryable).toBe(true);
-      expect(errorInfo.userMessage).toBe('API 调用频率过高，已达到限制');
-    });
+      for (const error of validationErrors) {
+        const result = await errorHandler.handleError(error, {
+          blockId: 'test-block',
+          executionId: 'test-exec',
+          operation: 'test-op',
+          attempt: 0
+        });
 
-    it('should process authentication errors correctly', () => {
-      const authError = new Error('Unauthorized - invalid API key');
-      const errorInfo = errorHandler.processError(authError);
-
-      expect(errorInfo.code).toBe('AUTH_ERROR');
-      expect(errorInfo.retryable).toBe(false);
-      expect(errorInfo.userMessage).toBe('API 密钥无效或已过期');
-    });
-
-    it('should process file parsing errors correctly', () => {
-      const parseError = new Error('Invalid file format - parse error');
-      const errorInfo = errorHandler.processError(parseError);
-
-      expect(errorInfo.code).toBe('FILE_PARSING_ERROR');
-      expect(errorInfo.retryable).toBe(false);
-      expect(errorInfo.userMessage).toBe('文件格式错误或内容无效');
-    });
-
-    it('should process download errors correctly', () => {
-      const downloadError = new Error('Download failed - network error');
-      const errorInfo = errorHandler.processError(downloadError);
-
-      expect(errorInfo.code).toBe('DOWNLOAD_ERROR');
-      expect(errorInfo.retryable).toBe(true);
-      expect(errorInfo.userMessage).toBe('视频下载失败');
-    });
-
-    it('should process storage errors correctly', () => {
-      const storageError = new Error('No space left on device - ENOSPC');
-      const errorInfo = errorHandler.processError(storageError);
-
-      expect(errorInfo.code).toBe('STORAGE_ERROR');
-      expect(errorInfo.retryable).toBe(false);
-      expect(errorInfo.userMessage).toBe('本地存储空间不足或权限不够');
-    });
-
-    it('should process unknown errors correctly', () => {
-      const unknownError = new Error('Some random error message');
-      const errorInfo = errorHandler.processError(unknownError);
-
-      expect(errorInfo.code).toBe('UNKNOWN_ERROR');
-      expect(errorInfo.retryable).toBe(false);
-      expect(errorInfo.userMessage).toBe('发生未知错误');
-    });
-
-    it('should handle string errors', () => {
-      const errorInfo = errorHandler.processError('Network connection failed');
-
-      expect(errorInfo.code).toBe('NETWORK_ERROR');
-      expect(errorInfo.message).toBe('Network connection failed');
-    });
-
-    it('should include context in error logs', () => {
-      const context = { userId: '123', action: 'video_generation' };
-      errorHandler.processError('Test error', context);
-
-      const logs = errorHandler.getErrorLogs();
-      expect(logs[0].context).toEqual(context);
+        expect(result.errorInfo.type).toBe('validation');
+      }
     });
   });
 
   describe('Retry Logic', () => {
-    it('should check if error is retryable', () => {
-      expect(errorHandler.isRetryable('NETWORK_ERROR')).toBe(true);
-      expect(errorHandler.isRetryable('TIMEOUT_ERROR')).toBe(true);
-      expect(errorHandler.isRetryable('AUTH_ERROR')).toBe(false);
-      expect(errorHandler.isRetryable('UNKNOWN_ERROR')).toBe(false);
+    it('should retry network errors with exponential backoff', async () => {
+      const error = new Error('Network request failed');
+      
+      const result1 = await errorHandler.handleError(error, {
+        blockId: 'test-block',
+        executionId: 'test-exec',
+        operation: 'test-op',
+        attempt: 0
+      });
+
+      const result2 = await errorHandler.handleError(error, {
+        blockId: 'test-block',
+        executionId: 'test-exec',
+        operation: 'test-op',
+        attempt: 1
+      });
+
+      expect(result1.shouldRetry).toBe(true);
+      expect(result2.shouldRetry).toBe(true);
+      expect(result2.delay).toBeGreaterThan(result1.delay);
     });
 
-    it('should calculate retry delay with exponential backoff', () => {
-      const delay1 = errorHandler.calculateRetryDelay(0);
-      const delay2 = errorHandler.calculateRetryDelay(1);
-      const delay3 = errorHandler.calculateRetryDelay(2);
+    it('should not retry validation errors', async () => {
+      const error = new Error('Validation failed');
+      
+      const result = await errorHandler.handleError(error, {
+        blockId: 'test-block',
+        executionId: 'test-exec',
+        operation: 'test-op',
+        attempt: 0
+      });
 
-      expect(delay1).toBe(1000); // base delay
-      expect(delay2).toBe(2000); // base * 2^1
-      expect(delay3).toBe(4000); // base * 2^2
+      expect(result.shouldRetry).toBe(false);
+      expect(result.errorInfo.recoverable).toBe(false);
     });
 
-    it('should respect maximum delay', () => {
-      errorHandler.updateRetryConfig({ maxDelay: 5000 });
-      const delay = errorHandler.calculateRetryDelay(10); // Would be very large
+    it('should stop retrying after max attempts', async () => {
+      const error = new Error('Network request failed');
+      
+      // Network errors have max 5 retries
+      const result = await errorHandler.handleError(error, {
+        blockId: 'test-block',
+        executionId: 'test-exec',
+        operation: 'test-op',
+        attempt: 5
+      });
 
-      expect(delay).toBe(5000);
-    });
-
-    it('should determine if should retry', () => {
-      expect(errorHandler.shouldRetry('NETWORK_ERROR', 0)).toBe(true);
-      expect(errorHandler.shouldRetry('NETWORK_ERROR', 2)).toBe(true);
-      expect(errorHandler.shouldRetry('NETWORK_ERROR', 3)).toBe(false); // max retries reached
-      expect(errorHandler.shouldRetry('AUTH_ERROR', 0)).toBe(false); // not retryable
-    });
-
-    it('should update retry configuration', () => {
-      const newConfig: Partial<RetryConfig> = {
-        maxRetries: 5,
-        baseDelay: 2000
-      };
-
-      errorHandler.updateRetryConfig(newConfig);
-
-      expect(errorHandler.shouldRetry('NETWORK_ERROR', 4)).toBe(true);
-      expect(errorHandler.calculateRetryDelay(0)).toBe(2000);
-    });
-  });
-
-  describe('User Messages', () => {
-    it('should get user-friendly message in Chinese', () => {
-      const message = errorHandler.getUserMessage('Network connection failed', 'zh');
-      expect(message).toBe('网络连接失败，请检查网络连接');
-    });
-
-    it('should get user-friendly message in English', () => {
-      const message = errorHandler.getUserMessage('Network connection failed', 'en');
-      expect(message).toBe('Network connection failed, please check your network connection');
-    });
-
-    it('should get suggested action in Chinese', () => {
-      const action = errorHandler.getSuggestedAction('Network connection failed', 'zh');
-      expect(action).toBe('请检查网络连接后重试');
-    });
-
-    it('should get suggested action in English', () => {
-      const action = errorHandler.getSuggestedAction('Network connection failed', 'en');
-      expect(action).toBe('Please check your network connection and retry');
+      expect(result.shouldRetry).toBe(false);
     });
   });
 
-  describe('Error Logging', () => {
-    it('should log errors with unique IDs', () => {
-      errorHandler.processError('Error 1');
-      errorHandler.processError('Error 2');
+  describe('Property 10: Error Handling Isolation', () => {
+    // Property test for error handling isolation
+    it('should isolate errors appropriately across different scenarios', async () => {
+      const iterations = 100;
+      
+      for (let i = 0; i < iterations; i++) {
+        // Generate random error scenarios
+        const errorTypes: ErrorType[] = ['network', 'api', 'rate_limit', 'validation', 'system'];
+        const randomType = errorTypes[Math.floor(Math.random() * errorTypes.length)];
+        
+        const error = new Error(`${randomType} error ${i}`);
+        if (randomType === 'network') error.message = 'Network request failed';
+        else if (randomType === 'api') error.message = 'API unauthorized';
+        else if (randomType === 'rate_limit') error.message = 'Rate limit exceeded';
+        else if (randomType === 'validation') error.message = 'Validation failed';
+        
+        const result = await errorHandler.handleError(error, {
+          blockId: `block-${i}`,
+          executionId: `exec-${i}`,
+          operation: `op-${i}`,
+          attempt: Math.floor(Math.random() * 3)
+        });
 
-      const logs = errorHandler.getErrorLogs();
-      expect(logs).toHaveLength(2);
-      expect(logs[0].id).not.toBe(logs[1].id);
-    });
-
-    it('should limit error logs to 100 entries', () => {
-      // Add 150 errors
-      for (let i = 0; i < 150; i++) {
-        errorHandler.processError(`Error ${i}`);
+        // Verify error isolation properties
+        expect(result.errorInfo.type).toBe(randomType);
+        
+        // Validation and API errors should be isolated
+        const shouldIsolate = errorHandler.shouldIsolateError(result.errorInfo);
+        if (randomType === 'validation' || randomType === 'api') {
+          expect(shouldIsolate).toBe(true);
+        }
+        
+        // Error context should be preserved
+        expect(result.errorInfo.context.blockId).toBe(`block-${i}`);
+        expect(result.errorInfo.context.executionId).toBe(`exec-${i}`);
+        expect(result.errorInfo.timestamp).toBeGreaterThan(0);
       }
-
-      const logs = errorHandler.getErrorLogs();
-      expect(logs).toHaveLength(100);
     });
 
-    it('should mark errors as resolved', () => {
-      errorHandler.processError('Test error');
-      const logs = errorHandler.getErrorLogs();
-      const errorId = logs[0].id;
+    it('should maintain error isolation across concurrent operations', async () => {
+      const iterations = 50;
+      const promises: Promise<void>[] = [];
+      
+      for (let i = 0; i < iterations; i++) {
+        const promise = (async () => {
+          const error = new Error(`Concurrent error ${i}`);
+          const blockId = `concurrent-block-${i}`;
+          
+          const result = await errorHandler.handleError(error, {
+            blockId,
+            executionId: `exec-${i}`,
+            operation: `concurrent-op-${i}`,
+            attempt: 0
+          });
 
-      const marked = errorHandler.markErrorResolved(errorId);
-      expect(marked).toBe(true);
-
-      const updatedLogs = errorHandler.getErrorLogs();
-      expect(updatedLogs[0].resolved).toBe(true);
-      expect(updatedLogs[0].resolvedAt).toBeDefined();
-    });
-
-    it('should return false when marking non-existent error as resolved', () => {
-      const marked = errorHandler.markErrorResolved('non-existent-id');
-      expect(marked).toBe(false);
-    });
-
-    it('should clear error logs', () => {
-      errorHandler.processError('Error 1');
-      errorHandler.processError('Error 2');
-
-      errorHandler.clearErrorLogs();
-
-      const logs = errorHandler.getErrorLogs();
-      expect(logs).toHaveLength(0);
-    });
-
-    it('should limit returned logs when specified', () => {
-      for (let i = 0; i < 10; i++) {
-        errorHandler.processError(`Error ${i}`);
+          // Each error should be isolated to its own context
+          expect(result.errorInfo.context.blockId).toBe(blockId);
+          expect(result.errorInfo.message).toBe(`Concurrent error ${i}`);
+          
+          // Error should not affect other concurrent operations
+          const shouldIsolate = errorHandler.shouldIsolateError(result.errorInfo);
+          if (result.errorInfo.type === 'validation' || result.errorInfo.type === 'api') {
+            expect(shouldIsolate).toBe(true);
+          }
+        })();
+        
+        promises.push(promise);
       }
+      
+      await Promise.all(promises);
+    });
 
-      const logs = errorHandler.getErrorLogs(5);
-      expect(logs).toHaveLength(5);
+    it('should preserve error context integrity under various conditions', async () => {
+      const iterations = 75;
+      
+      for (let i = 0; i < iterations; i++) {
+        const context = {
+          blockId: `integrity-block-${i}`,
+          executionId: `integrity-exec-${i}`,
+          operation: `integrity-op-${i}`,
+          attempt: Math.floor(Math.random() * 10)
+        };
+        
+        const error = new Error(`Integrity test error ${i}`);
+        const result = await errorHandler.handleError(error, context);
+        
+        // Context should be perfectly preserved
+        expect(result.errorInfo.context).toEqual(context);
+        expect(result.errorInfo.context.blockId).toBe(context.blockId);
+        expect(result.errorInfo.context.executionId).toBe(context.executionId);
+        expect(result.errorInfo.context.operation).toBe(context.operation);
+        expect(result.errorInfo.context.attempt).toBe(context.attempt);
+        
+        // Error info should be complete
+        expect(result.errorInfo.message).toBe(error.message);
+        expect(result.errorInfo.timestamp).toBeGreaterThan(0);
+        expect(typeof result.errorInfo.recoverable).toBe('boolean');
+      }
     });
   });
 
   describe('Error Statistics', () => {
-    it('should calculate error statistics correctly', () => {
-      errorHandler.processError('Network error');
-      errorHandler.processError('API error');
-      errorHandler.processError('Network error');
+    it('should track error statistics correctly', async () => {
+      const errors = [
+        new Error('Network request failed'),
+        new Error('API unauthorized'),
+        new Error('Validation failed'),
+        new Error('Network timeout'),
+        new Error('Rate limit exceeded')
+      ];
 
-      const logs = errorHandler.getErrorLogs();
-      errorHandler.markErrorResolved(logs[0].id);
+      for (let i = 0; i < errors.length; i++) {
+        await errorHandler.handleError(errors[i], {
+          blockId: `block-${i}`,
+          executionId: 'test-exec',
+          operation: 'test-op',
+          attempt: 0
+        });
+      }
 
       const stats = errorHandler.getErrorStats();
-
-      expect(stats.total).toBe(3);
-      expect(stats.resolved).toBe(1);
-      expect(stats.unresolved).toBe(2);
-      expect(stats.byType['NETWORK_ERROR']).toBe(2);
-      expect(stats.byType['API_ERROR']).toBe(1);
-      expect(stats.recentErrors).toBe(3); // All are recent
+      
+      expect(stats.totalErrors).toBe(5);
+      expect(stats.errorsByType.network).toBe(2);
+      expect(stats.errorsByType.api).toBe(1);
+      expect(stats.errorsByType.validation).toBe(1);
+      expect(stats.errorsByType.rate_limit).toBe(1);
     });
 
-    it('should count recent errors correctly', () => {
-      // Mock Date.now to simulate old errors
-      const originalNow = Date.now;
-      const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
-      
-      vi.spyOn(Date, 'now').mockReturnValue(twoHoursAgo);
-      errorHandler.processError('Old error');
-      
-      Date.now = originalNow;
-      errorHandler.processError('Recent error');
+    it('should generate error reports', async () => {
+      const error = new Error('Test error for report');
+      await errorHandler.handleError(error, {
+        blockId: 'report-block',
+        executionId: 'report-exec',
+        operation: 'report-op',
+        attempt: 0
+      });
 
       const stats = errorHandler.getErrorStats();
-      expect(stats.recentErrors).toBe(1); // Only the recent one
+      const report = errorHandler.createErrorReport(stats.recentErrors);
+      
+      expect(report).toContain('Error Report');
+      expect(report).toContain('report-block');
+      expect(report).toContain('Test error for report');
     });
   });
 
-  describe('Property-Based Tests', () => {
-    it('should handle any error message without crashing', () => {
-      fc.assert(fc.property(
-        fc.string({ minLength: 1, maxLength: 200 }),
-        (errorMessage) => {
-          expect(() => {
-            const errorInfo = errorHandler.processError(errorMessage);
-            expect(errorInfo).toBeDefined();
-            expect(errorInfo.code).toBeDefined();
-            expect(errorInfo.message).toBe(errorMessage);
-            expect(errorInfo.timestamp).toBeGreaterThan(0);
-            expect(typeof errorInfo.retryable).toBe('boolean');
-            expect(errorInfo.userMessage).toBeDefined();
-          }).not.toThrow();
-        }
-      ), { numRuns: 50 });
+  describe('Execute with Retry', () => {
+    it('should execute operation successfully on first try', async () => {
+      const mockOperation = vi.fn().mockResolvedValue('success');
+      
+      const result = await errorHandler.executeWithRetry(mockOperation, {
+        blockId: 'test-block',
+        executionId: 'test-exec',
+        operation: 'test-op'
+      });
+
+      expect(result).toBe('success');
+      expect(mockOperation).toHaveBeenCalledTimes(1);
     });
 
-    it('should maintain consistent retry logic', () => {
-      fc.assert(fc.property(
-        fc.constantFrom('NETWORK_ERROR', 'TIMEOUT_ERROR', 'AUTH_ERROR', 'UNKNOWN_ERROR'),
-        fc.integer({ min: 0, max: 10 }),
-        (errorCode, retryCount) => {
-          const isRetryable = errorHandler.isRetryable(errorCode);
-          const shouldRetry = errorHandler.shouldRetry(errorCode, retryCount);
-          
-          if (!isRetryable) {
-            expect(shouldRetry).toBe(false);
-          } else {
-            expect(shouldRetry).toBe(retryCount < 3); // default max retries
-          }
-        }
-      ), { numRuns: 30 });
+    it('should retry failed operations', async () => {
+      const mockOperation = vi.fn()
+        .mockRejectedValueOnce(new Error('Network request failed'))
+        .mockRejectedValueOnce(new Error('Network request failed'))
+        .mockResolvedValue('success');
+      
+      const result = await errorHandler.executeWithRetry(mockOperation, {
+        blockId: 'test-block',
+        executionId: 'test-exec',
+        operation: 'test-op'
+      });
+
+      expect(result).toBe('success');
+      expect(mockOperation).toHaveBeenCalledTimes(3);
     });
 
-    it('should calculate exponential backoff correctly', () => {
-      fc.assert(fc.property(
-        fc.integer({ min: 0, max: 5 }),
-        (retryCount) => {
-          const delay = errorHandler.calculateRetryDelay(retryCount);
-          const expectedDelay = Math.min(1000 * Math.pow(2, retryCount), 30000);
-          
-          expect(delay).toBe(expectedDelay);
-          expect(delay).toBeGreaterThan(0);
-          expect(delay).toBeLessThanOrEqual(30000);
-        }
-      ), { numRuns: 20 });
-    });
+    it('should throw error after max retries', async () => {
+      const mockOperation = vi.fn().mockRejectedValue(new Error('Network request failed'));
+      
+      await expect(errorHandler.executeWithRetry(mockOperation, {
+        blockId: 'test-block',
+        executionId: 'test-exec',
+        operation: 'test-op'
+      })).rejects.toThrow('Network request failed');
 
-    it('should maintain error log integrity', () => {
-      fc.assert(fc.property(
-        fc.array(fc.string({ minLength: 1, maxLength: 100 }), { minLength: 1, maxLength: 20 }),
-        (errorMessages) => {
-          const handler = new ErrorHandler();
-          
-          errorMessages.forEach(message => handler.processError(message));
-          
-          const logs = handler.getErrorLogs();
-          expect(logs.length).toBe(Math.min(errorMessages.length, 100));
-          
-          // Check that all logs have unique IDs
-          const ids = logs.map(log => log.id);
-          const uniqueIds = new Set(ids);
-          expect(uniqueIds.size).toBe(ids.length);
-          
-          // Check that all logs have required fields
-          logs.forEach(log => {
-            expect(log.id).toBeDefined();
-            expect(log.error).toBeDefined();
-            expect(log.context).toBeDefined();
-            expect(typeof log.resolved).toBe('boolean');
-          });
-        }
-      ), { numRuns: 15 });
+      // Network errors have max 5 retries + initial attempt = 6 calls
+      expect(mockOperation).toHaveBeenCalledTimes(6);
     });
   });
 
-  describe('Edge Cases', () => {
-    it('should handle empty error message', () => {
-      const errorInfo = errorHandler.processError('');
-      expect(errorInfo.code).toBe('UNKNOWN_ERROR');
-      expect(errorInfo.message).toBe('');
+  describe('Policy Management', () => {
+    it('should allow updating retry policies', () => {
+      const newPolicy: RetryPolicy = {
+        maxRetries: 10,
+        baseDelay: 500,
+        maxDelay: 5000,
+        backoffMultiplier: 1.5,
+        jitter: false
+      };
+
+      errorHandler.updateRetryPolicy('network', newPolicy);
+      const retrievedPolicy = errorHandler.getRetryPolicy('network');
+      
+      expect(retrievedPolicy).toEqual(newPolicy);
     });
 
-    it('should handle very long error messages', () => {
-      const longMessage = 'A'.repeat(10000);
-      expect(() => {
-        errorHandler.processError(longMessage);
-      }).not.toThrow();
+    it('should calculate delays correctly', async () => {
+      const error = new Error('Network request failed');
+      
+      const result1 = await errorHandler.handleError(error, {
+        blockId: 'test-block',
+        executionId: 'test-exec',
+        operation: 'test-op',
+        attempt: 0
+      });
+
+      const result2 = await errorHandler.handleError(error, {
+        blockId: 'test-block',
+        executionId: 'test-exec',
+        operation: 'test-op',
+        attempt: 1
+      });
+
+      expect(result1.delay).toBeGreaterThan(0);
+      expect(result2.delay).toBeGreaterThan(result1.delay);
+    });
+  });
+
+  describe('Error Log Management', () => {
+    it('should maintain error log size limit', async () => {
+      // Create more errors than the log limit
+      for (let i = 0; i < 1100; i++) {
+        await errorHandler.handleError(new Error(`Error ${i}`), {
+          blockId: `block-${i}`,
+          executionId: 'test-exec',
+          operation: 'test-op',
+          attempt: 0
+        });
+      }
+
+      const stats = errorHandler.getErrorStats();
+      expect(stats.totalErrors).toBeLessThanOrEqual(1000);
     });
 
-    it('should handle special characters in error messages', () => {
-      const specialMessage = '特殊字符 🚀 <script>alert("test")</script>';
-      const errorInfo = errorHandler.processError(specialMessage);
-      expect(errorInfo.message).toBe(specialMessage);
-    });
+    it('should clear error log', async () => {
+      await errorHandler.handleError(new Error('Test error'), {
+        blockId: 'test-block',
+        executionId: 'test-exec',
+        operation: 'test-op',
+        attempt: 0
+      });
 
-    it('should handle null context gracefully', () => {
-      expect(() => {
-        errorHandler.processError('Test error', null as any);
-      }).not.toThrow();
+      let stats = errorHandler.getErrorStats();
+      expect(stats.totalErrors).toBe(1);
+
+      errorHandler.clearErrorLog();
+      stats = errorHandler.getErrorStats();
+      expect(stats.totalErrors).toBe(0);
     });
   });
 });

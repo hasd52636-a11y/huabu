@@ -629,12 +629,22 @@ ${inputText || "Generate from attachment"}
           reader.readAsDataURL(file);
         }
       }} />
-      <input type="file" ref={chatTextInputRef} className="hidden" accept=".txt,.md,.js,.ts,.tsx,.json,.css,.html" onChange={e => {
+      <input type="file" ref={chatTextInputRef} className="hidden" accept=".txt,.md,.js,.ts,.tsx,.json,.css,.html,.doc,.docx,.pdf" onChange={e => {
         const file = e.target.files?.[0];
         if (file) {
           const reader = new FileReader();
-          reader.onload = (event) => setPendingChatFile({ name: file.name, content: event.target?.result as string });
-          reader.readAsText(file);
+          // 根据文件类型选择读取方式
+          if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+            // PDF文件需要特殊处理，先存储文件名，后续可以通过API解析
+            setPendingChatFile({ name: file.name, content: `[PDF文件内容将通过AI服务解析]` });
+          } else if (file.name.endsWith('.docx') || file.name.endsWith('.doc')) {
+            // Word文件需要特殊处理，先存储文件名，后续可以通过API解析
+            setPendingChatFile({ name: file.name, content: `[Word文件内容将通过AI服务解析]` });
+          } else {
+            // 文本文件直接读取
+            reader.onload = (event) => setPendingChatFile({ name: file.name, content: event.target?.result as string });
+            reader.readAsText(file);
+          }
         }
       }} />
 

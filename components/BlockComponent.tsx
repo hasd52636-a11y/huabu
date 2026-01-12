@@ -1,14 +1,19 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Block } from '../types';
+import { Block, BlockData } from '../types';
 import { COLORS, I18N } from '../constants';
+import { variableSystem } from '../services/VariableSystem';
 import { 
   Trash2, RefreshCw, Scissors, Type as TextIcon, 
   Image as ImageIcon, Play, MoveDiagonal2, Type, 
   Palette, Square, Monitor, Smartphone,
   Sparkles, Send, Upload, Paperclip,
-  Pencil, Check, X, Copy
+  Pencil, Check, X, Copy, Info, Eye, Download
 } from 'lucide-react';
+import AspectRatioButton from './AspectRatioButton';
+import PromptPreviewPopover from './PromptPreviewPopover';
+import DownloadButton from './DownloadButton';
+import type { AspectRatio } from './AspectRatioButton';
 
 interface BlockProps {
   block: Block;
@@ -23,6 +28,7 @@ interface BlockProps {
   onUpdate: (id: string, updates: Partial<Block>) => void;
   lang: 'zh' | 'en';
   upstreamIds: string[];
+  upstreamData?: BlockData[]; // New prop for automation data flow
 }
 
 // 精简版 Tooltip：独立具名触发，动画更轻盈
@@ -48,24 +54,70 @@ const BlockComponent: React.FC<BlockProps> = ({
   onGenerate,
   onUpdate,
   lang,
-  upstreamIds
+  upstreamIds,
+  upstreamData = []
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [userInput, setUserInput] = useState('');
   const [showCopied, setShowCopied] = useState(false);
+  const [showVariableHelp, setShowVariableHelp] = useState(false);
+  const [currentAspectRatio, setCurrentAspectRatio] = useState<AspectRatio>({
+    label: block.aspectRatio || '1:1',
+    value: block.aspectRatio || '1:1',
+    width: block.aspectRatio?.startsWith('1:1') ? 1024 : 1920,
+    height: block.aspectRatio?.startsWith('1:1') ? 1024 : 1080
+  });
+  const [showPreviewPopover, setShowPreviewPopover] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const previewButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Update currentAspectRatio when block.aspectRatio changes
+  useEffect(() => {
+    if (block.aspectRatio) {
+      const [width, height] = block.aspectRatio.split(':').map(Number);
+      setCurrentAspectRatio({
+        label: block.aspectRatio,
+        value: block.aspectRatio,
+        width: width * 1024,
+        height: height * 1024
+      });
+    }
+  }, [block.aspectRatio]);
+
+  const handleRatioChange = (ratio: AspectRatio) => {
+    setCurrentAspectRatio(ratio);
+    onUpdate(block.id, { aspectRatio: ratio.value });
+  };
+
+  const handleDownload = () => {
+    if (block.type === 'image' && block.content) {
+      const link = document.createElement('a');
+      link.href = block.content;
+      link.download = `image-${block.id}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
   const t = I18N[lang];
 
   const theme = block.type === 'text' ? COLORS.text : block.type === 'image' ? COLORS.image : COLORS.video;
 
+  // Get available variables from upstream data
+  const availableVariables = upstreamData.map(data => data.blockNumber);
+  
+  // Check if current input has variables and validate them
+  const hasVariables = variableSystem.hasVariables(userInput);
+  const variableErrors = variableSystem.validateVariables(userInput, availableVariables);
+
   // 定义三个固定的字号档位
-  const FONT_SIZES = [24, 56, 112];
+  const FONT_SIZES = [18, 56, 112];
 
   const cycleFontSize = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const current = block.fontSize || 24;
+    const current = block.fontSize || 18;
     const currentIndex = FONT_SIZES.indexOf(current);
     // 如果不在列表中（比如导入的数据），默认回到第一档
     const nextIndex = (currentIndex + 1) % FONT_SIZES.length;
@@ -77,17 +129,31 @@ const BlockComponent: React.FC<BlockProps> = ({
     if (!userInput.trim() && upstreamIds.length === 0) return;
     
     let finalPrompt = userInput;
-    if (!userInput.includes('[') && upstreamIds.length > 0) {
+    
+    // If prompt contains variables, resolve them with upstream data
+    if (hasVariables && upstreamData.length > 0) {
+      finalPrompt = variableSystem.resolveVariables(userInput, upstreamData);
+    } else if (!userInput.includes('[') && upstreamIds.length > 0) {
+      // Legacy behavior: auto-insert upstream IDs if no variables present
       finalPrompt = `${upstreamIds.map(id => `[${id}]`).join(' ')} ${userInput}`.trim();
     }
     
     onGenerate(block.id, finalPrompt);
   };
 
-  const insertId = (id: string) => {
-    const tag = `[${id}] `;
-    setUserInput(prev => prev + tag);
-    inputRef.current?.focus();
+  const insertVariable = (blockNumber: string) => {
+    const variable = `[${blockNumber}]`;
+    const cursorPos = inputRef.current?.selectionStart || userInput.length;
+    const newValue = userInput.slice(0, cursorPos) + variable + ' ' + userInput.slice(cursorPos);
+    setUserInput(newValue);
+    
+    // Focus and set cursor position after the inserted variable
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.setSelectionRange(cursorPos + variable.length + 1, cursorPos + variable.length + 1);
+      }
+    }, 0);
   };
 
   const copyIdToClipboard = (e: React.MouseEvent) => {
@@ -121,10 +187,10 @@ const BlockComponent: React.FC<BlockProps> = ({
     e.target.value = '';
   };
 
-  const getChipColor = (id: string) => {
-    if (id.startsWith('A')) return 'bg-blue-500/10 text-blue-600 border-blue-500/30 hover:bg-blue-500/20';
-    if (id.startsWith('B')) return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/20';
-    if (id.startsWith('V')) return 'bg-red-500/10 text-red-600 border-red-500/30 hover:bg-red-500/20';
+  const getChipColor = (blockNumber: string) => {
+    if (blockNumber.startsWith('A')) return 'bg-blue-500/10 text-blue-600 border-blue-500/30 hover:bg-blue-500/20';
+    if (blockNumber.startsWith('B')) return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/20';
+    if (blockNumber.startsWith('V')) return 'bg-red-500/10 text-red-600 border-red-500/30 hover:bg-red-500/20';
     return 'bg-slate-500/10 text-slate-600 border-slate-500/30 hover:bg-slate-500/20';
   };
 
@@ -192,12 +258,40 @@ const BlockComponent: React.FC<BlockProps> = ({
           {block.type === 'image' && (
             <>
               <div className="relative group/btn">
-                <button onClick={(e) => { e.stopPropagation(); onUpdate(block.id, { aspectRatio: block.aspectRatio === '1:1' ? '16:9' : '1:1' }); }} className="p-4 hover:bg-black/5 dark:hover:bg-white/10 rounded-[1.2rem] transition-all"><Square size={22} /></button>
-                <Tooltip label={t.tips.aspectRatio} />
+                <AspectRatioButton 
+                  selectedRatio={currentAspectRatio}
+                  onRatioChange={handleRatioChange}
+                  theme="light"
+                  lang={lang}
+                />
+                <Tooltip label={t.tips.aspectRatio || '宽高比'} />
               </div>
               <div className="relative group/btn">
                 <button onClick={(e) => { e.stopPropagation(); onUpdate(block.id, { isCropped: !block.isCropped }); }} className={`p-4 hover:bg-black/5 dark:hover:bg-white/10 rounded-[1.2rem] transition-all ${block.isCropped ? 'text-amber-600' : 'text-slate-700 dark:text-white'}`}><Scissors size={22} /></button>
                 <Tooltip label={t.tips.crop} />
+              </div>
+              <div className="relative group/btn">
+                <button 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    setShowPreviewPopover(!showPreviewPopover);
+                  }} 
+                  className="p-4 hover:bg-black/5 dark:hover:bg-white/10 rounded-[1.2rem] transition-all"
+                  ref={previewButtonRef}
+                >
+                  <Eye size={22} />
+                </button>
+                <Tooltip label={t.tips.preview || 'Preview'} />
+              </div>
+              <div className="relative group/btn">
+                <DownloadButton 
+                  content={block.content} 
+                  filename={`image-${block.id}`} 
+                  fileType="png"
+                  theme="light"
+                  lang={lang}
+                />
+                <Tooltip label={t.tips.download || '下载'} />
               </div>
             </>
           )}
@@ -260,21 +354,38 @@ const BlockComponent: React.FC<BlockProps> = ({
               <div className="w-24 h-24 border-[6px] border-slate-200 border-t-slate-800 rounded-full animate-spin mb-6" style={{ borderTopColor: theme.border }} />
             </div>
           ) : block.type === 'image' && block.content ? (
-            <img src={block.content} className={`w-full h-full object-cover transition-transform duration-1000 ${block.isCropped ? 'scale-150' : 'scale-100'}`} alt="AI Output" />
+            <>
+              <img src={block.content} className={`w-full h-full object-cover transition-transform duration-1000 ${block.isCropped ? 'scale-150' : 'scale-100'}`} alt="AI Output" />
+              {showPreviewPopover && (
+                <PromptPreviewPopover
+                  prompt={block.content || ''}
+                  anchorEl={previewButtonRef.current}
+                  onClose={() => setShowPreviewPopover(false)}
+                  theme={block.type === 'image' ? 'dark' : 'light'}
+                  lang={lang}
+                />
+              )}
+            </>
           ) : block.type === 'text' && block.content ? (
             <div className="w-full h-full flex items-center justify-center p-20 text-center overflow-auto scrollbar-hide">
               {isEditing ? (
                 <textarea
-                  className="w-full h-full bg-white/50 dark:bg-black/20 backdrop-blur-md rounded-[2rem] p-10 border-none outline-none resize-none font-bold leading-relaxed text-center scrollbar-hide focus:ring-0"
+                  className="w-full min-h-[100px] bg-white/50 dark:bg-black/20 backdrop-blur-md rounded-xl p-6 border-2 border-amber-400 dark:border-amber-300 outline-none resize-none font-bold leading-relaxed text-center scrollbar-hide focus:ring-0"
                   value={block.content}
                   autoFocus
-                  style={{ fontSize: block.fontSize || 24, color: block.textColor || '#334155' }}
+                  style={{ fontSize: block.fontSize || 18, color: block.textColor || '#334155' }}
                   onChange={(e) => onUpdate(block.id, { content: e.target.value })}
                   onBlur={() => setIsEditing(false)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) setIsEditing(false); }}
+                  rows={1}
+                  onInput={(e) => {
+                    const textarea = e.target as HTMLTextAreaElement;
+                    textarea.style.height = 'auto';
+                    textarea.style.height = `${Math.min(textarea.scrollHeight, 500)}px`;
+                  }}
                 />
               ) : (
-                <p className="font-bold leading-relaxed transition-all whitespace-pre-wrap cursor-text" style={{ fontSize: block.fontSize || 24, color: block.textColor || '#334155' }}>
+                <p className="font-bold leading-relaxed transition-all whitespace-pre-wrap cursor-text" style={{ fontSize: block.fontSize || 18, color: block.textColor || '#334155' }}>
                   {block.content}
                 </p>
               )}
@@ -296,46 +407,133 @@ const BlockComponent: React.FC<BlockProps> = ({
 
       {/* 指令输入框 */}
       <div 
-        className={`absolute top-[calc(100%+24px)] left-1/2 -translate-x-1/2 w-full max-w-[720px] p-2 bg-white dark:bg-slate-900 shadow-[0_48px_100px_-15px_rgba(0,0,0,0.4)] rounded-[3.5rem] border-2 border-black/10 dark:border-white/10 transition-all duration-300 z-[210]
-          ${isHovered || isSelected || upstreamIds.length > 0 ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-12 pointer-events-none'}
+        className={`absolute top-[calc(100%+16px)] left-1/2 -translate-x-1/2 w-full max-w-[720px] transition-all duration-300 z-[210]
+          ${isHovered || isSelected || upstreamIds.length > 0 || upstreamData.length > 0 ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-12 pointer-events-none'}
         `}
         onMouseDown={e => e.stopPropagation()}
         onMouseEnter={() => setIsHovered(true)}
       >
-        <form onSubmit={handlePromptSubmit} className="flex items-center gap-4 px-6 py-2">
-           <Sparkles size={24} className="text-amber-500 shrink-0" />
-           
-           <div className="flex-1 flex flex-wrap items-center gap-2 overflow-hidden">
-             <div className="flex gap-2 shrink-0">
-               {upstreamIds.map(id => (
-                 <button 
-                  key={id} 
-                  type="button"
-                  onClick={() => insertId(id)}
-                  title={lang === 'zh' ? '点击插入编号' : 'Click to insert ID'}
-                  className={`flex items-center gap-2 px-3 py-1 rounded-lg border font-black text-[11px] uppercase tracking-wider select-none shadow-sm transition-all active:scale-90 ${getChipColor(id)}`}
-                 >
-                   <span>{id}</span>
-                 </button>
-               ))}
-             </div>
+        {/* Variable validation errors */}
+        {variableErrors.length > 0 && (
+          <div className="mb-1 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+            <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-xs">
+              <Info size={14} />
+              <span className="font-medium">
+                {lang === 'zh' ? '变量错误:' : 'Variable errors:'}
+              </span>
+            </div>
+            {variableErrors.map((error, index) => (
+              <div key={index} className="text-red-600 dark:text-red-400 text-xs mt-1 ml-5">
+                {error.message}
+              </div>
+            ))}
+          </div>
+        )}
 
-             <div className="flex-1 relative flex items-center min-w-[200px]">
-               <input 
-                ref={inputRef}
-                type="text"
-                value={userInput}
-                onChange={e => setUserInput(e.target.value)}
-                placeholder={lang === 'zh' ? '输入指令，点击编号可混排...' : 'Enter command, click ID to mix...'}
-                className="w-full bg-transparent text-lg font-bold focus:outline-none text-slate-900 dark:text-white placeholder-slate-400 py-4"
-               />
+        <form onSubmit={handlePromptSubmit} className="flex flex-col gap-2 rounded-xl border-2 border-amber-500 dark:border-amber-400 shadow-md">
+           <div className="flex items-center gap-2 p-3">
+             <Sparkles size={20} className="text-amber-500 shrink-0" />
+             
+             <div className="flex-1 flex flex-wrap items-center gap-1">
+               {/* Available variables from upstream data */}
+               {upstreamData.length > 0 && (
+                 <div className="flex gap-1 shrink-0">
+                   {upstreamData.map(data => (
+                     <button 
+                      key={data.blockId} 
+                      type="button"
+                      onClick={() => insertVariable(data.blockNumber)}
+                      title={lang === 'zh' ? `点击插入变量 [${data.blockNumber}]` : `Click to insert variable [${data.blockNumber}]`}
+                      className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border font-black text-[9px] uppercase tracking-wider select-none shadow-sm transition-all active:scale-90 ${getChipColor(data.blockNumber)}`}
+                     >
+                       <span>[{data.blockNumber}]</span>
+                       <div className="w-1.5 h-1.5 rounded-full bg-green-500" title={lang === 'zh' ? '有数据' : 'Has data'} />
+                     </button>
+                   ))}
+                   
+                   {/* Variable help button */}
+                   <button
+                     type="button"
+                     onClick={() => setShowVariableHelp(!showVariableHelp)}
+                     className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                     title={lang === 'zh' ? '变量帮助' : 'Variable help'}
+                   >
+                     <Info size={14} />
+                   </button>
+                 </div>
+               )}
+
+               {/* Legacy upstream IDs (for backward compatibility) */}
+               {upstreamIds.length > 0 && upstreamData.length === 0 && (
+                 <div className="flex gap-1 shrink-0">
+                   {upstreamIds.map(id => (
+                     <button 
+                      key={id} 
+                      type="button"
+                      onClick={() => insertVariable(id)}
+                      title={lang === 'zh' ? '点击插入编号' : 'Click to insert ID'}
+                      className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border font-black text-[9px] uppercase tracking-wider select-none shadow-sm transition-all active:scale-90 ${getChipColor(id)}`}
+                     >
+                       <span>{id}</span>
+                     </button>
+                   ))}
+                 </div>
+               )}
              </div>
            </div>
 
-           <button type="submit" className={`p-4 w-16 h-16 flex items-center justify-center rounded-full transition-all shadow-xl shrink-0 ${userInput.trim() || upstreamIds.length > 0 ? 'bg-amber-500 text-white hover:scale-110 active:scale-95' : 'bg-slate-100 dark:bg-white/10 text-slate-400 cursor-not-allowed'}`}>
-             <Send size={24} fill={userInput.trim() || upstreamIds.length > 0 ? "currentColor" : "none"} />
-           </button>
+           <div className="relative">
+             <textarea 
+              ref={inputRef as any}
+              value={userInput}
+              onChange={e => setUserInput(e.target.value)}
+              placeholder={
+                lang === 'zh' ? '输入指令，点击编号可引用编号模块输出信息' : 'Enter command, click ID to reference module output'
+              }
+              className={`w-full bg-white dark:bg-slate-900 text-lg font-bold focus:outline-none text-slate-900 dark:text-white placeholder-slate-400 p-3 pr-12 rounded-b-xl resize-none min-h-[60px] max-h-[200px] ${variableErrors.length > 0 ? 'text-red-600 dark:text-red-400' : ''}`}
+              rows={1}
+              onInput={(e) => {
+                const textarea = e.target as HTMLTextAreaElement;
+                textarea.style.height = 'auto';
+                textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+              }}
+             />
+             
+             {/* Send button inside textarea */}
+             <button 
+               type="submit" 
+               disabled={variableErrors.length > 0}
+               className={`absolute right-3 bottom-3 p-2 w-8 h-8 flex items-center justify-center rounded-full transition-all shadow-lg shrink-0 ${(userInput.trim() || upstreamIds.length > 0 || upstreamData.length > 0) && variableErrors.length === 0 ? 'bg-amber-500 text-white hover:scale-105 active:scale-95' : 'bg-slate-100 dark:bg-white/10 text-slate-400 cursor-not-allowed'}`}
+             >
+               <Send size={16} fill={(userInput.trim() || upstreamIds.length > 0 || upstreamData.length > 0) && variableErrors.length === 0 ? "currentColor" : "none"} />
+             </button>
+           </div>
         </form>
+
+        {/* Variable help panel */}
+        {showVariableHelp && upstreamData.length > 0 && (
+          <div className="mt-1 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl">
+            <div className="text-blue-800 dark:text-blue-200 text-xs font-medium mb-1">
+              {lang === 'zh' ? '变量使用说明:' : 'Variable Usage:'}
+            </div>
+            <div className="space-y-1 text-xs text-blue-700 dark:text-blue-300">
+              <div>
+                {lang === 'zh' ? '• 使用 [块编号] 引用上游块的输出内容' : '• Use [BlockNumber] to reference upstream block output'}
+              </div>
+              <div>
+                {lang === 'zh' ? '• 例如: "基于 [A01] 的内容生成图片"' : '• Example: "Generate image based on [A01] content"'}
+              </div>
+              <div className="pt-1 border-t border-blue-200 dark:border-blue-700">
+                <span className="font-medium">{lang === 'zh' ? '可用变量:' : 'Available variables:'}</span>
+                {upstreamData.map(data => (
+                  <span key={data.blockId} className="ml-1.5 px-1.5 py-1 bg-blue-100 dark:bg-blue-800 rounded text-xs">
+                    [{data.blockNumber}]
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 逻辑锚点 */}

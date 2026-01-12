@@ -128,7 +128,7 @@ export const I18N = {
     emptySlot: '空槽位',
     savePrompts: '保存提示词',
     cancelEdit: '取消编辑',
-    promptTooLong: '提示词内容不能超过2000字符',
+    promptTooLong: '提示词内容不能超过3000字符',
     promptSaved: '提示词已保存',
     storageError: '无法保存提示词设置，将使用临时存储'
   },
@@ -191,7 +191,7 @@ export const I18N = {
     emptySlot: 'Empty Slot',
     savePrompts: 'Save Prompts',
     cancelEdit: 'Cancel Edit',
-    promptTooLong: 'Prompt content cannot exceed 2000 characters',
+    promptTooLong: 'Prompt content cannot exceed 3000 characters',
     promptSaved: 'Prompts saved',
     storageError: 'Unable to save prompt settings, using temporary storage'
   }

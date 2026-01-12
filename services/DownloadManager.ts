@@ -1,6 +1,7 @@
 /**
  * Download Manager Service
  * Handles automatic downloading of completed videos with retry logic and progress tracking
+ * Enhanced for batch operations and directory organization
  */
 
 export interface DownloadItem {
@@ -15,6 +16,18 @@ export interface DownloadItem {
   downloadPath?: string;
   createdAt: number;
   completedAt?: number;
+  executionId?: string; // For batch organization
+  batchId?: string; // For grouping related downloads
+}
+
+export interface BatchDownloadConfig {
+  executionId: string;
+  batchId?: string;
+  baseDirectory?: string;
+  createSubdirectory?: boolean;
+  subdirectoryName?: string;
+  fileNamingPattern?: 'original' | 'sequential' | 'timestamp';
+  maxConcurrentDownloads?: number;
 }
 
 export interface DownloadProgress {
@@ -23,6 +36,17 @@ export interface DownloadProgress {
   failed: number;
   pending: number;
   downloading: number;
+  totalSize?: number;
+  downloadedSize?: number;
+}
+
+export interface BatchProgress {
+  batchId: string;
+  executionId: string;
+  progress: DownloadProgress;
+  startTime: number;
+  endTime?: number;
+  directory?: string;
 }
 
 export interface DownloadConfig {
@@ -31,18 +55,27 @@ export interface DownloadConfig {
   retryDelay?: number;
   enableNotifications?: boolean;
   autoDownload?: boolean;
+  maxConcurrentDownloads?: number;
+  createExecutionDirectories?: boolean;
+  fileNamingPattern?: 'original' | 'sequential' | 'timestamp';
 }
 
 export class DownloadManager {
   private downloadQueue: DownloadItem[] = [];
   private activeDownloads = new Map<string, AbortController>();
+  private batchProgress = new Map<string, BatchProgress>();
   private onProgressUpdate?: (progress: DownloadProgress) => void;
+  private onBatchProgressUpdate?: (batchProgress: BatchProgress) => void;
   private onComplete?: (completedItems: DownloadItem[]) => void;
+  private onBatchComplete?: (batchId: string, batchProgress: BatchProgress) => void;
   private config: DownloadConfig = {
     maxRetries: 3,
     retryDelay: 2000,
     enableNotifications: true,
-    autoDownload: true
+    autoDownload: true,
+    maxConcurrentDownloads: 3,
+    createExecutionDirectories: true,
+    fileNamingPattern: 'original'
   };
 
   /**
@@ -53,10 +86,24 @@ export class DownloadManager {
   }
 
   /**
+   * Set batch progress update callback
+   */
+  setBatchProgressCallback(callback: (batchProgress: BatchProgress) => void): void {
+    this.onBatchProgressUpdate = callback;
+  }
+
+  /**
    * Set completion callback
    */
   setCompletionCallback(callback: (completedItems: DownloadItem[]) => void): void {
     this.onComplete = callback;
+  }
+
+  /**
+   * Set batch completion callback
+   */
+  setBatchCompletionCallback(callback: (batchId: string, batchProgress: BatchProgress) => void): void {
+    this.onBatchComplete = callback;
   }
 
   /**
@@ -69,7 +116,7 @@ export class DownloadManager {
   /**
    * Add video to download queue
    */
-  addDownload(videoUrl: string, filename?: string, downloadPath?: string): string {
+  addDownload(videoUrl: string, filename?: string, downloadPath?: string, executionId?: string, batchId?: string): string {
     const id = `download_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const item: DownloadItem = {
       id,
@@ -80,11 +127,18 @@ export class DownloadManager {
       retryCount: 0,
       maxRetries: this.config.maxRetries || 3,
       downloadPath: downloadPath || this.config.downloadPath,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      executionId,
+      batchId
     };
 
     this.downloadQueue.push(item);
     this.notifyProgress();
+
+    // Update batch progress if applicable
+    if (batchId && executionId) {
+      this.updateBatchProgress(batchId, executionId);
+    }
 
     // Start download if auto-download is enabled
     if (this.config.autoDownload) {
@@ -97,15 +151,45 @@ export class DownloadManager {
   /**
    * Add multiple videos to download queue
    */
-  addBatchDownloads(videos: Array<{ url: string; filename?: string }>): string[] {
+  addBatchDownloads(videos: Array<{ url: string; filename?: string }>, batchConfig?: BatchDownloadConfig): string[] {
     const ids: string[] = [];
+    const batchId = batchConfig?.batchId || `batch_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const executionId = batchConfig?.executionId || `exec_${Date.now()}`;
     
-    videos.forEach(video => {
-      const id = this.addDownload(video.url, video.filename);
+    // Initialize batch progress tracking
+    this.initializeBatchProgress(batchId, executionId, videos.length);
+
+    // Determine download directory
+    const downloadDirectory = this.determineDownloadDirectory(batchConfig);
+    
+    videos.forEach((video, index) => {
+      const filename = this.generateBatchFilename(video, index, batchConfig);
+      const id = this.addDownload(video.url, filename, downloadDirectory, executionId, batchId);
       ids.push(id);
     });
 
     return ids;
+  }
+
+  /**
+   * Add downloads for a complete workflow execution
+   */
+  addExecutionDownloads(executionResults: Array<{ url: string; blockId: string; blockNumber: string }>, executionId: string): string[] {
+    const batchConfig: BatchDownloadConfig = {
+      executionId,
+      batchId: `execution_${executionId}`,
+      createSubdirectory: this.config.createExecutionDirectories,
+      subdirectoryName: `execution_${executionId}_${new Date().toISOString().split('T')[0]}`,
+      fileNamingPattern: this.config.fileNamingPattern,
+      maxConcurrentDownloads: this.config.maxConcurrentDownloads
+    };
+
+    const videos = executionResults.map(result => ({
+      url: result.url,
+      filename: `${result.blockNumber}_${result.blockId}.mp4`
+    }));
+
+    return this.addBatchDownloads(videos, batchConfig);
   }
 
   /**
@@ -114,8 +198,8 @@ export class DownloadManager {
   async processQueue(): Promise<void> {
     const pendingItems = this.downloadQueue.filter(item => item.status === 'pending');
     
-    // Process downloads concurrently (max 3 at a time)
-    const maxConcurrent = 3;
+    // Process downloads concurrently with configurable limit
+    const maxConcurrent = this.config.maxConcurrentDownloads || 3;
     const chunks = this.chunkArray(pendingItems, maxConcurrent);
     
     for (const chunk of chunks) {
@@ -126,6 +210,29 @@ export class DownloadManager {
 
     // Check if all downloads are complete
     this.checkCompletion();
+    this.checkBatchCompletions();
+  }
+
+  /**
+   * Process downloads for a specific batch
+   */
+  async processBatch(batchId: string): Promise<void> {
+    const batchItems = this.downloadQueue.filter(item => 
+      item.batchId === batchId && item.status === 'pending'
+    );
+    
+    if (batchItems.length === 0) return;
+
+    const maxConcurrent = this.config.maxConcurrentDownloads || 3;
+    const chunks = this.chunkArray(batchItems, maxConcurrent);
+    
+    for (const chunk of chunks) {
+      await Promise.allSettled(
+        chunk.map(item => this.downloadItem(item))
+      );
+    }
+
+    this.checkBatchCompletion(batchId);
   }
 
   /**
@@ -137,6 +244,11 @@ export class DownloadManager {
     item.status = 'downloading';
     item.progress = 0;
     this.notifyProgress();
+    
+    // Update batch progress if applicable
+    if (item.batchId) {
+      this.updateBatchProgress(item.batchId, item.executionId);
+    }
 
     const controller = new AbortController();
     this.activeDownloads.set(item.id, controller);
@@ -150,6 +262,11 @@ export class DownloadManager {
       this.activeDownloads.delete(item.id);
       
       this.notifyProgress();
+      
+      // Update batch progress if applicable
+      if (item.batchId) {
+        this.updateBatchProgress(item.batchId, item.executionId);
+      }
     } catch (error) {
       this.activeDownloads.delete(item.id);
       await this.handleDownloadError(item, error);
@@ -346,6 +463,53 @@ export class DownloadManager {
   }
 
   /**
+   * Get progress for a specific batch
+   */
+  getBatchProgress(batchId: string): DownloadProgress {
+    const batchItems = this.downloadQueue.filter(item => item.batchId === batchId);
+    const total = batchItems.length;
+    const completed = batchItems.filter(item => item.status === 'completed').length;
+    const failed = batchItems.filter(item => item.status === 'failed').length;
+    const downloading = batchItems.filter(item => item.status === 'downloading').length;
+    const pending = batchItems.filter(item => item.status === 'pending').length;
+
+    return {
+      total,
+      completed,
+      failed,
+      downloading,
+      pending
+    };
+  }
+
+  /**
+   * Get all batch progress information
+   */
+  getAllBatchProgress(): BatchProgress[] {
+    return Array.from(this.batchProgress.values());
+  }
+
+  /**
+   * Get progress for a specific execution
+   */
+  getExecutionProgress(executionId: string): DownloadProgress {
+    const executionItems = this.downloadQueue.filter(item => item.executionId === executionId);
+    const total = executionItems.length;
+    const completed = executionItems.filter(item => item.status === 'completed').length;
+    const failed = executionItems.filter(item => item.status === 'failed').length;
+    const downloading = executionItems.filter(item => item.status === 'downloading').length;
+    const pending = executionItems.filter(item => item.status === 'pending').length;
+
+    return {
+      total,
+      completed,
+      failed,
+      downloading,
+      pending
+    };
+  }
+
+  /**
    * Get download queue
    */
   getDownloadQueue(): DownloadItem[] {
@@ -367,6 +531,128 @@ export class DownloadManager {
     this.cancelAllDownloads();
     this.downloadQueue = [];
     this.notifyProgress();
+  }
+
+  /**
+   * Initialize batch progress tracking
+   */
+  private initializeBatchProgress(batchId: string, executionId?: string, totalItems: number = 0): void {
+    const batchProgress: BatchProgress = {
+      batchId,
+      executionId: executionId || '',
+      progress: {
+        total: totalItems,
+        completed: 0,
+        failed: 0,
+        downloading: 0,
+        pending: totalItems
+      },
+      startTime: Date.now()
+    };
+
+    this.batchProgress.set(batchId, batchProgress);
+  }
+
+  /**
+   * Update batch progress
+   */
+  private updateBatchProgress(batchId: string, executionId?: string): void {
+    const progress = this.getBatchProgress(batchId);
+    const existing = this.batchProgress.get(batchId);
+
+    if (existing) {
+      existing.progress = progress;
+      existing.executionId = executionId || existing.executionId;
+      
+      // Set end time if all items are complete
+      if (progress.pending === 0 && progress.downloading === 0) {
+        existing.endTime = Date.now();
+      }
+
+      this.batchProgress.set(batchId, existing);
+
+      // Notify batch progress update
+      if (this.onBatchProgressUpdate) {
+        this.onBatchProgressUpdate(existing);
+      }
+    }
+  }
+
+  /**
+   * Determine download directory based on batch configuration
+   */
+  private determineDownloadDirectory(batchConfig?: BatchDownloadConfig): string | undefined {
+    if (!batchConfig) return this.config.downloadPath;
+
+    let directory = batchConfig.baseDirectory || this.config.downloadPath;
+
+    if (batchConfig.createSubdirectory && batchConfig.subdirectoryName) {
+      directory = directory ? `${directory}/${batchConfig.subdirectoryName}` : batchConfig.subdirectoryName;
+    }
+
+    return directory;
+  }
+
+  /**
+   * Generate filename for batch downloads
+   */
+  private generateBatchFilename(video: { url: string; filename?: string }, index: number, batchConfig?: BatchDownloadConfig): string {
+    if (video.filename) return video.filename;
+
+    const baseFilename = this.generateFilename(video.url);
+    const pattern = batchConfig?.fileNamingPattern || this.config.fileNamingPattern;
+
+    switch (pattern) {
+      case 'sequential':
+        const paddedIndex = (index + 1).toString().padStart(3, '0');
+        return `${paddedIndex}_${baseFilename}`;
+      
+      case 'timestamp':
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        return `${timestamp}_${baseFilename}`;
+      
+      case 'original':
+      default:
+        return baseFilename;
+    }
+  }
+
+  /**
+   * Check batch completions
+   */
+  private checkBatchCompletions(): void {
+    for (const [batchId, batchProgress] of this.batchProgress.entries()) {
+      this.checkBatchCompletion(batchId);
+    }
+  }
+
+  /**
+   * Check if a specific batch is complete
+   */
+  private checkBatchCompletion(batchId: string): void {
+    const progress = this.getBatchProgress(batchId);
+    const batchInfo = this.batchProgress.get(batchId);
+    
+    if (!batchInfo) return;
+
+    const allComplete = progress.pending === 0 && progress.downloading === 0;
+    
+    if (allComplete && progress.total > 0 && !batchInfo.endTime) {
+      batchInfo.endTime = Date.now();
+      batchInfo.progress = progress;
+      
+      this.batchProgress.set(batchId, batchInfo);
+
+      // Notify batch completion
+      if (this.onBatchComplete) {
+        this.onBatchComplete(batchId, batchInfo);
+      }
+
+      // Show notification if enabled
+      if (this.config.enableNotifications && progress.completed > 0) {
+        this.showBatchCompletionNotification(batchId, progress.completed, progress.failed);
+      }
+    }
   }
 
   /**
@@ -450,6 +736,25 @@ export class DownloadManager {
   }
 
   /**
+   * Show batch completion notification
+   */
+  private showBatchCompletionNotification(batchId: string, completed: number, failed: number): void {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const message = failed > 0 
+        ? `Batch ${batchId}: ${completed} videos downloaded, ${failed} failed`
+        : `Batch ${batchId}: ${completed} videos downloaded successfully`;
+        
+      new Notification('Batch Download Complete', {
+        body: message,
+        icon: '/favicon.ico'
+      });
+    } else {
+      // Fallback to console log
+      console.log(`Batch ${batchId} complete: ${completed} videos downloaded, ${failed} failed`);
+    }
+  }
+
+  /**
    * Request notification permission
    */
   static async requestNotificationPermission(): Promise<boolean> {
@@ -458,6 +763,67 @@ export class DownloadManager {
       return permission === 'granted';
     }
     return false;
+  }
+
+  /**
+   * Cancel downloads for a specific batch
+   */
+  cancelBatch(batchId: string): void {
+    const batchItems = this.downloadQueue.filter(item => item.batchId === batchId);
+    
+    batchItems.forEach(item => {
+      this.cancelDownload(item.id);
+    });
+
+    // Update batch progress
+    this.updateBatchProgress(batchId);
+  }
+
+  /**
+   * Retry failed downloads in a batch
+   */
+  retryBatch(batchId: string): void {
+    const failedItems = this.downloadQueue.filter(item => 
+      item.batchId === batchId && 
+      item.status === 'failed' && 
+      item.retryCount < item.maxRetries
+    );
+    
+    failedItems.forEach(item => {
+      item.status = 'pending';
+      item.progress = 0;
+      item.error = undefined;
+    });
+    
+    if (failedItems.length > 0) {
+      this.processBatch(batchId);
+    }
+  }
+
+  /**
+   * Clear completed downloads from a batch
+   */
+  clearBatchCompleted(batchId: string): void {
+    this.downloadQueue = this.downloadQueue.filter(item => 
+      !(item.batchId === batchId && item.status === 'completed')
+    );
+    
+    this.updateBatchProgress(batchId);
+    this.notifyProgress();
+  }
+
+  /**
+   * Get downloads for a specific batch
+   */
+  getBatchDownloads(batchId: string): DownloadItem[] {
+    return this.downloadQueue.filter(item => item.batchId === batchId);
+  }
+
+  /**
+   * Get downloads for a specific execution
+   */
+  getExecutionDownloads(executionId: string): DownloadItem[] {
+    return this.downloadQueue.filter(item => item.executionId === executionId);
   }
 }
 
