@@ -367,10 +367,10 @@ const BlockComponent: React.FC<BlockProps> = ({
               )}
             </>
           ) : block.type === 'text' && block.content ? (
-            <div className="w-full h-full flex items-center justify-center p-20 text-center overflow-auto scrollbar-hide">
+            <div className="w-full h-full flex items-start justify-center p-20 text-center overflow-auto scrollbar-hide">
               {isEditing ? (
                 <textarea
-                  className="w-full min-h-[100px] bg-white/50 dark:bg-black/20 backdrop-blur-md rounded-xl p-6 border-2 border-amber-400 dark:border-amber-300 outline-none resize-none font-bold leading-relaxed text-center scrollbar-hide focus:ring-0"
+                  className="w-full h-[calc(100%-12px)] bg-white/50 dark:bg-black/20 backdrop-blur-md rounded-xl p-6 border-2 border-amber-400 dark:border-amber-300 outline-none resize-none font-bold leading-relaxed text-center scrollbar-hide focus:ring-0"
                   value={block.content}
                   autoFocus
                   style={{ fontSize: block.fontSize || 18, color: block.textColor || '#334155' }}
@@ -381,7 +381,7 @@ const BlockComponent: React.FC<BlockProps> = ({
                   onInput={(e) => {
                     const textarea = e.target as HTMLTextAreaElement;
                     textarea.style.height = 'auto';
-                    textarea.style.height = `${Math.min(textarea.scrollHeight, 500)}px`;
+                    textarea.style.height = `${Math.min(textarea.scrollHeight, textarea.parentElement?.clientHeight || 500)}px`;
                   }}
                 />
               ) : (
