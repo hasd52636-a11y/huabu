@@ -9,7 +9,7 @@ interface APIProviderConfigProps {
   activeTab: 'text' | 'image' | 'video';
   settings: ProviderSettings;
   onUpdateSettings: (updates: Partial<ProviderSettings>) => void;
-  onTestConnection?: (provider: ProviderType) => Promise<boolean>;
+  onTestConnection?: (settings: ProviderSettings) => Promise<boolean>;
   theme: 'light' | 'dark';
   lang: 'zh' | 'en';
 }
@@ -119,7 +119,7 @@ const APIProviderConfig: React.FC<APIProviderConfigProps> = ({
     setConnectionStatus('idle');
     
     try {
-      const success = await onTestConnection(settings.provider);
+      const success = await onTestConnection(settings);
       setConnectionStatus(success ? 'success' : 'error');
     } catch (error) {
       setConnectionStatus('error');
@@ -155,11 +155,19 @@ const APIProviderConfig: React.FC<APIProviderConfigProps> = ({
   };
 
   const handleProviderChange = (provider: ProviderType) => {
+    const defaultBaseUrls: Record<ProviderType, string | undefined> = {
+      google: undefined,
+      'openai-compatible': 'https://api.openai.com/v1',
+      zhipu: 'https://open.bigmodel.cn/api/paas/v4',
+      shenma: 'https://hk-api.gptbest.vip'
+    };
+    
     onUpdateSettings({
       provider,
       modelId: getDefaultModelId(provider, activeTab),
-      // Clear API key and base URL when switching providers
-      ...(provider === 'google' ? { apiKey: undefined, baseUrl: undefined } : {})
+      baseUrl: defaultBaseUrls[provider],
+      // Clear API key when switching providers
+      apiKey: undefined
     });
     setConnectionStatus('idle');
   };
@@ -226,15 +234,62 @@ const APIProviderConfig: React.FC<APIProviderConfigProps> = ({
           <label className="text-[11px] font-black uppercase tracking-widest text-slate-500">
             {t.baseUrl}
           </label>
-          <input
-            type="text"
-            value={settings.baseUrl || ''}
-            onChange={(e) => onUpdateSettings({ baseUrl: e.target.value })}
-            className={`w-full p-6 text-xl font-bold bg-black/5 dark:bg-white/5 border-2 rounded-3xl outline-none focus:border-amber-500 transition-all ${
-              theme === 'dark' ? 'border-white/10' : 'border-black/5'
-            }`}
-            placeholder={t.placeholders.baseUrl}
-          />
+          <div className="relative">
+            <input
+              type="text"
+              value={settings.baseUrl || ''}
+              onChange={(e) => onUpdateSettings({ baseUrl: e.target.value })}
+              className={`w-full p-6 text-xl font-bold bg-black/5 dark:bg-white/5 border-2 rounded-3xl outline-none focus:border-amber-500 transition-all pl-6 pr-14 ${
+                theme === 'dark' ? 'border-white/10' : 'border-black/5'
+              }`}
+              placeholder={t.placeholders.baseUrl}
+            />
+            {/* Official Registration Link */}
+            <a 
+              href={{
+                'openai-compatible': 'https://platform.openai.com/signup',
+                zhipu: 'https://bigmodel.cn/usercenter/apikeys',
+                shenma: 'https://hk-api.gptbest.vip'
+              }[settings.provider]}
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+              title="前往官方注册获取API密钥"
+            >
+              <ExternalLink size={20} strokeWidth={2} />
+            </a>
+          </div>
+          {/* Alternative Servers for Shenma */}
+          {settings.provider === 'shenma' && (
+            <div className="space-y-2">
+              <div className="text-xs text-slate-500">
+                可选服务器地址：
+                <button 
+                  onClick={() => onUpdateSettings({ baseUrl: 'https://hk-api.gptbest.vip' })}
+                  className={`px-2 py-1 rounded text-xs ${settings.baseUrl === 'https://hk-api.gptbest.vip' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                >
+                  香港服务器
+                </button>
+                <button 
+                  onClick={() => onUpdateSettings({ baseUrl: 'https://api.gptbest.vip' })}
+                  className={`ml-2 px-2 py-1 rounded text-xs ${settings.baseUrl === 'https://api.gptbest.vip' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                >
+                  美国服务器
+                </button>
+              </div>
+              {/* Token Quota Check Link for Shenma */}
+              <div className="text-right">
+                <a 
+                  href="https://usage.gptbest.vip"
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+                >
+                  查看令牌额度 →
+                </a>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

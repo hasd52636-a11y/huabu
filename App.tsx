@@ -539,9 +539,9 @@ ${inputText || "Generate from attachment"}
   };
 
   // Test API connection
-  const handleTestConnection = async (provider: ProviderType): Promise<boolean> => {
+  const handleTestConnection = async (settings: ProviderSettings): Promise<boolean> => {
     try {
-      return await aiServiceAdapter.testConnection(provider);
+      return await aiServiceAdapter.testConnection(settings);
     } catch (error) {
       console.error('Connection test failed:', error);
       return false;
@@ -815,7 +815,7 @@ ${inputText || "Generate from attachment"}
         <button onClick={() => { setZoom(0.5); setPan({ x: 0, y: 0 }); }} className="p-6 text-slate-400 hover:text-amber-500 transition-all" title={t.ctxReset}><RotateCcw size={28} /></button>
       </aside>
 
-      <main className="flex-1 h-full pt-28 pl-44" style={{ marginRight: showSidebar ? sidebarWidth : 0 }}>
+      <main className="flex-1 h-full pt-28 pl-44" style={{ marginRight: showSidebar ? `${sidebarWidth}px` : 0 }}>
         <Canvas 
           blocks={blocks} connections={connections} zoom={zoom} pan={pan} selectedIds={selectedIds} theme={theme} lang={lang} isPerfMode={false}
           onUpdateBlock={(id, upd) => setBlocks(prev => prev.map(b => b.id === id ? {...b, ...upd} : b))}
@@ -831,7 +831,7 @@ ${inputText || "Generate from attachment"}
       </main>
 
       {showSidebar && (
-        <aside style={{ width: sidebarWidth }} className={`fixed right-0 top-28 bottom-0 flex flex-col z-[300] border-l-2 ${theme === 'dark' ? 'bg-slate-900 border-white/5' : 'bg-white border-black/5'}`}>
+        <aside style={{ width: `${sidebarWidth}px` }} className={`fixed right-0 top-28 bottom-0 flex flex-col z-[300] border-l-2 ${theme === 'dark' ? 'bg-slate-900 border-white/5' : 'bg-white border-black/5'}`}>
           <div onMouseDown={startResizing} className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-amber-500/20 z-[310]" />
           <div className="p-8 border-b-2 border-black/5 flex flex-col gap-4">
              <div className="flex items-center justify-between">
