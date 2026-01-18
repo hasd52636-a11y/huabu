@@ -14,7 +14,12 @@ export class AIService {
 
   // Google Implementation
   private async generateGoogleText(contents: any, model: string) {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error('Google API key not configured. Please set up your API key in the settings.');
+    }
+    
+    const ai = new GoogleGenAI({ apiKey });
     try {
       const response = await ai.models.generateContent({
         model: model,
@@ -48,7 +53,7 @@ export class AIService {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${settings.apiKey || process.env.API_KEY}`
+        'Authorization': `Bearer ${settings.apiKey || process.env.API_KEY || ''}`
       },
       body: JSON.stringify({
         model: settings.modelId,
@@ -69,7 +74,12 @@ export class AIService {
   // Image dispatch
   async generateImage(contents: any, settings: ProviderSettings) {
     if (settings.provider === 'google') {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error('Google API key not configured. Please set up your API key in the settings.');
+      }
+      
+      const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: settings.modelId,
         contents: contents,
@@ -88,7 +98,12 @@ export class AIService {
   // Video dispatch
   async generateVideo(prompt: string, settings: ProviderSettings) {
     if (settings.provider === 'google') {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error('Google API key not configured. Please set up your API key in the settings.');
+      }
+      
+      const ai = new GoogleGenAI({ apiKey });
       let operation = await ai.models.generateVideos({
         model: settings.modelId,
         prompt,
@@ -99,7 +114,7 @@ export class AIService {
         operation = await ai.operations.getVideosOperation({ operation: operation });
       }
       const uri = operation.response?.generatedVideos?.[0]?.video?.uri;
-      return `${uri}&key=${process.env.API_KEY}`;
+      return `${uri}&key=${apiKey}`;
     } else {
       throw new Error("Generic Video Provider not implemented. Use Veo/Google.");
     }

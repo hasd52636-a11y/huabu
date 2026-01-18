@@ -1,8 +1,0 @@
-{
-  "name": "Intelligent Creative Canvas",
-  "description": "A lightweight, AI-powered modular canvas for text, image, and video creation with logic linking and real-time generation.",
-  "requestFramePermissions": [
-    "camera",
-    "microphone"
-  ]
-}

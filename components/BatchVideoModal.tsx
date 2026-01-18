@@ -2,11 +2,24 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Play, X, Video, Settings, Upload, FileText as FileIcon, Minimize2,
   FileText, Image as ImageIcon, VideoIcon, FolderOpen, AlertTriangle,
-  RefreshCw, CheckCircle, XCircle, Info, AlertCircle
+  RefreshCw, CheckCircle, XCircle, Info, AlertCircle, User, Users
 } from 'lucide-react';
-import { Block, BatchConfig } from '../types';
+import { Block, BatchConfig, Character } from '../types';
 import { ErrorHandler } from '../services/ErrorHandler';
-import { ErrorInfo, ExecutionError } from '../types';
+import { characterService } from '../services/CharacterService';
+
+// Custom error interface for BatchVideoModal
+interface BatchModalError {
+  type: string;
+  code: string;
+  message: string;
+  userMessage: string;
+  details?: string;
+  timestamp: number;
+  retryable: boolean;
+  recoverable: boolean;
+  suggestedAction?: string;
+}
 
 interface FrameData {
   id: string;
@@ -18,12 +31,17 @@ interface FrameData {
 
 interface BatchVideoModalProps {
   selectedBlocks: Block[];
-  onStartBatch: (config: BatchConfig, videoPrompts: Record<string, string>, txtFile?: File, selectedFrames?: FrameData[]) => void;
+  onStartBatch: (config: BatchConfig, videoPrompts: Record<string, string>, txtFile?: File, selectedFrames?: FrameData[], selectedCharacter?: Character) => void;
   onClose: () => void;
   onMinimize?: () => void;
   theme: 'light' | 'dark';
   lang: 'zh' | 'en';
   isMinimized?: boolean;
+  // Character integration props
+  availableCharacters?: Character[];
+  selectedCharacter?: Character;
+  onCharacterSelect?: (character: Character | undefined) => void;
+  onOpenCharacterPanel?: () => void;
 }
 
 const BatchVideoModal: React.FC<BatchVideoModalProps> = ({
@@ -33,7 +51,11 @@ const BatchVideoModal: React.FC<BatchVideoModalProps> = ({
   onMinimize,
   theme,
   lang,
-  isMinimized = false
+  isMinimized = false,
+  availableCharacters = [],
+  selectedCharacter,
+  onCharacterSelect,
+  onOpenCharacterPanel
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const errorHandler = useRef(new ErrorHandler());
@@ -46,8 +68,13 @@ const BatchVideoModal: React.FC<BatchVideoModalProps> = ({
   const [parsedPrompts, setParsedPrompts] = useState<string[]>([]);
   const [fileError, setFileError] = useState<string>('');
   
+  // 角色相关状态
+  const [localSelectedCharacter, setLocalSelectedCharacter] = useState<Character | undefined>(selectedCharacter);
+  const [showCharacterSelector, setShowCharacterSelector] = useState<boolean>(false);
+  const [characters, setCharacters] = useState<Character[]>(availableCharacters);
+  
   // 错误处理状态
-  const [errors, setErrors] = useState<ErrorInfo[]>([]);
+  const [errors, setErrors] = useState<BatchModalError[]>([]);
   const [showErrorDetails, setShowErrorDetails] = useState<boolean>(false);
   const [retryingErrors, setRetryingErrors] = useState<Set<string>>(new Set());
   
@@ -56,7 +83,8 @@ const BatchVideoModal: React.FC<BatchVideoModalProps> = ({
   const [isValidating, setIsValidating] = useState<boolean>(false);
   
   // 默认全局视频提示词（来自参考项目）
-  const defaultGlobalPrompt = '全局指令：参考锁定视频中出现的所有角色或产品，必须严格以提供的参考图中的主体为唯一视觉来源，确保身份、外形、比例、服饰、材质及风格完全一致。不得对参考主体进行任何形式的重新设计、替换、风格化、美化或修改。人物面部、身形、服装、纹理、标识、颜色及轮廓需与参考图完全一致。若提示词与参考图存在冲突，参考图优先级始终高于提示词。\n\n';
+  const defaultGlobalPrompt = '【All characters/products in the video must strictly use the provided reference image as the only visual source, ensuring complete consistency in identity, appearance, color, proportion, clothing, materials, and style. Do not modify the reference subject. If prompt conflicts with reference image, reference image always takes precedence.】\n\n';
+
 
   // Configuration persistence functions
   const saveConfiguration = (config: BatchConfig, orientation: 'landscape' | 'portrait') => {
@@ -218,6 +246,20 @@ const BatchVideoModal: React.FC<BatchVideoModalProps> = ({
     setConfigLoaded(true);
   }, []);
 
+  // Load characters and sync with props
+  useEffect(() => {
+    const loadedCharacters = characterService.getAllCharacters();
+    setCharacters(loadedCharacters);
+  }, []);
+
+  useEffect(() => {
+    setLocalSelectedCharacter(selectedCharacter);
+  }, [selectedCharacter]);
+
+  useEffect(() => {
+    setCharacters(availableCharacters);
+  }, [availableCharacters]);
+
   // Auto-save configuration when it changes (after initial load)
   useEffect(() => {
     // Skip auto-save until configuration is loaded from storage
@@ -372,7 +414,18 @@ const BatchVideoModal: React.FC<BatchVideoModalProps> = ({
 
   // 添加错误处理函数
   const addError = (error: Error | string, context?: Record<string, any>) => {
-    const errorInfo = errorHandler.current.processError(error, context);
+    const errorMessage = error instanceof Error ? error.message : error;
+    const errorInfo: BatchModalError = {
+      type: 'BATCH_ERROR',
+      code: context?.code || 'UNKNOWN_ERROR',
+      message: errorMessage,
+      userMessage: errorMessage,
+      details: context?.details,
+      timestamp: Date.now(),
+      retryable: context?.retryable !== false,
+      recoverable: context?.recoverable !== false,
+      suggestedAction: context?.suggestedAction
+    };
     setErrors(prev => [...prev, errorInfo]);
   };
 
@@ -382,10 +435,9 @@ const BatchVideoModal: React.FC<BatchVideoModalProps> = ({
 
   const clearAllErrors = () => {
     setErrors([]);
-    errorHandler.current.clearErrorLogs();
   };
 
-  const retryError = async (errorInfo: ErrorInfo) => {
+  const retryError = async (errorInfo: BatchModalError) => {
     if (!errorInfo.retryable) return;
     
     setRetryingErrors(prev => new Set(prev).add(errorInfo.code));
@@ -540,16 +592,28 @@ const BatchVideoModal: React.FC<BatchVideoModalProps> = ({
       const prompts = parseFileContent(content);
       
       if (prompts.length === 0) {
-        const error = new Error(text.fileEmpty);
-        addError(error, { fileName: file.name, fileSize: file.size });
-        setFileError(text.fileEmpty);
+        const errorMessage = text.fileEmpty;
+        addError(errorMessage, { 
+          code: 'FILE_PARSING_ERROR',
+          fileName: file.name, 
+          fileSize: file.size,
+          retryable: true,
+          suggestedAction: lang === 'zh' ? '请检查文件内容格式' : 'Please check file content format'
+        });
+        setFileError(errorMessage);
         return;
       }
       
       if (prompts.length > 50) {
-        const error = new Error(text.maxPromptsWarning.replace('{count}', prompts.length.toString()));
-        addError(error, { fileName: file.name, promptCount: prompts.length });
-        setFileError(text.maxPromptsWarning.replace('{count}', prompts.length.toString()));
+        const errorMessage = text.maxPromptsWarning.replace('{count}', prompts.length.toString());
+        addError(errorMessage, { 
+          code: 'FILE_SIZE_ERROR',
+          fileName: file.name, 
+          promptCount: prompts.length,
+          retryable: false,
+          suggestedAction: lang === 'zh' ? '请减少提示词数量到50个以内' : 'Please reduce prompts to 50 or fewer'
+        });
+        setFileError(errorMessage);
         return;
       }
       
@@ -569,8 +633,11 @@ const BatchVideoModal: React.FC<BatchVideoModalProps> = ({
     } catch (error) {
       const errorMessage = text.fileError + ': ' + (error instanceof Error ? error.message : String(error));
       addError(error instanceof Error ? error : new Error(errorMessage), { 
+        code: 'FILE_PARSING_ERROR',
         fileName: file.name, 
-        fileSize: file.size 
+        fileSize: file.size,
+        retryable: true,
+        suggestedAction: lang === 'zh' ? '请检查文件是否损坏或格式正确' : 'Please check if file is corrupted or format is correct'
       });
       setFileError(errorMessage);
     }
@@ -649,7 +716,12 @@ const BatchVideoModal: React.FC<BatchVideoModalProps> = ({
     try {
       // 验证配置
       if (!validateConfiguration()) {
-        addError(new Error(text.validationFailed), { validationErrors });
+        addError(text.validationFailed, { 
+          code: 'VALIDATION_ERROR',
+          validationErrors,
+          retryable: false,
+          suggestedAction: lang === 'zh' ? '请修正验证错误后重试' : 'Please fix validation errors and retry'
+        });
         return;
       }
       
@@ -670,13 +742,16 @@ const BatchVideoModal: React.FC<BatchVideoModalProps> = ({
         videoOrientation: videoOrientation
       };
 
-      onStartBatch(finalConfig, videoPrompts, uploadedFile || undefined, selectedFrames);
+      onStartBatch(finalConfig, videoPrompts, uploadedFile || undefined, selectedFrames, localSelectedCharacter);
       onClose();
     } catch (error) {
       addError(error instanceof Error ? error : new Error(String(error)), {
+        code: 'BATCH_START_ERROR',
         inputMode,
         blockCount: selectedBlocks.length,
-        promptCount: parsedPrompts.length
+        promptCount: parsedPrompts.length,
+        retryable: true,
+        suggestedAction: lang === 'zh' ? '请检查配置并重试' : 'Please check configuration and retry'
       });
     } finally {
       setIsValidating(false);
@@ -687,6 +762,34 @@ const BatchVideoModal: React.FC<BatchVideoModalProps> = ({
   const canStartGeneration = inputMode === 'blocks' 
     ? selectedBlocks.length > 0 
     : uploadedFile && parsedPrompts.length > 0;
+
+  // 角色处理函数
+  const handleCharacterSelect = (character: Character | undefined) => {
+    setLocalSelectedCharacter(character);
+    if (onCharacterSelect) {
+      onCharacterSelect(character);
+    }
+    setShowCharacterSelector(false);
+  };
+
+  const handleOpenCharacterPanel = () => {
+    if (onOpenCharacterPanel) {
+      onOpenCharacterPanel();
+    }
+  };
+
+  const getCharacterStatusIcon = (status: Character['status']) => {
+    switch (status) {
+      case 'creating':
+        return <AlertCircle size={14} className="animate-pulse text-blue-500" />;
+      case 'ready':
+        return <CheckCircle size={14} className="text-green-500" />;
+      case 'error':
+        return <XCircle size={14} className="text-red-500" />;
+      default:
+        return <AlertCircle size={14} className="text-gray-500" />;
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
@@ -821,7 +924,7 @@ const BatchVideoModal: React.FC<BatchVideoModalProps> = ({
                           <span className={`text-xs px-2 py-0.5 rounded-full ${
                             theme === 'dark' ? 'bg-slate-600 text-slate-300' : 'bg-slate-200 text-slate-700'
                           }`}>
-                            {error.code}
+                            {error.type}
                           </span>
                         </div>
                         
@@ -855,22 +958,22 @@ const BatchVideoModal: React.FC<BatchVideoModalProps> = ({
                       </div>
                       
                       <div className="flex items-center gap-1">
-                        {error.retryable && (
+                        {error.recoverable && (
                           <button
                             onClick={() => retryError(error)}
-                            disabled={retryingErrors.has(error.code)}
+                            disabled={retryingErrors.has(error.type)}
                             className={`p-1 rounded transition-colors ${
-                              retryingErrors.has(error.code)
+                              retryingErrors.has(error.type)
                                 ? 'opacity-50 cursor-not-allowed'
                                 : theme === 'dark'
                                 ? 'hover:bg-white/10 text-slate-400 hover:text-white'
                                 : 'hover:bg-black/5 text-slate-600 hover:text-black'
                             }`}
-                            title={retryingErrors.has(error.code) ? text.retrying : text.retry}
+                            title={retryingErrors.has(error.type) ? text.retrying : text.retry}
                           >
                             <RefreshCw 
                               size={14} 
-                              className={retryingErrors.has(error.code) ? 'animate-spin' : ''} 
+                              className={retryingErrors.has(error.type) ? 'animate-spin' : ''} 
                             />
                           </button>
                         )}
@@ -1103,6 +1206,238 @@ const BatchVideoModal: React.FC<BatchVideoModalProps> = ({
               )}
             </div>
           )}
+
+          {/* Character Selection */}
+          <div className="space-y-4">
+            <h3 className="font-semibold flex items-center gap-2">
+              <User size={18} className="text-purple-500" />
+              {lang === 'zh' ? '角色选择' : 'Character Selection'}
+            </h3>
+            
+            <div className="space-y-3">
+              {/* Character Selector */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <button
+                    onClick={() => setShowCharacterSelector(!showCharacterSelector)}
+                    className={`w-full px-4 py-3 rounded-lg border-2 text-left transition-all ${
+                      localSelectedCharacter
+                        ? 'border-purple-500 bg-purple-500/10'
+                        : theme === 'dark'
+                        ? 'border-white/20 hover:border-white/30 bg-slate-700/50'
+                        : 'border-black/20 hover:border-black/30 bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {localSelectedCharacter ? (
+                        <>
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                            theme === 'dark' ? 'bg-slate-600' : 'bg-slate-200'
+                          }`}>
+                            {localSelectedCharacter.profile_picture_url ? (
+                              <img
+                                src={localSelectedCharacter.profile_picture_url}
+                                alt={localSelectedCharacter.username}
+                                className="w-full h-full rounded-full object-cover"
+                              />
+                            ) : (
+                              <User size={16} className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'} />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className={`font-medium text-sm truncate ${
+                                theme === 'dark' ? 'text-white' : 'text-black'
+                              }`}>
+                                {localSelectedCharacter.username}
+                              </span>
+                              {getCharacterStatusIcon(localSelectedCharacter.status)}
+                            </div>
+                            <p className={`text-xs truncate ${
+                              theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                            }`}>
+                              {localSelectedCharacter.timestamps && (
+                                <span className="font-mono">{localSelectedCharacter.timestamps}</span>
+                              )}
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                            theme === 'dark' ? 'bg-slate-600' : 'bg-slate-200'
+                          }`}>
+                            <Users size={16} className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'} />
+                          </div>
+                          <span className={`text-sm ${
+                            theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                          }`}>
+                            {lang === 'zh' ? '选择角色（可选）' : 'Select Character (Optional)'}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </button>
+                </div>
+                
+                <button
+                  onClick={handleOpenCharacterPanel}
+                  className={`p-3 rounded-lg border transition-colors ${
+                    theme === 'dark'
+                      ? 'border-white/20 hover:bg-white/10 text-slate-400 hover:text-white'
+                      : 'border-black/20 hover:bg-black/5 text-slate-600 hover:text-black'
+                  }`}
+                  title={lang === 'zh' ? '管理角色' : 'Manage Characters'}
+                >
+                  <Settings size={16} />
+                </button>
+              </div>
+
+              {/* Character Dropdown */}
+              {showCharacterSelector && (
+                <div className={`border rounded-lg max-h-64 overflow-y-auto ${
+                  theme === 'dark'
+                    ? 'border-white/20 bg-slate-700'
+                    : 'border-black/20 bg-white'
+                }`}>
+                  {/* No Character Option */}
+                  <button
+                    onClick={() => handleCharacterSelect(undefined)}
+                    className={`w-full px-4 py-3 text-left hover:bg-opacity-50 transition-colors ${
+                      !localSelectedCharacter
+                        ? theme === 'dark'
+                          ? 'bg-purple-500/20 text-purple-400'
+                          : 'bg-purple-500/10 text-purple-600'
+                        : theme === 'dark'
+                        ? 'hover:bg-slate-600 text-slate-300'
+                        : 'hover:bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        theme === 'dark' ? 'bg-slate-600' : 'bg-slate-200'
+                      }`}>
+                        <X size={16} className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'} />
+                      </div>
+                      <span className="text-sm">
+                        {lang === 'zh' ? '不使用角色' : 'No Character'}
+                      </span>
+                    </div>
+                  </button>
+
+                  {/* Character List */}
+                  {characters.filter(char => char.status === 'ready').map((character) => (
+                    <button
+                      key={character.id}
+                      onClick={() => handleCharacterSelect(character)}
+                      className={`w-full px-4 py-3 text-left hover:bg-opacity-50 transition-colors border-t ${
+                        localSelectedCharacter?.id === character.id
+                          ? theme === 'dark'
+                            ? 'bg-purple-500/20 text-purple-400 border-white/10'
+                            : 'bg-purple-500/10 text-purple-600 border-black/10'
+                          : theme === 'dark'
+                          ? 'hover:bg-slate-600 text-slate-300 border-white/10'
+                          : 'hover:bg-slate-100 text-slate-700 border-black/10'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                          theme === 'dark' ? 'bg-slate-600' : 'bg-slate-200'
+                        }`}>
+                          {character.profile_picture_url ? (
+                            <img
+                              src={character.profile_picture_url}
+                              alt={character.username}
+                              className="w-full h-full rounded-full object-cover"
+                            />
+                          ) : (
+                            <User size={16} className={theme === 'dark' ? 'text-slate-400' : 'text-slate-600'} />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm truncate">
+                              {character.username}
+                            </span>
+                            {getCharacterStatusIcon(character.status)}
+                          </div>
+                          {character.timestamps && (
+                            <p className={`text-xs font-mono truncate ${
+                              theme === 'dark' ? 'text-slate-400' : 'text-slate-600'
+                            }`}>
+                              {character.timestamps}
+                            </p>
+                          )}
+                          {character.usage_count !== undefined && character.usage_count > 0 && (
+                            <p className={`text-xs truncate ${
+                              theme === 'dark' ? 'text-slate-500' : 'text-slate-500'
+                            }`}>
+                              {lang === 'zh' ? `使用 ${character.usage_count} 次` : `Used ${character.usage_count} times`}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+
+                  {/* Empty State */}
+                  {characters.filter(char => char.status === 'ready').length === 0 && (
+                    <div className="px-4 py-8 text-center">
+                      <User size={32} className={theme === 'dark' ? 'text-slate-600 mx-auto mb-2' : 'text-slate-400 mx-auto mb-2'} />
+                      <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                        {lang === 'zh' ? '暂无可用角色' : 'No characters available'}
+                      </p>
+                      <button
+                        onClick={handleOpenCharacterPanel}
+                        className="mt-2 text-xs text-purple-500 hover:text-purple-600 transition-colors"
+                      >
+                        {lang === 'zh' ? '创建角色' : 'Create Character'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Character Info */}
+              {localSelectedCharacter && (
+                <div className={`p-3 rounded-lg border ${
+                  theme === 'dark'
+                    ? 'border-purple-500/30 bg-purple-500/10'
+                    : 'border-purple-500/30 bg-purple-500/5'
+                }`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Info size={14} className="text-purple-500" />
+                    <span className={`text-xs font-medium ${
+                      theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                    }`}>
+                      {lang === 'zh' ? '角色信息' : 'Character Info'}
+                    </span>
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex items-center gap-2">
+                      <Video size={12} className="text-blue-500" />
+                      <span className={theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}>
+                        {localSelectedCharacter.url 
+                          ? (lang === 'zh' ? '来自视频' : 'From Video')
+                          : localSelectedCharacter.from_task 
+                          ? (lang === 'zh' ? '来自任务' : 'From Task')
+                          : (lang === 'zh' ? '未知来源' : 'Unknown Source')
+                        }
+                      </span>
+                    </div>
+                    {localSelectedCharacter.timestamps && (
+                      <div className="flex items-center gap-2">
+                        <AlertCircle size={12} className="text-orange-500" />
+                        <span className={`font-mono ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
+                          {localSelectedCharacter.timestamps}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Generation Settings */}
           <div className="space-y-4">

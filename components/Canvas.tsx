@@ -1,15 +1,21 @@
 
-import React, { useState, useRef, useMemo } from 'react';
-import { Block, Connection, EnhancedConnection } from '../types';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
+import { Block, Connection, EnhancedConnection, Character, MultiImageConfig, ImageInput, ShenmaImageEditOptions, NewModelConfig, convertNewToLegacyConfig, MenuConfig } from '../types';
 import BlockComponent from './BlockComponent';
-import { COLORS, SNAP_SIZE, I18N } from '../constants';
+import VirtualizedCanvas from './VirtualizedCanvas';
+import { COLORS, SNAP_SIZE, I18N } from '../constants.tsx';
 import { connectionEngine } from '../services/ConnectionEngine';
 import { AutoExecutor } from '../services/AutoExecutor';
 import { TemplateManager } from '../services/TemplateManager';
 import { StateManager } from '../services/StateManager';
 import { ResourceManager } from '../services/ResourceManager';
+import { performanceOptimizationSystem } from '../services/PerformanceOptimizationSystem';
 import { ScheduleManager } from './ScheduleManager';
-import { BatchInputSelector } from './BatchInputSelector';
+import PromptPreviewPopover from './PromptPreviewPopover';
+import MultiImageConfigModal from './MultiImageConfigModal';
+import ImageEditModal from './ImageEditModal';
+import PerformanceMonitoringDashboard from './PerformanceMonitoringDashboard';
+import { X, UserX, Users, UserPlus, Eye, Grid3X3, Zap, ZapOff } from 'lucide-react';
 
 interface CanvasProps {
   blocks: Block[];
@@ -20,15 +26,34 @@ interface CanvasProps {
   theme: 'light' | 'dark';
   lang: 'zh' | 'en';
   isPerfMode: boolean;
+  isAutomationTemplate?: boolean;
   onUpdateBlock: (id: string, updates: Partial<Block>) => void;
   onSelect: (id: string, isMulti: boolean) => void;
   onClearSelection: () => void;
   onDeleteBlock: (id: string) => void;
   onConnect: (fromId: string, toId: string) => void;
   onGenerate: (id: string, prompt: string) => void;
+  onMultiImageGenerate?: (sourceBlock: Block, config: MultiImageConfig) => void;
   onUpdateConnection: (id: string, instruction: string) => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onUpdatePan: (updates: { x: number; y: number }) => void;
+  onCreateBlock?: (blockData: Partial<Block>, x: number, y: number) => void;
+  // Prompt resolution
+  onResolvePrompt?: (prompt: string, blockId: string) => {
+    original: string;
+    resolved: string;
+    references: Array<{ blockNumber: string; content: string; found: boolean; type: string }>;
+  };
+  // Character-related props
+  availableCharacters?: Character[];
+  onCharacterSelect?: (blockId: string, character: Character | null) => void;
+  onOpenCharacterPanel?: () => void;
+  // Image-related props
+  onMultiImageGenerate?: (sourceBlock: Block, config: MultiImageConfig) => void;
+  // Model configuration for AI services
+  modelConfig: NewModelConfig;
+  // Menu configuration for dynamic menus
+  menuConfig?: MenuConfig;
 }
 
 const Canvas: React.FC<CanvasProps> = ({
@@ -40,21 +65,50 @@ const Canvas: React.FC<CanvasProps> = ({
   theme,
   lang,
   isPerfMode,
+  isAutomationTemplate,
   onUpdateBlock,
   onSelect,
   onClearSelection,
   onDeleteBlock,
   onConnect,
   onGenerate,
+  onMultiImageGenerate,
   onUpdateConnection,
   onContextMenu,
-  onUpdatePan
+  onUpdatePan,
+  onCreateBlock,
+  onResolvePrompt,
+  availableCharacters = [],
+  onCharacterSelect,
+  onOpenCharacterPanel,
+  modelConfig,
+  menuConfig
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dragInfo, setDragInfo] = useState<{ blockId: string; startX: number; startY: number; initX: number; initY: number } | null>(null);
   const [resizeInfo, setResizeInfo] = useState<{ blockId: string; startX: number; startY: number; initW: number; initH: number } | null>(null);
   const [activeAnchor, setActiveAnchor] = useState<{ blockId: string; type: 'in' | 'out'; mouseX: number; mouseY: number } | null>(null);
   const [isPanning, setIsPanning] = useState<{ startX: number; startY: number; initPanX: number; initPanY: number } | null>(null);
+  
+  // Performance optimization state
+  const [useVirtualization, setUseVirtualization] = useState(false);
+  const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
+  
+  // Character selector state
+  const [showCharacterSelector, setShowCharacterSelector] = useState(false);
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  
+  // Image preview state
+  const [showImagePreview, setShowImagePreview] = useState(false);
+  const [selectedPreviewBlockId, setSelectedPreviewBlockId] = useState<string | null>(null);
+  
+  // Multi-image generation state
+  const [showMultiImageModal, setShowMultiImageModal] = useState(false);
+  const [selectedMultiImageBlockId, setSelectedMultiImageBlockId] = useState<string | null>(null);
+  
+  // Image editing state
+  const [showImageEditModal, setShowImageEditModal] = useState(false);
+  const [selectedImageEditBlockId, setSelectedImageEditBlockId] = useState<string | null>(null);
   
   // Automation state
   const [isExecuting, setIsExecuting] = useState(false);
@@ -68,6 +122,36 @@ const Canvas: React.FC<CanvasProps> = ({
   const templateManager = useMemo(() => new TemplateManager(), []);
   const stateManager = useMemo(() => new StateManager(), []);
   const resourceManager = useMemo(() => new ResourceManager(), []);
+
+  // Performance optimization: Auto-enable virtualization for large canvases
+  useEffect(() => {
+    const shouldUseVirtualization = blocks.length > 50 || isPerfMode;
+    setUseVirtualization(shouldUseVirtualization);
+    
+    // Update performance metrics
+    performanceOptimizationSystem.getMetrics();
+  }, [blocks.length, isPerfMode]);
+
+  // Track container dimensions for virtualization
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setContainerDimensions({ width: rect.width, height: rect.height });
+      }
+    };
+
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, []);
+
+  // Memory cleanup on unmount
+  useEffect(() => {
+    return () => {
+      performanceOptimizationSystem.destroy();
+    };
+  }, []);
 
   const getCanvasCoords = (e: React.MouseEvent) => {
     if (!containerRef.current) return { x: 0, y: 0 };
@@ -236,12 +320,152 @@ const Canvas: React.FC<CanvasProps> = ({
     return COLORS.video.border;
   };
 
+  // Character selector handlers
+  const handleOpenCharacterSelector = (blockId: string) => {
+    setSelectedBlockId(blockId);
+    setShowCharacterSelector(true);
+  };
+
+  const handleCloseCharacterSelector = () => {
+    setShowCharacterSelector(false);
+    setSelectedBlockId(null);
+  };
+
+  const handleCharacterSelect = (character: Character | null) => {
+    if (selectedBlockId && onCharacterSelect) {
+      onCharacterSelect(selectedBlockId, character);
+    }
+    handleCloseCharacterSelector();
+  };
+
+  // Image preview handlers
+  const handleOpenImagePreview = (blockId: string) => {
+    setSelectedPreviewBlockId(blockId);
+    setShowImagePreview(true);
+  };
+
+  const handleCloseImagePreview = () => {
+    setShowImagePreview(false);
+    setSelectedPreviewBlockId(null);
+  };
+
+  const handlePreviewRegenerate = (blockId: string, newPrompt?: string) => {
+    const block = blocks.find(b => b.id === blockId);
+    if (block) {
+      const promptToUse = newPrompt || block.originalPrompt || '';
+      if (promptToUse) {
+        // Update prompt if changed
+        if (newPrompt && newPrompt !== block.originalPrompt) {
+          onUpdateBlock(blockId, { originalPrompt: newPrompt });
+        }
+        onGenerate(blockId, promptToUse);
+      }
+    }
+    handleCloseImagePreview();
+  };
+
+  // Multi-image generation handlers
+  const handleOpenMultiImageModal = (blockId: string) => {
+    setSelectedMultiImageBlockId(blockId);
+    setShowMultiImageModal(true);
+  };
+
+  const handleCloseMultiImageModal = () => {
+    setShowMultiImageModal(false);
+    setSelectedMultiImageBlockId(null);
+  };
+
+  const handleMultiImageGenerate = (blockId: string, config: MultiImageConfig) => {
+    const block = blocks.find(b => b.id === blockId);
+    if (block && onMultiImageGenerate) {
+      onMultiImageGenerate(block, config);
+    }
+    handleCloseMultiImageModal();
+  };
+
+  // Image editing handlers
+  const handleOpenImageEditModal = (blockId: string) => {
+    setSelectedImageEditBlockId(blockId);
+    setShowImageEditModal(true);
+  };
+
+  const handleCloseImageEditModal = () => {
+    setShowImageEditModal(false);
+    setSelectedImageEditBlockId(null);
+  };
+
+  const handleImageEdit = async (images: ImageInput[], prompt: string, options: ShenmaImageEditOptions): Promise<void> => {
+    console.log('Image edit request:', images, prompt, options);
+    
+    // Check if we have at least one image to edit
+    if (images.length === 0) {
+      console.error('No images provided for editing');
+      handleCloseImageEditModal();
+      return;
+    }
+    
+    try {
+      // Get the first image as the primary image to edit
+      const primaryImage = images[0].source;
+      
+      // Convert image URLs to base64 if needed
+      let imageToEdit: string = primaryImage;
+      if (primaryImage.startsWith('http')) {
+        // Download the image and convert to base64
+        const response = await fetch(primaryImage);
+        if (!response.ok) {
+          throw new Error(`Failed to download image: ${response.status}`);
+        }
+        const blob = await response.blob();
+        const reader = new FileReader();
+        imageToEdit = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      }
+      
+      // Create a service instance to call the AI service
+      const aiService = new (await import('../adapters/AIServiceAdapter')).MultiProviderAIService();
+      
+      // Convert to legacy config format with correct API key
+      const legacyConfig = convertNewToLegacyConfig(modelConfig);
+      
+      // Call the AI service to edit the image - correct parameter order: prompt, imageFile, options
+      const result = await aiService.editImage(prompt, imageToEdit, legacyConfig.image);
+      
+      console.log('Image edit result:', result);
+      
+      // Update the block with the edited image
+      if (selectedImageEditBlockId) {
+        onUpdateBlock(selectedImageEditBlockId, { 
+          content: result,
+          status: 'idle',
+          imageMetadata: {
+            ...blocks.find(b => b.id === selectedImageEditBlockId)?.imageMetadata,
+            editedAt: Date.now()
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Image editing failed:', error);
+      alert('图片编辑失败：' + (error instanceof Error ? error.message : '未知错误'));
+    } finally {
+      handleCloseImageEditModal();
+    }
+  };
+
+  // Performance toggle handler
+  const toggleVirtualization = useCallback(() => {
+    setUseVirtualization(!useVirtualization);
+  }, [useVirtualization]);
+
   const renderConnections = () => {
     // Update connection engine with current connections
     connectionEngine.updateConnections(connections);
     
     return (
-      <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-0">
+      <svg className="absolute inset-0 w-full h-full overflow-visible z-0">
         <defs>
           <marker id="arrow-head-gold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
             <path d="M 0 0 L 10 5 L 0 10 L 2 5 Z" fill="currentColor" />
@@ -249,6 +473,10 @@ const Canvas: React.FC<CanvasProps> = ({
           {/* Data flow indicator marker */}
           <marker id="data-flow-indicator" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4">
             <circle cx="4" cy="4" r="2" fill="#22C55E" opacity="0.8" />
+          </marker>
+          {/* Arrow marker for instruction bubble */}
+          <marker id="bubble-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 Z" fill="currentColor" />
           </marker>
         </defs>
 
@@ -283,7 +511,100 @@ const Canvas: React.FC<CanvasProps> = ({
                 markerEnd="url(#arrow-head-gold)"
                 className={`connection-flow transition-opacity ${hasDataFlow ? 'opacity-80' : 'opacity-40'} hover:opacity-100`}
                 style={{ color: color } as any}
+                pointerEvents="none"
               />
+              
+              {/* Connection Instruction Text */}
+              {conn.instruction && (
+                <g className="cursor-pointer pointer-events-all">
+                  {(() => {
+                    // Calculate positions and values outside JSX
+                    const shortInstruction = conn.instruction.substring(0, 8); // Truncate to first 8 characters
+                    
+                    // Calculate midpoint for regular mode
+                    const midX = (startX + endX) / 2;
+                    const midY = Math.min(startY, endY) - 20; // Position above the connection line
+                    
+                    if (isAutomationTemplate) {
+                      // Automation Mode: Show instruction at output node right side, first 8 chars
+                      
+                      // Output node position - exact location of the output circle
+                      const outputX = fromBlock.x + fromBlock.width; // Exact right edge of block
+                      const outputY = fromBlock.y + 10; // Top output node position (adjusted based on actual design)
+                      
+                      // Significantly increased bubble dimensions for optimal aesthetics
+                      const bubbleWidth = 120 / zoom; // Much wider for better visual balance
+                      const bubbleHeight = 28 / zoom; // Slightly increased height for better proportion
+                      
+                      // Position bubble directly adjacent to the output node
+                      const bubbleX = outputX + 2 / zoom; // 2px gap from block edge
+                      const bubbleY = outputY - bubbleHeight / 2;
+                      
+                      return (
+                        <g>
+                          {/* Instruction bubble - Ample padding, excellent visual balance */}
+                          <rect
+                            x={bubbleX}
+                            y={bubbleY}
+                            width={bubbleWidth}
+                            height={bubbleHeight}
+                            rx={bubbleHeight / 2}
+                            fill={theme === 'dark' ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)'}
+                            stroke={color}
+                            strokeWidth={1.5 / zoom}
+                            filter="drop-shadow(0 2px 4px rgba(0,0,0,0.2))"
+                          />
+                          
+                          {/* Instruction text - perfectly centered with optimal spacing */}
+                          <text
+                            x={bubbleX + bubbleWidth / 2}
+                            y={bubbleY + bubbleHeight / 2 + 4 / zoom}
+                            fontSize={12 / zoom}
+                            fill={theme === 'dark' ? '#e2e8f0' : '#1e293b'}
+                            className="text-xs font-medium"
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            style={{ userSelect: 'none' }}
+                          >
+                            {shortInstruction}
+                          </text>
+                        </g>
+                      );
+                    } else {
+                      // Regular Mode: Show full instruction above connection
+                      return (
+                        <g>
+                          {/* Background rect for better readability */}
+                          <rect
+                            x={midX - 80}
+                            y={midY - 15}
+                            width={160}
+                            height={30}
+                            rx={15}
+                            fill={theme === 'dark' ? 'rgba(30, 41, 59, 0.9)' : 'rgba(255, 255, 255, 0.9)'}
+                            stroke={color}
+                            strokeWidth={1 / zoom}
+                            filter="drop-shadow(0 2px 4px rgba(0,0,0,0.2))"
+                          />
+                          {/* Instruction text */}
+                          <text
+                            x={midX}
+                            y={midY + 5}
+                            fontSize={12 / zoom}
+                            fill={theme === 'dark' ? '#e2e8f0' : '#1e293b'}
+                            className="text-xs font-medium"
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            style={{ userSelect: 'none' }}
+                          >
+                            {conn.instruction}
+                          </text>
+                        </g>
+                      );
+                    }
+                  })()}
+                </g>
+              )}
               
               {/* Data flow indicator */}
               {hasDataFlow && (
@@ -362,9 +683,46 @@ const Canvas: React.FC<CanvasProps> = ({
       onMouseUp={handleMouseUp}
       onContextMenu={(e) => { e.preventDefault(); onContextMenu(e); }}
     >
-      {/* Automation Controls */}
-      <div className="absolute top-4 right-4 z-50 flex flex-col gap-2">
-        {/* Toggle Automation Panel Button */}
+      {/* Automation Mode Indicator */}
+      {isAutomationTemplate && (
+        <div className="absolute top-4 right-4 z-50 flex items-center gap-2 px-4 py-2 bg-blue-500/90 backdrop-blur-sm text-white rounded-full shadow-lg">
+          <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+          <span className="text-sm font-bold">
+            {lang === 'zh' ? '自动化模式' : 'Automation Mode'}
+          </span>
+        </div>
+      )}
+
+      {/* Performance Controls */}
+      <div className="absolute top-4 left-4 z-50 flex flex-col gap-2">
+        {/* Performance Toggle */}
+        <button
+          onClick={toggleVirtualization}
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all shadow-lg ${
+            useVirtualization
+              ? 'bg-green-500 text-white hover:bg-green-600'
+              : theme === 'dark'
+                ? 'bg-slate-800/90 text-white hover:bg-slate-700'
+                : 'bg-white/90 text-gray-700 hover:bg-white'
+          }`}
+          title={lang === 'zh' ? '性能优化模式' : 'Performance Optimization Mode'}
+        >
+          {useVirtualization ? <Zap size={16} /> : <ZapOff size={16} />}
+          <span>{lang === 'zh' ? '性能模式' : 'Perf Mode'}</span>
+        </button>
+
+        {/* Enhanced Performance Dashboard */}
+        <PerformanceMonitoringDashboard 
+          theme={theme}
+          lang={lang}
+          blocks={blocks}
+          useVirtualization={useVirtualization}
+          zoom={zoom}
+          performanceOptimizationSystem={performanceOptimizationSystem}
+        />
+      </div>
+      {/* Automation Controls - Disabled temporarily */}
+      {/* <div className="absolute top-4 right-4 z-50 flex flex-col gap-2">
         <button
           onClick={toggleAutomationControls}
           className={`px-3 py-2 rounded-3xl text-sm font-medium transition-all ${
@@ -379,7 +737,6 @@ const Canvas: React.FC<CanvasProps> = ({
           {lang === 'zh' ? '自动化' : 'Auto'}
         </button>
 
-        {/* Automation Controls Panel */}
         {showAutomationControls && (
           <div className={`backdrop-blur-sm rounded-3xl shadow-xl p-4 min-w-[200px] border transition-all ${
             theme === 'dark' 
@@ -387,7 +744,6 @@ const Canvas: React.FC<CanvasProps> = ({
               : 'bg-white/95 border-gray-200 text-gray-700'
           }`}>
             <div className="space-y-3">
-              {/* Auto Execute Button */}
               <button
                 onClick={handleAutoExecute}
                 disabled={blocks.length === 0}
@@ -403,7 +759,6 @@ const Canvas: React.FC<CanvasProps> = ({
                 }
               </button>
 
-              {/* Execution Progress */}
               {isExecuting && (
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs text-gray-600">
@@ -419,7 +774,6 @@ const Canvas: React.FC<CanvasProps> = ({
                 </div>
               )}
 
-              {/* Save Template Button */}
               <button
                 onClick={handleSaveTemplate}
                 disabled={blocks.length === 0}
@@ -428,7 +782,6 @@ const Canvas: React.FC<CanvasProps> = ({
                 {lang === 'zh' ? '保存模板' : 'Save Template'}
               </button>
 
-              {/* Advanced Automation Features */}
               <div className="border-t border-gray-200 pt-3 space-y-2">
                 <button
                   onClick={() => setShowScheduleManager(true)}
@@ -445,7 +798,6 @@ const Canvas: React.FC<CanvasProps> = ({
                 </button>
               </div>
 
-              {/* Resource Usage Indicator */}
               <div className="text-xs text-gray-500 space-y-1">
                 <div className="flex justify-between">
                   <span>{lang === 'zh' ? '资源使用' : 'Resources'}</span>
@@ -461,7 +813,7 @@ const Canvas: React.FC<CanvasProps> = ({
             </div>
           </div>
         )}
-      </div>
+      </div> */}
 
       <div 
         style={{ 
@@ -472,66 +824,377 @@ const Canvas: React.FC<CanvasProps> = ({
         }}
         className="absolute inset-0 transition-transform duration-75"
       >
-        {/* Grid Background */}
-        <div 
-          className="absolute inset-[-10000px] pointer-events-none" 
-          style={{ 
-            backgroundImage: `radial-gradient(${COLORS.canvas.grid} 1px, transparent 1px)`,
-            backgroundSize: `${SNAP_SIZE * 10}px ${SNAP_SIZE * 10}px`
-          }} 
-        />
-        
-        {renderConnections()}
-
-        {blocks.map(block => {
-          // Get upstream data for this block
-          const upstreamData = connectionEngine.getUpstreamData(block.id);
-          
-          return (
-            <BlockComponent
-              key={block.id}
-              block={block}
-              isSelected={selectedIds.includes(block.id)}
-              isPerfMode={isPerfMode}
-              onDragStart={(e) => setDragInfo({ blockId: block.id, startX: e.clientX, startY: e.clientY, initX: block.x, initY: block.y })}
-              onResizeStart={(e) => setResizeInfo({ blockId: block.id, startX: e.clientX, startY: e.clientY, initW: block.width, initH: block.height })}
-              onSelect={onSelect}
-              onAnchorClick={(id, type) => {
-                // Initial coordinates set to 0; handleMouseMove will update it relative to pan/zoom immediately.
-                setActiveAnchor({ blockId: id, type, mouseX: 0, mouseY: 0 });
-              }}
-              onDelete={onDeleteBlock}
-              onGenerate={(id, prompt) => {
-                // Propagate data when block generates content
-                const block = blocks.find(b => b.id === id);
-                if (block) {
-                  connectionEngine.propagateData(id, block.content, block.type, block.number);
-                }
-                onGenerate(id, prompt);
-              }}
-              onUpdate={(id, updates) => {
-                // Propagate data when block content is updated
-                if (updates.content !== undefined) {
-                  const block = blocks.find(b => b.id === id);
-                  if (block) {
-                    connectionEngine.propagateData(id, updates.content, block.type, block.number);
-                  }
-                }
-                onUpdateBlock(id, updates);
-              }}
-              lang={lang}
-              upstreamIds={connections.filter(c => c.toId === block.id).map(c => {
-                const from = blocks.find(b => b.id === c.fromId);
-                return from ? from.number : '';
-              }).filter(Boolean)}
-              upstreamData={upstreamData}
+        {/* Conditional rendering: Use VirtualizedCanvas for large canvases */}
+        {useVirtualization ? (
+          <VirtualizedCanvas
+            blocks={blocks}
+            connections={connections}
+            zoom={zoom}
+            pan={pan}
+            selectedIds={selectedIds}
+            theme={theme}
+            lang={lang}
+            isPerfMode={isPerfMode}
+            containerWidth={containerDimensions.width}
+            containerHeight={containerDimensions.height}
+            onUpdateBlock={onUpdateBlock}
+            onSelect={onSelect}
+            onDeleteBlock={onDeleteBlock}
+            onGenerate={(id, prompt) => {
+              // Propagate data when block generates content
+              const block = blocks.find(b => b.id === id);
+              if (block) {
+                connectionEngine.propagateData(id, block.content, block.type, block.number);
+              }
+              onGenerate(id, prompt);
+            }}
+            // Pass through all other props
+            isAutomationTemplate={isAutomationTemplate}
+            onConnect={onConnect}
+            onMultiImageGenerate={onMultiImageGenerate}
+            onUpdateConnection={onUpdateConnection}
+            onContextMenu={onContextMenu}
+            onUpdatePan={onUpdatePan}
+            onCreateBlock={onCreateBlock}
+            onResolvePrompt={onResolvePrompt}
+            availableCharacters={availableCharacters}
+            onCharacterSelect={onCharacterSelect}
+            onOpenCharacterPanel={onOpenCharacterPanel}
+            modelConfig={modelConfig}
+            menuConfig={menuConfig}
+            onOpenCharacterSelector={handleOpenCharacterSelector}
+            onOpenImagePreview={handleOpenImagePreview}
+            onOpenMultiImageModal={handleOpenMultiImageModal}
+            onOpenImageEditModal={handleOpenImageEditModal}
+          />
+        ) : (
+          <>
+            {/* Grid Background */}
+            <div 
+              className="absolute inset-[-10000px] pointer-events-none" 
+              style={{ 
+                backgroundImage: `radial-gradient(${COLORS.canvas.grid} 1px, transparent 1px)`,
+                backgroundSize: `${SNAP_SIZE * 10}px ${SNAP_SIZE * 10}px`
+              }} 
             />
-          );
-        })}
+            
+            {renderConnections()}
+
+            {blocks.map(block => {
+              // Get upstream data for this block
+              const upstreamData = connectionEngine.getUpstreamData(block.id);
+              
+              // Convert upstream block IDs to block numbers (A01, B01, etc.)
+              const upstreamBlockIds = connectionEngine.getUpstreamBlockIds(block.id);
+              const upstreamIds = upstreamBlockIds.map(id => {
+                const upstreamBlock = blocks.find(b => b.id === id);
+                return upstreamBlock ? upstreamBlock.number : id;
+              });
+              
+              return (
+                <BlockComponent
+                  key={block.id}
+                  block={block}
+                  isSelected={selectedIds.includes(block.id)}
+                  isPerfMode={isPerfMode}
+                  isAutomationTemplate={isAutomationTemplate}
+                  upstreamIds={upstreamIds}
+                  upstreamData={connectionEngine.getUpstreamData(block.id)}
+                  onDragStart={(e) => setDragInfo({ blockId: block.id, startX: e.clientX, startY: e.clientY, initX: block.x, initY: block.y })}
+                  onResizeStart={(e) => setResizeInfo({ blockId: block.id, startX: e.clientX, startY: e.clientY, initW: block.width, initH: block.height })}
+                  onSelect={onSelect}
+                  onAnchorClick={(id, type) => {
+                    // Initial coordinates set to 0; handleMouseMove will update it relative to pan/zoom immediately.
+                    setActiveAnchor({ blockId: id, type, mouseX: 0, mouseY: 0 });
+                  }}
+                  onDelete={onDeleteBlock}
+                  onGenerate={(id, prompt) => {
+                    // Propagate data when block generates content
+                    const block = blocks.find(b => b.id === id);
+                    if (block) {
+                      connectionEngine.propagateData(id, block.content, block.type, block.number);
+                    }
+                    onGenerate(id, prompt);
+                  }}
+                  onUpdate={(id, updates) => {
+                    // Propagate data when block content is updated
+                    if (updates.content !== undefined) {
+                      const block = blocks.find(b => b.id === id);
+                      if (block) {
+                        connectionEngine.propagateData(id, updates.content, block.type, block.number);
+                      }
+                    }
+                    onUpdateBlock(id, updates);
+                  }}
+                  onCreateBlock={onCreateBlock}
+                  onMultiImageGenerate={onMultiImageGenerate}
+                  lang={lang}
+                  availableCharacters={availableCharacters}
+                  onCharacterSelect={onCharacterSelect}
+                  onOpenCharacterPanel={onOpenCharacterPanel}
+                  onOpenCharacterSelector={handleOpenCharacterSelector}
+                  onOpenImagePreview={handleOpenImagePreview}
+                  onOpenMultiImageModal={handleOpenMultiImageModal}
+                  onCloseCharacterSelector={handleCloseCharacterSelector}
+                  onOpenImageEditModal={handleOpenImageEditModal}
+                  onResolvePrompt={onResolvePrompt}
+                  menuConfig={menuConfig}
+                />
+              );
+            })}
+          </>
+        )}
       </div>
 
-      {/* Schedule Manager Modal */}
-      {showScheduleManager && (
+      {/* Character Selector Modal */}
+      {showCharacterSelector && selectedBlockId && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-[10000] bg-black/50 backdrop-blur-sm"
+          onClick={handleCloseCharacterSelector}
+        >
+          <div 
+            className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6 border-b border-slate-200 dark:border-slate-700 pb-6">
+              <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
+                {lang === 'zh' ? '选择角色' : 'Select Character'}
+              </h3>
+              <button
+                onClick={handleCloseCharacterSelector}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              >
+                <X size={24} className="text-slate-500" />
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+              {/* No Character Option */}
+              <button
+                onClick={() => handleCharacterSelect(null)}
+                className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                  !blocks.find(b => b.id === selectedBlockId)?.characterId 
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20' 
+                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                }`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                    <UserX size={20} className="text-slate-500" />
+                  </div>
+                  <div>
+                    <div className="font-medium text-base text-slate-900 dark:text-white">
+                      {lang === 'zh' ? '无角色' : 'No Character'}
+                    </div>
+                    <div className="text-sm text-slate-500">
+                      {lang === 'zh' ? '不使用角色客串' : 'No character cameo'}
+                    </div>
+                  </div>
+                </div>
+              </button>
+
+              {/* Available Characters */}
+              {availableCharacters.filter(char => char.status === 'ready').map(character => (
+                <button
+                  key={character.id}
+                  onClick={() => handleCharacterSelect(character)}
+                  className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                    blocks.find(b => b.id === selectedBlockId)?.characterId === character.id 
+                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20' 
+                      : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-700 flex-shrink-0">
+                      {character.profile_picture_url ? (
+                        <img 
+                          src={character.profile_picture_url} 
+                          alt={character.username}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Users size={20} className="text-slate-500" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-base text-slate-900 dark:text-white truncate">
+                        {character.username}
+                      </div>
+                      <div className="text-sm text-slate-500 truncate">
+                        {character.description || character.permalink}
+                      </div>
+                      {character.usage_count !== undefined && (
+                        <div className="text-sm text-purple-600 dark:text-purple-400">
+                          {lang === 'zh' ? `使用 ${character.usage_count} 次` : `Used ${character.usage_count} times`}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              ))}
+
+              {/* No Characters Available */}
+              {availableCharacters.filter(char => char.status === 'ready').length === 0 && (
+                <div className="text-center py-12 text-slate-500">
+                  <Users size={48} className="mx-auto mb-4 opacity-50" />
+                  <p className="text-base">
+                    {lang === 'zh' ? '暂无可用角色' : 'No characters available'}
+                  </p>
+                  {onOpenCharacterPanel && (
+                    <button
+                      onClick={() => {
+                        handleCloseCharacterSelector();
+                        onOpenCharacterPanel();
+                      }}
+                      className="mt-4 px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-base"
+                    >
+                      {lang === 'zh' ? '创建角色' : 'Create Character'}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Character Management Actions */}
+            {onOpenCharacterPanel && availableCharacters.length > 0 && (
+              <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+                <button
+                  onClick={() => {
+                    handleCloseCharacterSelector();
+                    onOpenCharacterPanel();
+                  }}
+                  className="w-full p-3 text-base text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  <UserPlus size={20} />
+                  {lang === 'zh' ? '管理角色' : 'Manage Characters'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Image Preview Modal */}
+      {showImagePreview && selectedPreviewBlockId && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-[10000] bg-black/30 dark:bg-black/50 backdrop-blur-sm"
+          onClick={handleCloseImagePreview}
+        >
+          <div 
+            className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-6 border-black/5 dark:border-white/10 rounded-xl shadow-2xl p-12 min-w-[900px] max-w-[1200px]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-12">
+              <h3 className="text-5xl font-bold text-slate-900 dark:text-white">
+                {lang === 'zh' ? '图片预览' : 'Image Preview'}
+              </h3>
+              <button
+                onClick={handleCloseImagePreview}
+                className="p-6 hover:bg-black/5 dark:hover:bg-white/10 rounded-xl transition-colors"
+              >
+                <X size={48} className="text-slate-500" />
+              </button>
+            </div>
+            <PromptPreviewPopover
+              isOpen={showImagePreview}
+              prompt={blocks.find(b => b.id === selectedPreviewBlockId)?.originalPrompt || ''}
+              previewUrl={blocks.find(b => b.id === selectedPreviewBlockId)?.content}
+              onClose={handleCloseImagePreview}
+              onRegenerate={(newPrompt) => {
+                if (selectedPreviewBlockId) {
+                  handlePreviewRegenerate(selectedPreviewBlockId, newPrompt);
+                }
+              }}
+              theme="dark"
+              lang={lang}
+              resolvedPromptInfo={
+                onResolvePrompt && selectedPreviewBlockId
+                  ? onResolvePrompt(
+                      blocks.find(b => b.id === selectedPreviewBlockId)?.originalPrompt || '',
+                      selectedPreviewBlockId
+                    )
+                  : undefined
+              }
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Multi-Image Generation Modal */}
+      {showMultiImageModal && selectedMultiImageBlockId && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-[10000] bg-black/30 dark:bg-black/50 backdrop-blur-sm"
+          onClick={handleCloseMultiImageModal}
+        >
+          <div 
+            className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-6 border-black/5 dark:border-white/10 rounded-xl shadow-2xl p-12 min-w-[900px] max-w-[1200px]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-12">
+              <h3 className="text-5xl font-bold text-slate-900 dark:text-white">
+                {lang === 'zh' ? '多图生成配置' : 'Multi-Image Generation Config'}
+              </h3>
+              <button
+                onClick={handleCloseMultiImageModal}
+                className="p-6 hover:bg-black/5 dark:hover:bg-white/10 rounded-xl transition-colors"
+              >
+                <X size={48} className="text-slate-500" />
+              </button>
+            </div>
+            <MultiImageConfigModal
+              isOpen={showMultiImageModal}
+              sourceBlock={blocks.find(b => b.id === selectedMultiImageBlockId)!}
+              onClose={handleCloseMultiImageModal}
+              onGenerate={(config) => {
+                if (selectedMultiImageBlockId) {
+                  handleMultiImageGenerate(selectedMultiImageBlockId, config);
+                }
+              }}
+              lang={lang}
+            />
+          </div>
+        </div>
+      )}
+      
+      {/* Image Edit Modal */}
+      {showImageEditModal && selectedImageEditBlockId && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-[10000] bg-black/30 dark:bg-black/50 backdrop-blur-sm"
+          onClick={handleCloseImageEditModal}
+        >
+          <div 
+            className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-6 border-black/5 dark:border-white/10 rounded-xl shadow-2xl p-12 min-w-[900px] max-w-[1200px]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-12">
+              <h3 className="text-5xl font-bold text-slate-900 dark:text-white">
+                {lang === 'zh' ? '图像编辑' : 'Image Edit'}
+              </h3>
+              <button
+                onClick={handleCloseImageEditModal}
+                className="p-6 hover:bg-black/5 dark:hover:bg-white/10 rounded-xl transition-colors"
+              >
+                <X size={48} className="text-slate-500" />
+              </button>
+            </div>
+            <ImageEditModal
+              isOpen={showImageEditModal}
+              onClose={handleCloseImageEditModal}
+              onEdit={(images, prompt, options) => {
+                return handleImageEdit(images, prompt, options);
+              }}
+              lang={lang}
+              initialImages={blocks.find(b => b.id === selectedImageEditBlockId)?.content ? [{ source: blocks.find(b => b.id === selectedImageEditBlockId)!.content, role: 'primary' }] : []}
+              initialPrompt={blocks.find(b => b.id === selectedImageEditBlockId)?.prompt || ''}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Schedule Manager Modal - Disabled temporarily */}
+      {/* {showScheduleManager && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[400]">
           <div className={`rounded-3xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-auto m-4 ${
             theme === 'dark' ? 'bg-slate-800' : 'bg-white'
@@ -545,8 +1208,8 @@ const Canvas: React.FC<CanvasProps> = ({
         </div>
       )}
 
-      {/* Batch Input Modal */}
-      {showBatchInput && (
+      {/* Batch Input Modal - Disabled temporarily */}
+      {/* {showBatchInput && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[400]">
           <div className={`rounded-3xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-auto m-4 ${
             theme === 'dark' ? 'bg-slate-800' : 'bg-white'
@@ -561,17 +1224,18 @@ const Canvas: React.FC<CanvasProps> = ({
                   ✕
                 </button>
               </div>
-              <BatchInputSelector
-                onFilesSelected={(batchItems) => {
-                  console.log('Batch items created:', batchItems);
-                  setShowBatchInput(false);
-                }}
-                onError={(error) => console.error('Batch input error:', error)}
-              />
+              <div className="p-8 bg-gray-100 dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-center">
+                <p className="text-gray-600 dark:text-gray-400 mb-2">
+                  {lang === 'zh' ? '批量输入功能暂时不可用' : 'Batch input feature temporarily unavailable'}
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-500">
+                  {lang === 'zh' ? '此功能正在开发中，敬请期待' : 'This feature is under development'}
+                </p>
+              </div>
             </div>
           </div>
         </div>
-      )}
+      )} */}
     </div>
   );
 };

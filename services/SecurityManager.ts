@@ -28,18 +28,42 @@ export class SecurityManager {
    */
   private async initializeEncryption(): Promise<void> {
     if (this.config.encryptSensitiveData) {
-      // Generate or retrieve encryption key
-      this.encryptionKey = this.generateEncryptionKey();
+      // Check if Web Crypto API is available
+      if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+        // Generate or retrieve encryption key
+        this.encryptionKey = this.generateEncryptionKey();
+      } else {
+        console.warn('Web Crypto API not available, encryption will use fallback method');
+        // Use a deterministic fallback key (not secure, but better than nothing)
+        this.encryptionKey = this.generateFallbackKey();
+      }
     }
+  }
+
+  /**
+   * Generate a fallback encryption key when Web Crypto API is unavailable
+   */
+  private generateFallbackKey(): string {
+    // Use Math.random() as fallback (not cryptographically secure)
+    const array = new Array(32);
+    for (let i = 0; i < 32; i++) {
+      array[i] = Math.floor(Math.random() * 256);
+    }
+    return array.map(byte => byte.toString(16).padStart(2, '0')).join('');
   }
 
   /**
    * Generate a secure encryption key
    */
   private generateEncryptionKey(): string {
-    const array = new Uint8Array(32);
-    crypto.getRandomValues(array);
-    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    try {
+      const array = new Uint8Array(32);
+      crypto.getRandomValues(array);
+      return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    } catch (error) {
+      console.warn('Failed to generate secure key, using fallback:', error);
+      return this.generateFallbackKey();
+    }
   }
 
   /**
@@ -104,33 +128,73 @@ export class SecurityManager {
    * Simple XOR encryption (for demo purposes)
    */
   private xorEncrypt(data: string, key: string): string {
+    // Input validation
     if (!data || !key) {
       throw new Error('Data and key cannot be empty');
     }
     
-    let result = '';
-    for (let i = 0; i < data.length; i++) {
-      const charCode = data.charCodeAt(i) ^ key.charCodeAt(i % key.length);
-      result += String.fromCharCode(charCode);
+    if (typeof data !== 'string' || typeof key !== 'string') {
+      throw new Error('Data and key must be strings');
     }
-    return btoa(result); // Base64 encode
+    
+    try {
+      // Convert to UTF-8 bytes first to handle Unicode characters
+      const encoder = new TextEncoder();
+      const dataBytes = encoder.encode(data);
+      const keyBytes = encoder.encode(key);
+      
+      // XOR encryption
+      const encrypted = new Uint8Array(dataBytes.length);
+      for (let i = 0; i < dataBytes.length; i++) {
+        encrypted[i] = dataBytes[i] ^ keyBytes[i % keyBytes.length];
+      }
+      
+      // Convert to base64 using proper encoding
+      let binary = '';
+      for (let i = 0; i < encrypted.length; i++) {
+        binary += String.fromCharCode(encrypted[i]);
+      }
+      return btoa(binary);
+    } catch (error) {
+      throw new Error(`Encryption failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   /**
    * Simple XOR decryption (for demo purposes)
    */
   private xorDecrypt(encryptedData: string, key: string): string {
+    // Input validation
     if (!encryptedData || !key) {
       throw new Error('Encrypted data and key cannot be empty');
     }
     
-    const data = atob(encryptedData); // Base64 decode
-    let result = '';
-    for (let i = 0; i < data.length; i++) {
-      const charCode = data.charCodeAt(i) ^ key.charCodeAt(i % key.length);
-      result += String.fromCharCode(charCode);
+    if (typeof encryptedData !== 'string' || typeof key !== 'string') {
+      throw new Error('Encrypted data and key must be strings');
     }
-    return result;
+    
+    try {
+      // Decode from base64
+      const binary = atob(encryptedData);
+      const encrypted = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        encrypted[i] = binary.charCodeAt(i);
+      }
+      
+      // XOR decryption
+      const encoder = new TextEncoder();
+      const keyBytes = encoder.encode(key);
+      const decrypted = new Uint8Array(encrypted.length);
+      for (let i = 0; i < encrypted.length; i++) {
+        decrypted[i] = encrypted[i] ^ keyBytes[i % keyBytes.length];
+      }
+      
+      // Convert back to UTF-8 string
+      const decoder = new TextDecoder();
+      return decoder.decode(decrypted);
+    } catch (error) {
+      throw new Error(`Decryption failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   /**
@@ -233,6 +297,8 @@ export class SecurityManager {
     // Check allowed file types
     const allowedTypes = [
       'text/plain',
+      'application/jsonl',
+      'text/jsonl',
       'image/jpeg',
       'image/png',
       'image/gif',
@@ -240,7 +306,11 @@ export class SecurityManager {
     ];
 
     if (!allowedTypes.includes(fileType)) {
-      return { valid: false, reason: 'File type not allowed' };
+      // 对于JSONL文件，可能没有正确的MIME类型，所以我们也检查文件扩展名
+      const lowerFileName = fileName.toLowerCase();
+      if (!lowerFileName.endsWith('.jsonl')) {
+        return { valid: false, reason: 'File type not allowed' };
+      }
     }
 
     // Check for suspicious file names first (before extension check)
@@ -250,12 +320,14 @@ export class SecurityManager {
       /\.\w+\.\w+$/ // Double extensions
     ];
 
-    if (suspiciousPatterns.some(pattern => pattern.test(fileName))) {
+    // 允许.jsonl文件，即使它匹配了一些可疑模式
+    const isJsonlFile = fileName.toLowerCase().endsWith('.jsonl');
+    if (!isJsonlFile && suspiciousPatterns.some(pattern => pattern.test(fileName))) {
       return { valid: false, reason: 'Suspicious file name pattern' };
     }
 
     // Check file extension
-    const allowedExtensions = ['.txt', '.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    const allowedExtensions = ['.txt', '.jsonl', '.jpg', '.jpeg', '.png', '.gif', '.webp'];
     const extension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
     
     if (!allowedExtensions.includes(extension)) {
@@ -280,7 +352,7 @@ export class SecurityManager {
     const sensitivePatterns = [
       /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/, // Credit card numbers
       /\b\d{3}-\d{2}-\d{4}\b/, // SSN pattern
-      /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/, // Email addresses
+      /@/, // Email addresses (simple check for @ symbol)
       /\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b/, // Phone numbers
       /password|secret|key|token|credential/i // Sensitive keywords
     ];

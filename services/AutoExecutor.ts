@@ -156,7 +156,7 @@ export class AutoExecutor {
           if (result.status === 'completed') {
             context.progress.completed++;
             // Propagate data to downstream blocks
-            this.connectionEngine.propagateData(blockId, result.output || '');
+            this.connectionEngine.propagateData(blockId, result.output || '', block.type, block.number);
           } else {
             context.progress.failed++;
           }

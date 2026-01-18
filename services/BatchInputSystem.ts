@@ -1,256 +1,355 @@
-export interface FileInput {
-  name: string;
-  path: string;
-  type: 'text' | 'image';
-  content: string | ArrayBuffer;
-  size: number;
-  lastModified?: number;
-}
+/**
+ * BatchInputSystem - 批量输入系统
+ * 支持多种格式的批量数据输入：分隔文件（CSV, TXT）和多文件上传
+ */
 
-export interface BatchItem {
-  id: string;
-  name: string;
-  input: FileInput;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  result?: any;
-  error?: string;
-  processedAt?: Date;
-}
+import { BatchInputSource, DelimitedFileSource, MultipleFilesSource, BatchItem } from '../types';
 
-export interface BatchInputOptions {
-  delimiter?: string; // For text file splitting (default: '******')
-  supportedImageTypes?: string[]; // Supported image extensions
-  supportedTextTypes?: string[]; // Supported text extensions
-  maxFileSize?: number; // Maximum file size in bytes
-  sortBy?: 'name' | 'date' | 'size'; // File sorting order
-}
-
-export interface FolderReadResult {
-  files: FileInput[];
-  totalFiles: number;
-  supportedFiles: number;
-  skippedFiles: string[];
+export interface ParsedBatchData {
+  items: BatchItem[];
+  totalCount: number;
   errors: string[];
+  warnings: string[];
+}
+
+export interface BatchInputValidation {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+  itemCount: number;
 }
 
 export class BatchInputSystem {
-  private readonly defaultOptions: BatchInputOptions = {
-    delimiter: '******',
-    supportedImageTypes: ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'],
-    supportedTextTypes: ['.txt', '.md', '.csv'],
-    maxFileSize: 50 * 1024 * 1024, // 50MB
-    sortBy: 'name'
-  };
-
-  constructor(private options: BatchInputOptions = {}) {
-    this.options = { ...this.defaultOptions, ...options };
-  }
+  private readonly MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB per file
+  private readonly MAX_FILE_COUNT = 100;
+  private readonly MAX_BATCH_ITEMS = 1000;
 
   /**
-   * Read all supported files from a folder
+   * Parse batch input source and extract items
    */
-  async readFolder(folderPath: string): Promise<FolderReadResult> {
+  async parseBatchInput(source: BatchInputSource, targetBlockId: string): Promise<ParsedBatchData> {
+    const result: ParsedBatchData = {
+      items: [],
+      totalCount: 0,
+      errors: [],
+      warnings: []
+    };
+
     try {
-      // In a browser environment, we can't directly read folders
-      // This would need to be implemented using File System Access API
-      // or file input with webkitdirectory attribute
-      throw new Error('Direct folder reading not supported in browser environment. Use file input with directory selection.');
+      if (source.type === 'delimited_file') {
+        return await this.parseDelimitedFile(source.source as DelimitedFileSource, targetBlockId);
+      } else if (source.type === 'multiple_files') {
+        return await this.parseMultipleFiles(source.source as MultipleFilesSource, targetBlockId);
+      } else {
+        result.errors.push('Unknown batch input type');
+        return result;
+      }
     } catch (error) {
-      return {
-        files: [],
-        totalFiles: 0,
-        supportedFiles: 0,
-        skippedFiles: [],
-        errors: [error instanceof Error ? error.message : String(error)]
-      };
+      result.errors.push(`Failed to parse batch input: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return result;
     }
   }
 
   /**
-   * Process files from a FileList (from input[type="file"])
+   * Parse delimited file (CSV, TXT with separators)
    */
-  async processFileList(fileList: FileList): Promise<FolderReadResult> {
-    const files: FileInput[] = [];
-    const skippedFiles: string[] = [];
-    const errors: string[] = [];
+  private async parseDelimitedFile(
+    source: DelimitedFileSource,
+    targetBlockId: string
+  ): Promise<ParsedBatchData> {
+    const result: ParsedBatchData = {
+      items: [],
+      totalCount: 0,
+      errors: [],
+      warnings: []
+    };
 
-    for (let i = 0; i < fileList.length; i++) {
-      const file = fileList[i];
+    try {
+      // Read file content
+      const content = await this.readFileAsText(source.file);
       
-      try {
-        // Validate file
-        const validation = this.validateFile(file);
-        if (!validation.isValid) {
-          skippedFiles.push(`${file.name}: ${validation.reason}`);
-          continue;
-        }
+      // Split by delimiter
+      let lines: string[];
+      if (source.delimiter === '\\n' || source.delimiter === 'newline') {
+        lines = content.split(/\r?\n/);
+      } else if (source.delimiter === ';') {
+        lines = content.split(';');
+      } else if (source.delimiter === ',') {
+        // CSV parsing - handle quoted values
+        lines = this.parseCSV(content, source.contentColumn);
+      } else {
+        lines = content.split(source.delimiter);
+      }
 
-        // Process file based on type
-        const fileInput = await this.processFile(file);
-        files.push(fileInput);
-      } catch (error) {
-        errors.push(`Error processing ${file.name}: ${error instanceof Error ? error.message : String(error)}`);
+      // Remove header if specified
+      if (source.hasHeader && lines.length > 0) {
+        lines.shift();
+        result.warnings.push('Header row skipped');
+      }
+
+      // Filter empty lines
+      lines = lines.filter(line => line.trim().length > 0);
+
+      // Validate item count
+      if (lines.length > this.MAX_BATCH_ITEMS) {
+        result.warnings.push(`Batch size (${lines.length}) exceeds recommended limit (${this.MAX_BATCH_ITEMS}). Processing may be slow.`);
+      }
+
+      // Create batch items
+      lines.forEach((line, index) => {
+        const trimmedContent = line.trim();
+        if (trimmedContent) {
+          result.items.push({
+            id: `batch_item_${Date.now()}_${index}`,
+            content: trimmedContent,
+            metadata: {
+              fileName: source.file.name,
+              lineNumber: source.hasHeader ? index + 2 : index + 1
+            },
+            type: 'text',
+            targetBlockId
+          });
+        }
+      });
+
+      result.totalCount = result.items.length;
+
+      if (result.totalCount === 0) {
+        result.errors.push('No valid items found in file');
+      }
+
+    } catch (error) {
+      result.errors.push(`Failed to parse delimited file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    return result;
+  }
+
+  /**
+   * Parse CSV with proper handling of quoted values
+   */
+  private parseCSV(content: string, contentColumn?: number): string[] {
+    const lines: string[] = [];
+    const rows = content.split(/\r?\n/);
+
+    for (const row of rows) {
+      if (!row.trim()) continue;
+
+      // Simple CSV parsing (handles quoted values)
+      const columns: string[] = [];
+      let currentColumn = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < row.length; i++) {
+        const char = row[i];
+
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          columns.push(currentColumn.trim());
+          currentColumn = '';
+        } else {
+          currentColumn += char;
+        }
+      }
+      columns.push(currentColumn.trim());
+
+      // Extract content from specified column or use entire row
+      if (contentColumn !== undefined && contentColumn < columns.length) {
+        lines.push(columns[contentColumn]);
+      } else {
+        lines.push(columns.join(' '));
       }
     }
 
-    // Sort files according to options
-    this.sortFiles(files);
+    return lines;
+  }
 
-    return {
-      files,
-      totalFiles: fileList.length,
-      supportedFiles: files.length,
-      skippedFiles,
-      errors
+  /**
+   * Parse multiple files
+   */
+  private async parseMultipleFiles(
+    source: MultipleFilesSource,
+    targetBlockId: string
+  ): Promise<ParsedBatchData> {
+    const result: ParsedBatchData = {
+      items: [],
+      totalCount: 0,
+      errors: [],
+      warnings: []
     };
-  }
 
-  /**
-   * Parse text file content into multiple items
-   */
-  async parseTextFile(file: File, delimiter?: string): Promise<string[]> {
-    const content = await this.readFileAsText(file);
-    const actualDelimiter = delimiter || this.options.delimiter || '******';
-    
-    // Split by delimiter and clean up
-    const parts = content.split(actualDelimiter)
-      .map(part => part.trim())
-      .filter(part => part.length > 0);
+    try {
+      // Validate file count
+      if (source.files.length > source.maxFileCount) {
+        result.errors.push(`File count (${source.files.length}) exceeds limit (${source.maxFileCount})`);
+        return result;
+      }
 
-    // If no delimiter found, split by lines as fallback
-    if (parts.length === 1 && !content.includes(actualDelimiter)) {
-      return content.split('\n')
-        .map(line => line.trim())
-        .filter(line => line.length > 0);
+      // Process each file
+      for (let i = 0; i < source.files.length; i++) {
+        const file = source.files[i];
+
+        // Validate file size
+        if (file.size > source.maxFileSize) {
+          result.warnings.push(`File "${file.name}" exceeds size limit (${this.formatFileSize(source.maxFileSize)}), skipped`);
+          continue;
+        }
+
+        try {
+          // Determine file type
+          const fileType = this.detectFileType(file);
+
+          if (fileType === 'text') {
+            const content = await this.readFileAsText(file);
+            result.items.push({
+              id: `batch_item_${Date.now()}_${i}`,
+              content: content.trim(),
+              metadata: {
+                fileName: file.name,
+                folderPath: (file as any).webkitRelativePath || undefined
+              },
+              type: 'text',
+              targetBlockId
+            });
+          } else if (fileType === 'image') {
+            const base64 = await this.readFileAsBase64(file);
+            result.items.push({
+              id: `batch_item_${Date.now()}_${i}`,
+              content: base64,
+              metadata: {
+                fileName: file.name,
+                folderPath: (file as any).webkitRelativePath || undefined
+              },
+              type: 'image',
+              targetBlockId
+            });
+          } else {
+            result.warnings.push(`File "${file.name}" has unsupported type, skipped`);
+          }
+        } catch (error) {
+          result.warnings.push(`Failed to process file "${file.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      result.totalCount = result.items.length;
+
+      if (result.totalCount === 0) {
+        result.errors.push('No valid files found');
+      }
+
+    } catch (error) {
+      result.errors.push(`Failed to parse multiple files: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
-    return parts;
+    return result;
   }
 
   /**
-   * Validate file format and size
+   * Validate batch input before processing
    */
-  validateFileFormat(file: File): boolean {
-    return this.validateFile(file).isValid;
-  }
-
-  /**
-   * Create batch items from file inputs
-   */
-  createBatchItems(inputs: FileInput[]): BatchItem[] {
-    return inputs.map((input, index) => ({
-      id: `batch_${Date.now()}_${index}`,
-      name: input.name,
-      input,
-      status: 'pending' as const
-    }));
-  }
-
-  /**
-   * Create batch items from text file with multiple entries
-   */
-  async createBatchItemsFromTextFile(file: File, delimiter?: string): Promise<BatchItem[]> {
-    const textParts = await this.parseTextFile(file, delimiter);
-    
-    return textParts.map((text, index) => ({
-      id: `text_batch_${Date.now()}_${index}`,
-      name: `${file.name}_part_${index + 1}`,
-      input: {
-        name: `${file.name}_part_${index + 1}`,
-        path: file.name,
-        type: 'text' as const,
-        content: text,
-        size: new Blob([text]).size,
-        lastModified: file.lastModified
-      },
-      status: 'pending' as const
-    }));
-  }
-
-  /**
-   * Get file statistics
-   */
-  getFileStatistics(files: FileInput[]): {
-    totalSize: number;
-    textFiles: number;
-    imageFiles: number;
-    averageSize: number;
-    largestFile: FileInput | null;
-  } {
-    const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-    const textFiles = files.filter(f => f.type === 'text').length;
-    const imageFiles = files.filter(f => f.type === 'image').length;
-    const averageSize = files.length > 0 ? totalSize / files.length : 0;
-    const largestFile = files.reduce((largest, file) => 
-      !largest || file.size > largest.size ? file : largest, null as FileInput | null);
-
-    return {
-      totalSize,
-      textFiles,
-      imageFiles,
-      averageSize,
-      largestFile
+  async validateBatchInput(source: BatchInputSource): Promise<BatchInputValidation> {
+    const validation: BatchInputValidation = {
+      isValid: true,
+      errors: [],
+      warnings: [],
+      itemCount: 0
     };
+
+    try {
+      if (source.type === 'delimited_file') {
+        const delimitedSource = source.source as DelimitedFileSource;
+        
+        // Validate file
+        if (!delimitedSource.file) {
+          validation.errors.push('No file provided');
+          validation.isValid = false;
+          return validation;
+        }
+
+        // Validate file size
+        if (delimitedSource.file.size > this.MAX_FILE_SIZE) {
+          validation.errors.push(`File size (${this.formatFileSize(delimitedSource.file.size)}) exceeds limit (${this.formatFileSize(this.MAX_FILE_SIZE)})`);
+          validation.isValid = false;
+        }
+
+        // Validate delimiter
+        if (!delimitedSource.delimiter) {
+          validation.errors.push('No delimiter specified');
+          validation.isValid = false;
+        }
+
+        // Estimate item count
+        const content = await this.readFileAsText(delimitedSource.file);
+        const lines = content.split(/\r?\n/).filter(line => line.trim().length > 0);
+        validation.itemCount = delimitedSource.hasHeader ? lines.length - 1 : lines.length;
+
+        if (validation.itemCount === 0) {
+          validation.errors.push('File appears to be empty');
+          validation.isValid = false;
+        }
+
+        if (validation.itemCount > this.MAX_BATCH_ITEMS) {
+          validation.warnings.push(`Item count (${validation.itemCount}) exceeds recommended limit (${this.MAX_BATCH_ITEMS})`);
+        }
+
+      } else if (source.type === 'multiple_files') {
+        const multipleSource = source.source as MultipleFilesSource;
+        
+        // Validate file count
+        if (!multipleSource.files || multipleSource.files.length === 0) {
+          validation.errors.push('No files provided');
+          validation.isValid = false;
+          return validation;
+        }
+
+        if (multipleSource.files.length > multipleSource.maxFileCount) {
+          validation.errors.push(`File count (${multipleSource.files.length}) exceeds limit (${multipleSource.maxFileCount})`);
+          validation.isValid = false;
+        }
+
+        // Validate individual files
+        let validFileCount = 0;
+        for (const file of multipleSource.files) {
+          if (file.size > multipleSource.maxFileSize) {
+            validation.warnings.push(`File "${file.name}" exceeds size limit`);
+          } else {
+            validFileCount++;
+          }
+        }
+
+        validation.itemCount = validFileCount;
+
+        if (validFileCount === 0) {
+          validation.errors.push('No valid files found');
+          validation.isValid = false;
+        }
+      }
+
+    } catch (error) {
+      validation.errors.push(`Validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      validation.isValid = false;
+    }
+
+    return validation;
   }
 
   /**
-   * Process a single file
+   * Get batch input preview (first N items)
    */
-  private async processFile(file: File): Promise<FileInput> {
-    const fileExtension = this.getFileExtension(file.name);
-    const isImage = this.options.supportedImageTypes?.includes(fileExtension) || false;
-    const isText = this.options.supportedTextTypes?.includes(fileExtension) || false;
-
-    let content: string | ArrayBuffer;
-    let type: 'text' | 'image';
-
-    if (isImage) {
-      content = await this.readFileAsDataURL(file);
-      type = 'image';
-    } else if (isText) {
-      content = await this.readFileAsText(file);
-      type = 'text';
-    } else {
-      throw new Error(`Unsupported file type: ${fileExtension}`);
+  async getPreview(source: BatchInputSource, maxItems: number = 5): Promise<string[]> {
+    try {
+      const parsed = await this.parseBatchInput(source, 'preview');
+      return parsed.items.slice(0, maxItems).map(item => {
+        if (item.type === 'text') {
+          return item.content.substring(0, 100) + (item.content.length > 100 ? '...' : '');
+        } else {
+          return `[Image: ${item.metadata?.fileName || 'unknown'}]`;
+        }
+      });
+    } catch (error) {
+      return [`Error: ${error instanceof Error ? error.message : 'Unknown error'}`];
     }
-
-    return {
-      name: file.name,
-      path: file.name, // In browser, we don't have full path
-      type,
-      content,
-      size: file.size,
-      lastModified: file.lastModified
-    };
-  }
-
-  /**
-   * Validate file against options
-   */
-  private validateFile(file: File): { isValid: boolean; reason?: string } {
-    // Check file size
-    if (this.options.maxFileSize && file.size > this.options.maxFileSize) {
-      return {
-        isValid: false,
-        reason: `File too large (${this.formatFileSize(file.size)} > ${this.formatFileSize(this.options.maxFileSize)})`
-      };
-    }
-
-    // Check file type
-    const extension = this.getFileExtension(file.name);
-    const supportedTypes = [
-      ...(this.options.supportedImageTypes || []),
-      ...(this.options.supportedTextTypes || [])
-    ];
-
-    if (!supportedTypes.includes(extension)) {
-      return {
-        isValid: false,
-        reason: `Unsupported file type: ${extension}`
-      };
-    }
-
-    return { isValid: true };
   }
 
   /**
@@ -259,85 +358,49 @@ export class BatchInputSystem {
   private readFileAsText(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsText(file, 'utf-8');
+      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsText(file);
     });
   }
 
   /**
-   * Read file as data URL (for images)
+   * Read file as base64
    */
-  private readFileAsDataURL(file: File): Promise<string> {
+  private readFileAsBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(reader.error);
+      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.onerror = () => reject(new Error('Failed to read file'));
       reader.readAsDataURL(file);
     });
   }
 
   /**
-   * Get file extension
+   * Detect file type
    */
-  private getFileExtension(filename: string): string {
-    return filename.toLowerCase().substring(filename.lastIndexOf('.'));
-  }
-
-  /**
-   * Sort files according to options
-   */
-  private sortFiles(files: FileInput[]): void {
-    switch (this.options.sortBy) {
-      case 'name':
-        files.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      case 'date':
-        files.sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0));
-        break;
-      case 'size':
-        files.sort((a, b) => b.size - a.size);
-        break;
+  private detectFileType(file: File): 'text' | 'image' | 'unknown' {
+    if (file.type.startsWith('text/')) {
+      return 'text';
+    } else if (file.type.startsWith('image/')) {
+      return 'image';
+    } else if (file.name.endsWith('.txt') || file.name.endsWith('.md')) {
+      return 'text';
+    } else if (file.name.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+      return 'image';
     }
+    return 'unknown';
   }
 
   /**
    * Format file size for display
    */
   private formatFileSize(bytes: number): string {
-    const units = ['B', 'KB', 'MB', 'GB'];
-    let size = bytes;
-    let unitIndex = 0;
-
-    while (size >= 1024 && unitIndex < units.length - 1) {
-      size /= 1024;
-      unitIndex++;
-    }
-
-    return `${size.toFixed(1)} ${units[unitIndex]}`;
-  }
-
-  /**
-   * Create file input element for folder selection
-   */
-  static createFolderInput(): HTMLInputElement {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.multiple = true;
-    input.webkitdirectory = true; // Enable folder selection
-    return input;
-  }
-
-  /**
-   * Create file input element for multiple file selection
-   */
-  static createFileInput(accept?: string): HTMLInputElement {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.multiple = true;
-    if (accept) {
-      input.accept = accept;
-    }
-    return input;
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   }
 }
+
+// Singleton instance
+export const batchInputSystem = new BatchInputSystem();

@@ -1,5 +1,5 @@
 import { PresetPrompt, PresetPromptStorage } from '../types';
-import { DEFAULT_SORA_PROMPT } from '../constants';
+import { DEFAULT_SORA_PROMPT } from '../constants.tsx';
 
 const STORAGE_KEY = 'preset-prompt-library';
 const STORAGE_VERSION = '1.0.0';

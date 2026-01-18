@@ -76,6 +76,87 @@ export class ConnectionEngine {
   }
 
   /**
+   * Gets upstream data with content summaries for display
+   */
+  getUpstreamDataWithSummaries(blockId: string): Array<BlockData & { summary: string }> {
+    const upstreamData = this.getUpstreamData(blockId);
+    
+    return upstreamData.map(data => ({
+      ...data,
+      summary: this.generateContentSummary(data)
+    }));
+  }
+
+  /**
+   * Generates a content summary for display in instruction boxes
+   */
+  private generateContentSummary(data: BlockData): string {
+    if (!data.content) return '无内容';
+    
+    const maxLength = 50;
+    let summary = data.content.trim();
+    
+    // 对不同类型的内容进行不同的摘要处理
+    if (data.type === 'text') {
+      // 文本内容：取前50个字符
+      if (summary.length > maxLength) {
+        summary = summary.substring(0, maxLength) + '...';
+      }
+    } else if (data.type === 'image') {
+      // 图片内容：显示图片信息
+      if (summary.startsWith('data:image/')) {
+        const sizeMatch = summary.match(/data:image\/(\w+);/);
+        const format = sizeMatch ? sizeMatch[1].toUpperCase() : 'IMAGE';
+        summary = `${format}图片`;
+      } else if (summary.startsWith('http')) {
+        summary = '在线图片';
+      } else {
+        summary = '图片内容';
+      }
+    } else if (data.type === 'video') {
+      // 视频内容：显示视频信息
+      if (summary.startsWith('http')) {
+        summary = '视频文件';
+      } else {
+        summary = '视频内容';
+      }
+    }
+    
+    return summary;
+  }
+
+  /**
+   * Gets formatted upstream info for display in block placeholders
+   */
+  getUpstreamDisplayInfo(blockId: string): string {
+    const upstreamData = this.getUpstreamDataWithSummaries(blockId);
+    
+    if (upstreamData.length === 0) return '';
+    
+    const upstreamInputs = upstreamData.map(data => {
+      const typeText = data.type === 'text' ? '文本' : data.type === 'image' ? '图片' : '视频';
+      return `[${data.blockNumber}]${typeText}: ${data.summary}`;
+    }).join('，');
+    
+    return upstreamInputs;
+  }
+
+  /**
+   * Gets all upstream block IDs for a specific block
+   */
+  getUpstreamBlockIds(blockId: string): string[] {
+    const upstreamIds: string[] = [];
+
+    for (const connection of this.connectionCache.values()) {
+      if (connection.toId === blockId && connection.dataFlow.enabled) {
+        upstreamIds.push(connection.fromId);
+      }
+    }
+
+    return upstreamIds;
+  }
+
+  /**
    * Gets available upstream block numbers for variable references
    */
   getAvailableVariables(blockId: string): string[] {

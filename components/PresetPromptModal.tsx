@@ -198,7 +198,7 @@ const PresetPromptModal: React.FC<PresetPromptModalProps> = ({
                 key={prompt.id}
                 className={`
                   relative p-6 rounded-2xl border-2 cursor-pointer transition-all duration-200
-                  min-h-[200px] flex flex-col
+                  min-h-[300px] flex flex-col
                   ${selectedPromptIndex === index
                     ? 'border-amber-500 bg-amber-500/10 shadow-lg scale-105'
                     : theme === 'dark'
@@ -260,7 +260,7 @@ const PresetPromptModal: React.FC<PresetPromptModalProps> = ({
                         onInput={(e) => {
                           const textarea = e.target as HTMLTextAreaElement;
                           textarea.style.height = 'auto';
-                          textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+                          textarea.style.height = `${Math.min(textarea.scrollHeight, 400)}px`;
                         }}
                       />
                       <div className={`mt-2 text-xs flex justify-between items-center ${
@@ -278,7 +278,7 @@ const PresetPromptModal: React.FC<PresetPromptModalProps> = ({
                         <div className={`text-sm leading-relaxed ${
                           theme === 'dark' ? 'text-white/80' : 'text-black/80'
                         }`}>
-                          <div className="line-clamp-6">
+                          <div className="line-clamp-12">
                             {prompt.content}
                           </div>
                         </div>

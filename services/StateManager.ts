@@ -374,8 +374,33 @@ export class StateManager {
    * Get execution state
    */
   getExecutionState(executionId: string): ExecutionState | null {
-    const state = this.executionStates.get(executionId);
-    return state || null;
+    // First check in memory map
+    let state = this.executionStates.get(executionId);
+    if (state) {
+      return state;
+    }
+    
+    // If not found in memory, try to recover from localStorage (for compatibility with tests)
+    try {
+      const key = `automation_execution_${executionId}`;
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Validate that parsed data has all required fields with correct types
+        if (parsed && 
+            typeof parsed === 'object' && 
+            typeof parsed.id === 'string' &&
+            typeof parsed.status === 'string' &&
+            typeof parsed.startTime === 'number' &&
+            Array.isArray(parsed.completedBlocks)) {
+          return parsed;
+        }
+      }
+    } catch (error) {
+      // Return null for invalid/corrupted data
+    }
+    
+    return null;
   }
 
   /**
@@ -483,13 +508,31 @@ export class StateManager {
     try {
       const keysToRemove: string[] = [];
       
+      // Check in-memory states first
+      for (const [executionId, state] of this.executionStates.entries()) {
+        if (state.startTime < expiredTime && 
+            (state.status === 'completed' || state.status === 'failed' || state.status === 'cancelled')) {
+          keysToRemove.push(`automation_execution_${executionId}`);
+          this.executionStates.delete(executionId);
+        }
+      }
+      
+      // Also check localStorage for any orphaned states
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key?.startsWith('automation_execution_')) {
           const stored = localStorage.getItem(key);
           if (stored) {
-            const state = JSON.parse(stored);
-            if (state.startTime && state.startTime < expiredTime) {
+            try {
+              const state = JSON.parse(stored);
+              // Use startTime field for ExecutionState expiration checking
+              if (state.startTime && state.startTime < expiredTime) {
+                if (!keysToRemove.includes(key)) {
+                  keysToRemove.push(key);
+                }
+              }
+            } catch (e) {
+              // Remove corrupted entries
               keysToRemove.push(key);
             }
           }

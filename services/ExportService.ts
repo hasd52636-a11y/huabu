@@ -8,6 +8,8 @@ export interface ExportOptions {
   backgroundColor?: string;
   includeLabels?: boolean;
   labelPrefix?: string;
+  format?: 'jpeg' | 'png';
+  sortBy?: 'selection' | 'position';
 }
 
 export interface LayoutGrid {
@@ -34,24 +36,31 @@ export class ExportService {
     frameWidth: 400,
     backgroundColor: '#ffffff',
     includeLabels: true,
-    labelPrefix: 'SC'
+    labelPrefix: 'SC',
+    format: 'jpeg',
+    sortBy: 'selection'
   };
 
   /**
-   * 导出分镜图为JPEG文件
-   * Export storyboard as JPEG file
+   * 导出分镜图为JPEG/PNG文件
+   * Export storyboard as JPEG/PNG file
    */
   async exportStoryboard(blocks: Block[], options: ExportOptions = {}): Promise<string> {
-    const opts = { ...ExportService.DEFAULT_OPTIONS, ...options };
+    const opts = { 
+      ...ExportService.DEFAULT_OPTIONS, 
+      ...options,
+      format: options.format || 'jpeg'
+    };
     
     if (blocks.length === 0) {
       throw new Error('No blocks provided for export');
     }
 
-    // 验证所有块都有图像内容
-    // Validate all blocks have image content
+    // 验证所有块都有图像内容，支持base64图片
+    // Validate all blocks have image content, support base64 images
     const imageBlocks = blocks.filter(block => 
-      block.type === 'image' && block.content && block.content.startsWith('http')
+      block.type === 'image' && block.content && 
+      (block.content.startsWith('http') || block.content.startsWith('data:image/'))
     );
 
     if (imageBlocks.length === 0) {
@@ -66,9 +75,10 @@ export class ExportService {
     // Render to canvas
     const canvas = await this.renderToCanvas(imageBlocks, grid, opts);
 
-    // 转换为数据URL
-    // Convert to data URL
-    return canvas.toDataURL('image/jpeg', opts.quality);
+    // 转换为数据URL，支持多种格式
+    // Convert to data URL with format support
+    const mimeType = opts.format === 'png' ? 'image/png' : 'image/jpeg';
+    return canvas.toDataURL(mimeType, opts.quality);
   }
 
   /**
@@ -169,12 +179,19 @@ export class ExportService {
     ctx.fillStyle = options.backgroundColor || ExportService.DEFAULT_OPTIONS.backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 按位置排序块（从左到右，从上到下）
-    // Sort blocks by position (left to right, top to bottom)
-    const sortedBlocks = [...blocks].sort((a, b) => {
-      if (Math.abs(a.y - b.y) > 10) return a.y - b.y;
-      return a.x - b.x;
-    });
+    // 根据sortBy选项决定排序方式
+    // Determine sorting method based on sortBy option
+    let sortedBlocks = [...blocks];
+    if (options.sortBy === 'position') {
+      // 按位置排序块（从左到右，从上到下）
+      // Sort blocks by position (left to right, top to bottom)
+      sortedBlocks.sort((a, b) => {
+        if (Math.abs(a.y - b.y) > 10) return a.y - b.y;
+        return a.x - b.x;
+      });
+    }
+    // 否则保持输入顺序（选择顺序）
+    // Otherwise keep the input order (selection order)
 
     // 加载并绘制所有图像
     // Load and draw all images
@@ -396,6 +413,56 @@ export class ExportService {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  }
+
+  /**
+   * 下载文本内容为TXT文件
+   * Download text content as TXT file
+   */
+  static downloadText(text: string, filename?: string): void {
+    const blob = new Blob([text], { type: 'text/plain' });
+    const dataUrl = URL.createObjectURL(blob);
+    this.downloadDataUrl(dataUrl, filename || `Text_Export_${Date.now()}.txt`);
+    URL.revokeObjectURL(dataUrl);
+  }
+
+  /**
+   * 下载文本内容为PDF文件
+   * Download text content as PDF file
+   */
+  static downloadPDF(text: string, filename?: string): void {
+    // 使用动态导入避免打包时包含整个jsPDF库
+    import('jspdf').then(({ jsPDF }) => {
+      const doc = new jsPDF();
+      
+      // 设置字体和边距
+      const margin = 15;
+      const lineHeight = 7;
+      const maxWidth = doc.internal.pageSize.width - 2 * margin;
+      
+      // 分割文本为多行
+      const lines = doc.splitTextToSize(text, maxWidth);
+      
+      // 逐行添加文本
+      let y = margin;
+      for (const line of lines) {
+        // 如果当前行超出页面底部，添加新页
+        if (y > doc.internal.pageSize.height - margin) {
+          doc.addPage();
+          y = margin;
+        }
+        doc.text(line, margin, y);
+        y += lineHeight;
+      }
+      
+      // 生成PDF并下载
+      const pdfDataUrl = doc.output('dataurlstring');
+      this.downloadDataUrl(pdfDataUrl, filename || `PDF_Export_${Date.now()}.pdf`);
+    }).catch(error => {
+      console.error('Failed to load jsPDF library:', error);
+      // 降级为TXT下载
+      this.downloadText(text, filename?.replace('.pdf', '.txt') || `PDF_Fallback_${Date.now()}.txt`);
+    });
   }
 
   /**

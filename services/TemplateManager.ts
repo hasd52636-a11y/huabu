@@ -1,4 +1,4 @@
-import { Template, CanvasState, TemplateStorage, Block, Connection, EnhancedConnection } from '../types';
+import { Template, CanvasState, TemplateStorage, Block, Connection, EnhancedConnection, AutomationConfig } from '../types';
 import { connectionEngine } from './ConnectionEngine';
 
 /**
@@ -10,21 +10,39 @@ export class TemplateManager {
   private static readonly VERSION = '1.0.0';
 
   /**
-   * Saves current canvas state as a template
+   * Saves current canvas state as a template with automation support
    */
-  async saveTemplate(canvas: CanvasState, name: string, description?: string): Promise<Template> {
+  async saveTemplate(canvas: CanvasState, name: string, description?: string, isAutomation?: boolean): Promise<Template> {
+    // For automation templates, clear only generated output but keep prompts and configurations
+    const canvasStateToSave = isAutomation ? {
+      ...canvas,
+      blocks: canvas.blocks.map(block => ({
+        ...block,
+        content: '', // Clear generated output content
+        // Keep originalPrompt, block type, position, size, and all configurations
+        // This ensures users don't need to re-enter prompts when opening the template
+      }))
+    } : canvas;
+
     const template: Template = {
       id: this.generateId(),
       name: name.trim(),
       description: description?.trim(),
       createdAt: new Date(),
       updatedAt: new Date(),
-      canvasState: this.cloneCanvasState(canvas),
+      canvasState: this.cloneCanvasState(canvasStateToSave),
       metadata: {
         blockCount: canvas.blocks.length,
         connectionCount: canvas.connections.length,
         hasFileInput: canvas.attachments ? canvas.attachments.length > 0 : false
-      }
+      },
+      // Automation template fields
+      isAutomation: isAutomation || false,
+      automationConfig: isAutomation ? {
+        mode: 'standard',
+        pauseOnError: true,
+        enableSmartInterval: true
+      } : undefined
     };
 
     const storage = this.getStorage();
@@ -60,7 +78,489 @@ export class TemplateManager {
    */
   async listTemplates(): Promise<Template[]> {
     const storage = this.getStorage();
+    
+    // If no templates found, check if we need to initialize default templates
+    if (storage.templates.length === 0) {
+      await this.initializeDefaultTemplates();
+      // Reload storage after initialization
+      return this.listTemplates();
+    }
+    
     return [...storage.templates].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  }
+
+  /**
+   * Initializes default automation templates if none exist
+   */
+  private async initializeDefaultTemplates(): Promise<void> {
+    const storage = this.getStorage();
+    
+    // Skip if templates already exist
+    if (storage.templates.length > 0) {
+      return;
+    }
+
+    console.log('[TemplateManager] Initializing default automation templates...');
+    
+    // Define default templates
+    const defaultTemplates = [
+      {
+        "name": "文本转单图（画布显示）",
+        "description": "从文本提示生成单张图片，结果显示在画布上。适合简单的图像生成任务。",
+        "canvasState": {
+          "blocks": [
+            {
+              "id": "text_prompt_block",
+              "type": "text",
+              "x": 100,
+              "y": 100,
+              "width": 300,
+              "height": 150,
+              "content": "一只可爱的柴犬在草地上奔跑，阳光明媚，高清细节",
+              "status": "idle",
+              "number": "A01",
+              "fontSize": 14,
+              "textColor": "#333333",
+              "originalPrompt": "生成一只可爱的柴犬图片"
+            },
+            {
+              "id": "image_output_block",
+              "type": "image",
+              "x": 500,
+              "y": 100,
+              "width": 400,
+              "height": 400,
+              "content": "",
+              "status": "idle",
+              "number": "B01",
+              "aspectRatio": "1:1",
+              "originalPrompt": ""
+            }
+          ],
+          "connections": [
+            {
+              "id": "text_to_image_conn",
+              "fromId": "text_prompt_block",
+              "toId": "image_output_block",
+              "instruction": "根据文本提示生成图片",
+              "dataFlow": {
+                "enabled": true,
+                "lastUpdate": 0,
+                "dataType": "text",
+                "lastData": ""
+              }
+            }
+          ],
+          "settings": {
+            "zoom": 1,
+            "pan": { "x": 0, "y": 0 }
+          }
+        },
+        "isAutomation": true
+      },
+      {
+        "name": "文本转多图（网格布局）",
+        "description": "从文本提示生成多张图片，结果以网格布局显示在画布上。适合需要生成多个变体的场景。",
+        "canvasState": {
+          "blocks": [
+            {
+              "id": "text_prompt_multi",
+              "type": "text",
+              "x": 100,
+              "y": 100,
+              "width": 300,
+              "height": 150,
+              "content": "不同风格的城市夜景，高清细节，4K分辨率",
+              "status": "idle",
+              "number": "A01",
+              "fontSize": 14,
+              "textColor": "#333333",
+              "originalPrompt": "生成不同风格的城市夜景"
+            },
+            {
+              "id": "image_output_multi",
+              "type": "image",
+              "x": 500,
+              "y": 100,
+              "width": 300,
+              "height": 300,
+              "content": "",
+              "status": "idle",
+              "number": "B01",
+              "aspectRatio": "16:9",
+              "originalPrompt": "",
+              "multiImageGroupId": "multi_images_1",
+              "multiImageIndex": 0,
+              "isMultiImageSource": true
+            }
+          ],
+          "connections": [
+            {
+              "id": "multi_image_conn",
+              "fromId": "text_prompt_multi",
+              "toId": "image_output_multi",
+              "instruction": "根据文本提示生成4张不同风格的图片",
+              "dataFlow": {
+                "enabled": true,
+                "lastUpdate": 0,
+                "dataType": "text",
+                "lastData": ""
+              }
+            }
+          ],
+          "settings": {
+            "zoom": 1,
+            "pan": { "x": 0, "y": 0 }
+          }
+        },
+        "isAutomation": true
+      },
+      {
+        "name": "文本转图像（自动下载）",
+        "description": "从文本提示生成图片，并自动下载到指定路径。适合批量生成图片的场景。",
+        "canvasState": {
+          "blocks": [
+            {
+              "id": "text_prompt_download",
+              "type": "text",
+              "x": 100,
+              "y": 100,
+              "width": 350,
+              "height": 200,
+              "content": "未来科技感城市，飞行汽车，霓虹灯光，高清4K",
+              "status": "idle",
+              "number": "A01",
+              "fontSize": 14,
+              "textColor": "#333333",
+              "originalPrompt": "生成未来科技感城市图片"
+            },
+            {
+              "id": "image_output_download",
+              "type": "image",
+              "x": 550,
+              "y": 100,
+              "width": 450,
+              "height": 250,
+              "content": "",
+              "status": "idle",
+              "number": "B01",
+              "aspectRatio": "16:9",
+              "originalPrompt": ""
+            }
+          ],
+          "connections": [
+            {
+              "id": "download_conn",
+              "fromId": "text_prompt_download",
+              "toId": "image_output_download",
+              "instruction": "根据文本提示生成高清图片",
+              "dataFlow": {
+                "enabled": true,
+                "lastUpdate": 0,
+                "dataType": "text",
+                "lastData": ""
+              }
+            }
+          ],
+          "settings": {
+            "zoom": 1,
+            "pan": { "x": 0, "y": 0 }
+          }
+        },
+        "isAutomation": true
+      },
+      {
+        "name": "图像编辑（带提示词）",
+        "description": "上传图片，然后使用提示词进行编辑，结果显示在画布上。适合图像增强和修改任务。",
+        "canvasState": {
+          "blocks": [
+            {
+              "id": "input_image_block",
+              "type": "image",
+              "x": 100,
+              "y": 100,
+              "width": 400,
+              "height": 300,
+              "content": "",
+              "status": "idle",
+              "number": "A01",
+              "aspectRatio": "4:3",
+              "originalPrompt": "上传需要编辑的图片"
+            },
+            {
+              "id": "edit_prompt_block",
+              "type": "text",
+              "x": 100,
+              "y": 500,
+              "width": 300,
+              "height": 120,
+              "content": "将图片转换为水彩画风格，增加艺术感",
+              "status": "idle",
+              "number": "B01",
+              "fontSize": 14,
+              "textColor": "#333333",
+              "originalPrompt": "图片编辑提示词"
+            },
+            {
+              "id": "edited_output_block",
+              "type": "image",
+              "x": 600,
+              "y": 100,
+              "width": 400,
+              "height": 300,
+              "content": "",
+              "status": "idle",
+              "number": "C01",
+              "aspectRatio": "4:3",
+              "originalPrompt": ""
+            }
+          ],
+          "connections": [
+            {
+              "id": "image_to_edit_conn",
+              "fromId": "input_image_block",
+              "toId": "edited_output_block",
+              "instruction": "使用上传的图片作为编辑源",
+              "dataFlow": {
+                "enabled": true,
+                "lastUpdate": 0,
+                "dataType": "image",
+                "lastData": ""
+              }
+            },
+            {
+              "id": "edit_prompt_to_image_conn",
+              "fromId": "edit_prompt_block",
+              "toId": "edited_output_block",
+              "instruction": "应用编辑提示词",
+              "dataFlow": {
+                "enabled": true,
+                "lastUpdate": 0,
+                "dataType": "text",
+                "lastData": ""
+              }
+            }
+          ],
+          "settings": {
+            "zoom": 1,
+            "pan": { "x": 0, "y": 0 }
+          }
+        },
+        "isAutomation": true
+      },
+      {
+        "name": "文本链式生成（最终图像）",
+        "description": "先从创意生成详细大纲，再根据大纲生成图像。适合需要结构化内容生成的场景。",
+        "canvasState": {
+          "blocks": [
+            {
+              "id": "story_idea_block",
+              "type": "text",
+              "x": 100,
+              "y": 100,
+              "width": 300,
+              "height": 180,
+              "content": "科幻冒险故事：宇航员在未知星球发现神秘文明遗迹",
+              "status": "idle",
+              "number": "A01",
+              "fontSize": 14,
+              "textColor": "#333333",
+              "originalPrompt": "科幻冒险故事创意"
+            },
+            {
+              "id": "story_outline_block",
+              "type": "text",
+              "x": 100,
+              "y": 350,
+              "width": 350,
+              "height": 200,
+              "content": "",
+              "status": "idle",
+              "number": "B01",
+              "fontSize": 12,
+              "textColor": "#333333",
+              "originalPrompt": ""
+            },
+            {
+              "id": "story_image_block",
+              "type": "image",
+              "x": 550,
+              "y": 100,
+              "width": 450,
+              "height": 300,
+              "content": "",
+              "status": "idle",
+              "number": "C01",
+              "aspectRatio": "16:9",
+              "originalPrompt": ""
+            }
+          ],
+          "connections": [
+            {
+              "id": "idea_to_outline_conn",
+              "fromId": "story_idea_block",
+              "toId": "story_outline_block",
+              "instruction": "根据故事创意生成详细大纲",
+              "dataFlow": {
+                "enabled": true,
+                "lastUpdate": 0,
+                "dataType": "text",
+                "lastData": ""
+              }
+            },
+            {
+              "id": "outline_to_image_conn",
+              "fromId": "story_outline_block",
+              "toId": "story_image_block",
+              "instruction": "根据故事大纲生成场景图像",
+              "dataFlow": {
+                "enabled": true,
+                "lastUpdate": 0,
+                "dataType": "text",
+                "lastData": ""
+              }
+            }
+          ],
+          "settings": {
+            "zoom": 1,
+            "pan": { "x": 0, "y": 0 }
+          }
+        },
+        "isAutomation": true
+      },
+      {
+        "name": "多模块拼接（含视频）",
+        "description": "文本生成故事大纲，图像生成封面图，最终生成视频。这是唯一包含视频的模板。",
+        "canvasState": {
+          "blocks": [
+            {
+              "id": "story_idea_block",
+              "type": "text",
+              "x": 100,
+              "y": 100,
+              "width": 300,
+              "height": 180,
+              "content": "科幻冒险故事：宇航员在未知星球发现神秘文明遗迹",
+              "status": "idle",
+              "number": "A01",
+              "fontSize": 14,
+              "textColor": "#333333",
+              "originalPrompt": "科幻冒险故事创意"
+            },
+            {
+              "id": "story_outline_block",
+              "type": "text",
+              "x": 100,
+              "y": 350,
+              "width": 350,
+              "height": 200,
+              "content": "",
+              "status": "idle",
+              "number": "B01",
+              "fontSize": 12,
+              "textColor": "#333333",
+              "originalPrompt": ""
+            },
+            {
+              "id": "cover_image_block",
+              "type": "image",
+              "x": 550,
+              "y": 100,
+              "width": 400,
+              "height": 400,
+              "content": "",
+              "status": "idle",
+              "number": "C01",
+              "aspectRatio": "1:1",
+              "originalPrompt": ""
+            },
+            {
+              "id": "video_output_block",
+              "type": "video",
+              "x": 1050,
+              "y": 100,
+              "width": 500,
+              "height": 300,
+              "content": "",
+              "status": "idle",
+              "number": "D01",
+              "aspectRatio": "16:9",
+              "duration": "15",
+              "originalPrompt": ""
+            }
+          ],
+          "connections": [
+            {
+              "id": "idea_to_outline_conn",
+              "fromId": "story_idea_block",
+              "toId": "story_outline_block",
+              "instruction": "根据故事创意生成详细大纲",
+              "dataFlow": {
+                "enabled": true,
+                "lastUpdate": 0,
+                "dataType": "text",
+                "lastData": ""
+              }
+            },
+            {
+              "id": "outline_to_cover_conn",
+              "fromId": "story_outline_block",
+              "toId": "cover_image_block",
+              "instruction": "根据故事大纲生成封面图片",
+              "dataFlow": {
+                "enabled": true,
+                "lastUpdate": 0,
+                "dataType": "text",
+                "lastData": ""
+              }
+            },
+            {
+              "id": "outline_to_video_conn",
+              "fromId": "story_outline_block",
+              "toId": "video_output_block",
+              "instruction": "根据故事大纲生成视频",
+              "dataFlow": {
+                "enabled": true,
+                "lastUpdate": 0,
+                "dataType": "text",
+                "lastData": ""
+              }
+            },
+            {
+              "id": "cover_to_video_conn",
+              "fromId": "cover_image_block",
+              "toId": "video_output_block",
+              "instruction": "使用封面图片作为视频的参考图像",
+              "dataFlow": {
+                "enabled": true,
+                "lastUpdate": 0,
+                "dataType": "image",
+                "lastData": ""
+              }
+            }
+          ],
+          "settings": {
+            "zoom": 1,
+            "pan": { "x": 0, "y": 0 }
+          }
+        },
+        "isAutomation": true
+      }
+    ];
+
+    try {
+      for (const templateData of defaultTemplates) {
+        await this.saveTemplate(
+          templateData.canvasState,
+          templateData.name,
+          templateData.description,
+          templateData.isAutomation
+        );
+      }
+      console.log('[TemplateManager] ✓ Initialized', defaultTemplates.length, 'default automation templates');
+    } catch (error) {
+      console.error('[TemplateManager] Failed to initialize default templates:', error);
+    }
   }
 
   /**
@@ -80,9 +580,9 @@ export class TemplateManager {
   }
 
   /**
-   * Updates an existing template
+   * Updates an existing template with automation support
    */
-  async updateTemplate(templateId: string, updates: Partial<Pick<Template, 'name' | 'description' | 'canvasState'>>): Promise<Template> {
+  async updateTemplate(templateId: string, updates: Partial<Pick<Template, 'name' | 'description' | 'canvasState' | 'isAutomation' | 'automationConfig'>>): Promise<Template> {
     const storage = this.getStorage();
     const template = storage.templates.find(t => t.id === templateId);
     
@@ -105,6 +605,14 @@ export class TemplateManager {
         connectionCount: updates.canvasState.connections.length,
         hasFileInput: updates.canvasState.attachments ? updates.canvasState.attachments.length > 0 : false
       };
+    }
+
+    if (updates.isAutomation !== undefined) {
+      template.isAutomation = updates.isAutomation;
+    }
+
+    if (updates.automationConfig !== undefined) {
+      template.automationConfig = updates.automationConfig;
     }
 
     template.updatedAt = new Date();
@@ -188,13 +696,16 @@ export class TemplateManager {
    * Searches templates by name or description
    */
   async searchTemplates(query: string): Promise<Template[]> {
-    const storage = this.getStorage();
     const searchTerm = query.toLowerCase().trim();
     
     if (!searchTerm) {
       return this.listTemplates();
     }
 
+    // Ensure default templates are initialized before searching
+    const allTemplates = await this.listTemplates();
+    const storage = this.getStorage();
+    
     return storage.templates.filter(template => 
       template.name.toLowerCase().includes(searchTerm) ||
       (template.description && template.description.toLowerCase().includes(searchTerm))
@@ -202,15 +713,53 @@ export class TemplateManager {
   }
 
   /**
-   * Gets template statistics
+   * Gets template statistics including automation templates
    */
-  getTemplateStats(): { total: number; totalBlocks: number; totalConnections: number } {
+  async getTemplateStats(): Promise<{ 
+    total: number; 
+    totalBlocks: number; 
+    totalConnections: number;
+    automationTemplates: number;
+    regularTemplates: number;
+  }> {
+    // Ensure default templates are initialized
+    await this.listTemplates();
+    
     const storage = this.getStorage();
+    const automationCount = storage.templates.filter(t => t.isAutomation).length;
     return {
       total: storage.templates.length,
       totalBlocks: storage.templates.reduce((sum, t) => sum + t.metadata.blockCount, 0),
-      totalConnections: storage.templates.reduce((sum, t) => sum + t.metadata.connectionCount, 0)
+      totalConnections: storage.templates.reduce((sum, t) => sum + t.metadata.connectionCount, 0),
+      automationTemplates: automationCount,
+      regularTemplates: storage.templates.length - automationCount
     };
+  }
+
+  /**
+   * Lists automation templates only
+   */
+  async listAutomationTemplates(): Promise<Template[]> {
+    // Ensure default templates are initialized
+    await this.listTemplates();
+    
+    const storage = this.getStorage();
+    return storage.templates
+      .filter(t => t.isAutomation)
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  }
+
+  /**
+   * Lists regular templates only
+   */
+  async listRegularTemplates(): Promise<Template[]> {
+    // Ensure default templates are initialized
+    await this.listTemplates();
+    
+    const storage = this.getStorage();
+    return storage.templates
+      .filter(t => !t.isAutomation)
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   }
 
   /**
@@ -299,6 +848,51 @@ export class TemplateManager {
     if (!template.canvasState.settings || typeof template.canvasState.settings !== 'object') {
       throw new Error('Invalid canvas state: settings must be an object');
     }
+  }
+
+  /**
+   * Records automation template verification result
+   */
+  async recordVerificationResult(templateId: string, result: {
+    success: boolean;
+    timestamp: number;
+    verificationLog: string[];
+    error?: string;
+  }): Promise<void> {
+    const storage = this.getStorage();
+    const template = storage.templates.find(t => t.id === templateId);
+    
+    if (!template) {
+      throw new Error(`Template with ID ${templateId} not found`);
+    }
+
+    // Add verification result to template metadata
+    if (!template.metadata.verificationHistory) {
+      template.metadata.verificationHistory = [];
+    }
+
+    template.metadata.verificationHistory.push({
+      ...result,
+      id: this.generateId()
+    });
+
+    template.updatedAt = new Date();
+    storage.lastUpdated = new Date();
+    this.saveStorage(storage);
+  }
+
+  /**
+   * Gets verification history for a template
+   */
+  async getVerificationHistory(templateId: string): Promise<any[]> {
+    const storage = this.getStorage();
+    const template = storage.templates.find(t => t.id === templateId);
+    
+    if (!template) {
+      throw new Error(`Template with ID ${templateId} not found`);
+    }
+
+    return template.metadata.verificationHistory || [];
   }
 }
 

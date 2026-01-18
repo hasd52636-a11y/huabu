@@ -41,11 +41,32 @@ export class ResourceManager {
     requirement: Partial<ResourceUsage>,
     priority: ExecutionPriority = 'normal'
   ): Promise<{ granted: boolean; allocation?: ResourceAllocation }> {
+    // Validate resource requirements
+    const requestedMemory = requirement.memory || 0;
+    const requestedCpu = requirement.cpu || 0;
+    const requestedConnections = requirement.activeConnections || 0;
+
+    // Check if individual resource request exceeds limits
+    if (requestedMemory > this.limits.maxMemory) {
+      console.warn(`Requested memory (${requestedMemory}MB) exceeds limit (${this.limits.maxMemory}MB)`);
+      return { granted: false };
+    }
+
+    if (requestedCpu > this.limits.maxCpu) {
+      console.warn(`Requested CPU (${requestedCpu}%) exceeds limit (${this.limits.maxCpu}%)`);
+      return { granted: false };
+    }
+
+    if (requestedConnections > this.limits.maxConnections) {
+      console.warn(`Requested connections (${requestedConnections}) exceeds limit (${this.limits.maxConnections})`);
+      return { granted: false };
+    }
+
     // Check if resources are available
     const wouldExceedLimits = this.wouldExceedLimits(requirement);
     
-    if (wouldExceedLimits && priority !== 'high') {
-      // Queue the request
+    if (wouldExceedLimits) {
+      // Queue the request regardless of priority
       this.executionQueue.push({
         id: executionId,
         priority,
@@ -63,9 +84,9 @@ export class ResourceManager {
     const allocation: ResourceAllocation = {
       executionId,
       allocatedResources: {
-        memory: requirement.memory || 0,
-        cpu: requirement.cpu || 0,
-        activeConnections: requirement.activeConnections || 0
+        memory: requestedMemory,
+        cpu: requestedCpu,
+        activeConnections: requestedConnections
       },
       priority,
       timestamp: Date.now()
@@ -73,6 +94,17 @@ export class ResourceManager {
 
     this.allocations.set(executionId, allocation);
     this.updateCurrentUsage();
+
+    // Verify allocation didn't exceed limits
+    if (this.currentUsage.memory > this.limits.maxMemory ||
+        this.currentUsage.cpu > this.limits.maxCpu ||
+        this.currentUsage.activeConnections > this.limits.maxConnections) {
+      // Rollback allocation
+      this.allocations.delete(executionId);
+      this.updateCurrentUsage();
+      console.error('Resource allocation would exceed limits, rolled back');
+      return { granted: false };
+    }
 
     return { granted: true, allocation };
   }
@@ -242,11 +274,19 @@ export class ResourceManager {
   } {
     const utilization = this.getUtilization();
     
+    // Thresholds based on design document
+    const memoryThreshold = 80;
+    const cpuThreshold = 80;
+    const connectionThreshold = 90;
+    
     return {
       shouldReduceConcurrency: utilization.cpu > 90 || utilization.memory > 90,
       shouldIncreaseDelay: utilization.connections > 80,
       recommendedDelay: utilization.connections > 80 ? 2000 : 1000,
-      shouldPauseNewExecutions: utilization.cpu > 95 || utilization.memory > 95
+      shouldPauseNewExecutions: 
+        utilization.memory > memoryThreshold ||
+        utilization.cpu > cpuThreshold ||
+        utilization.connections > connectionThreshold
     };
   }
 

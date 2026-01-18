@@ -276,6 +276,16 @@ class ZhipuService {
         console.log('[ZhipuService] Full choice object:', JSON.stringify(choice, null, 2));
       }
 
+      // Clean up video URL by removing unwanted characters
+      if (typeof videoUrl === 'string') {
+        videoUrl = videoUrl.trim().replace(/[`'" ]/g, '');
+      }
+
+      // Clean up cover image URL if present
+      if (typeof coverImageUrl === 'string') {
+        coverImageUrl = coverImageUrl.trim().replace(/[`'" ]/g, '');
+      }
+
       // If still no URL, log the full response for debugging
       if (!videoUrl && data.task_status === 'SUCCESS') {
         console.warn('[ZhipuService] ⚠️ Video generation completed but URL not found. Full data:', JSON.stringify(data, null, 2));
@@ -404,9 +414,11 @@ class ZhipuService {
       const data: ZhipuImageGenerationResponse = await response.json();
       console.log('[ZhipuService] Image generation response received');
 
-      const imageUrl = data.data?.[0]?.url || data.data?.[0]?.b64_json;
+      // 只使用图片URL，不使用base64数据
+      const imageUrl = data.data?.[0]?.url;
       if (!imageUrl) {
-        throw new Error('No image URL in response');
+        console.error('[ZhipuService] No image URL in response, raw data:', JSON.stringify(data.data?.[0], null, 2));
+        throw new Error('No image URL returned from API');
       }
 
       return imageUrl;

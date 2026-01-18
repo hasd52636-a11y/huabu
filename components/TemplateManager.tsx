@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Template, CanvasState } from '../types';
 import { templateManager } from '../services/TemplateManager';
+import { applyTextEnhancements } from '../src/utils/textClarity';
 import { 
   Save, FolderOpen, Download, Upload, Copy, Trash2, 
   Search, Plus, X, Edit3, Check, AlertCircle, 
-  FileText, Layers, Link, Calendar
+  FileText, Layers, Link, Calendar, Zap
 } from 'lucide-react';
 
 interface TemplateManagerProps {
   isOpen: boolean;
   onClose: () => void;
   currentCanvas: CanvasState;
-  onLoadTemplate: (canvas: CanvasState) => void;
+  onLoadTemplate: (canvas: CanvasState, isAutomation?: boolean) => void;
   lang: 'zh' | 'en';
 }
 
@@ -118,8 +119,8 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
     }
   };
 
-  const handleSaveTemplate = async () => {
-    if (!newTemplateName.trim()) {
+  const handleSaveTemplate = async (name: string, isAutomation: boolean) => {
+    if (!name.trim()) {
       setError(t.nameRequired);
       return;
     }
@@ -128,8 +129,9 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
       setIsLoading(true);
       await templateManager.saveTemplate(
         currentCanvas, 
-        newTemplateName, 
-        newTemplateDescription || undefined
+        name, 
+        newTemplateDescription || undefined,
+        isAutomation
       );
       setNewTemplateName('');
       setNewTemplateDescription('');
@@ -147,7 +149,10 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
     try {
       setIsLoading(true);
       const canvas = await templateManager.loadTemplate(templateId);
-      onLoadTemplate(canvas);
+      // 直接从templateManager中获取所有模板，确保获取最新的模板数据
+      const allTemplates = await templateManager.listTemplates();
+      const template = allTemplates.find(t => t.id === templateId);
+      onLoadTemplate(canvas, template?.isAutomation);
       onClose();
       showSuccess(t.loadSuccess);
     } catch (err) {
@@ -253,7 +258,7 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t.title}</h2>
+          <h2 className={`text-2xl font-bold text-slate-900 dark:text-white ${applyTextEnhancements('', { enhanced: true, highContrast: true, chineseOptimized: true })}`}>{t.title}</h2>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowSaveDialog(true)}
@@ -312,18 +317,30 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
           ) : templates.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="mx-auto mb-4 text-slate-400" size={48} />
-              <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-2">{t.noTemplates}</h3>
-              <p className="text-slate-500 dark:text-slate-400">{t.createFirst}</p>
+              <h3 className={`text-lg font-medium text-slate-900 dark:text-white mb-2 ${applyTextEnhancements('', { enhanced: true, summary: true, chineseOptimized: true })}`}>{t.noTemplates}</h3>
+              <p className={`text-slate-500 dark:text-slate-400 ${applyTextEnhancements('', { enhanced: true, summary: true, chineseOptimized: true })}`}>{t.createFirst}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {templates.map((template) => (
                 <div
                   key={template.id}
-                  className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow"
+                  className={`bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border-2 hover:shadow-md transition-shadow relative ${
+                    template.isAutomation 
+                      ? 'border-blue-500 dark:border-blue-400' 
+                      : 'border-slate-200 dark:border-slate-700'
+                  }`}
                 >
+                  {/* Automation Badge */}
+                  {template.isAutomation && (
+                    <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                      <Zap size={12} />
+                      AUTO
+                    </div>
+                  )}
+
                   <div className="flex items-start justify-between mb-3">
-                    <h3 className="font-medium text-slate-900 dark:text-white truncate flex-1">
+                    <h3 className={`font-medium text-slate-900 dark:text-white truncate flex-1 pr-2 ${applyTextEnhancements('', { enhanced: true, summary: true, chineseOptimized: true })}`}>
                       {template.name}
                     </h3>
                     <div className="flex items-center gap-1 ml-2">
@@ -359,7 +376,7 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
                   </div>
 
                   {template.description && (
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-3 line-clamp-2">
+                    <p className={`text-sm text-slate-600 dark:text-slate-400 mb-3 line-clamp-2 ${applyTextEnhancements('', { enhanced: true, summary: true, chineseOptimized: true })}`}>
                       {template.description}
                     </p>
                   )}
@@ -395,68 +412,65 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
 
         {/* Save Dialog */}
         {showSaveDialog && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-900 rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-4">{t.saveTemplate}</h3>
-              
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className={`
+              bg-white rounded-lg p-6 max-w-md w-full mx-4
+              ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}
+            `}>
+              <h3 className="text-lg font-semibold mb-4">
+                {lang === 'zh' ? '保存模板' : 'Save Template'}
+              </h3>
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    {t.templateName}
-                  </label>
-                  <input
-                  type="text"
+                <input 
+                  type="text" 
+                  placeholder={lang === 'zh' ? '模板名称' : 'Template Name'}
                   value={newTemplateName}
                   onChange={(e) => setNewTemplateName(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-amber-500 dark:border-amber-400 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder={t.templateName}
-                  autoFocus
+                  className={`
+                    w-full p-2 border rounded-lg
+                    ${theme === 'dark' 
+                      ? 'bg-gray-700 border-gray-600 text-white' 
+                      : 'bg-white border-gray-300 text-gray-900'
+                    }
+                  `}
                 />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    {t.templateDescription}
-                  </label>
-                  <textarea
+                <textarea 
+                  placeholder={lang === 'zh' ? '模板描述' : 'Template Description'}
                   value={newTemplateDescription}
                   onChange={(e) => setNewTemplateDescription(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-amber-500 dark:border-amber-400 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                  rows={1}
-                  placeholder={t.templateDescription}
-                  onInput={(e) => {
-                    const textarea = e.target as HTMLTextAreaElement;
-                    textarea.style.height = 'auto';
-                    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
-                  }}
+                  className={`
+                    w-full p-2 border rounded-lg h-20
+                    ${theme === 'dark' 
+                      ? 'bg-gray-700 border-gray-600 text-white' 
+                      : 'bg-white border-gray-300 text-gray-900'
+                    }
+                  `}
                 />
+                <div className="flex justify-end gap-2">
+                  <button 
+                    onClick={() => {
+                      setShowSaveDialog(false);
+                      setNewTemplateName('');
+                      setNewTemplateDescription('');
+                      setError(null);
+                    }}
+                    className={`
+                      px-4 py-2 rounded-lg
+                      ${theme === 'dark' 
+                        ? 'bg-gray-600 hover:bg-gray-500 text-white' 
+                        : 'bg-gray-500 hover:bg-gray-600 text-white'
+                      }
+                    `}
+                  >
+                    {lang === 'zh' ? '取消' : 'Cancel'}
+                  </button>
+                  <button 
+                    onClick={handleSaveTemplate}
+                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg"
+                  >
+                    {lang === 'zh' ? '保存' : 'Save'}
+                  </button>
                 </div>
-              </div>
-
-              <div className="flex items-center gap-3 mt-6">
-                <button
-                  onClick={handleSaveTemplate}
-                  disabled={!newTemplateName.trim() || isLoading}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {isLoading ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  ) : (
-                    <Check size={18} />
-                  )}
-                  {t.save}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowSaveDialog(false);
-                    setNewTemplateName('');
-                    setNewTemplateDescription('');
-                    setError(null);
-                  }}
-                  className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                >
-                  {t.cancel}
-                </button>
               </div>
             </div>
           </div>

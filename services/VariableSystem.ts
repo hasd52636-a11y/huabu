@@ -33,12 +33,19 @@ export class VariableSystem {
    * Resolves variables in a prompt using provided block data context
    */
   resolveVariables(prompt: string, context: BlockData[]): string {
-    // Create a map for quick lookup
-    const dataMap = new Map(context.map(data => [data.blockNumber, data.content]));
+    // Create a map for quick lookup, preserving the full BlockData
+    const dataMap = new Map(context.map(data => [data.blockNumber, data]));
+
+    // Reset regex state before use
+    VariableSystem.VARIABLE_REGEX.lastIndex = 0;
 
     return prompt.replace(VariableSystem.VARIABLE_REGEX, (match, blockNumber) => {
-      const content = dataMap.get(blockNumber);
-      return content !== undefined ? content : match; // Keep original if not found
+      const blockData = dataMap.get(blockNumber);
+      if (blockData) {
+        // Replace all variables with their content regardless of type
+        return blockData.content;
+      }
+      return match; // Keep original if not found
     });
   }
 

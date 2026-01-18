@@ -1,0 +1,581 @@
+/* ========================================================================== */
+/* 文本清晰度增强样式 */
+/* ========================================================================== */
+
+/* CSS变量定义 - 排版系统 */
+:root {
+  /* 字体系列 - 优化中英文混合显示 */
+  --font-family-primary: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-family-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  
+  /* 字体权重 */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  
+  /* 字体大小 */
+  --font-size-xs: 0.75rem;    /* 12px */
+  --font-size-sm: 0.875rem;   /* 14px */
+  --font-size-base: 1rem;     /* 16px */
+  --font-size-lg: 1.125rem;   /* 18px */
+  --font-size-xl: 1.25rem;    /* 20px */
+  --font-size-2xl: 1.5rem;    /* 24px */
+  --font-size-3xl: 1.875rem;  /* 30px */
+  
+  /* 行高 */
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+  
+  /* 字母间距 */
+  --letter-spacing-tight: -0.025em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.025em;
+  
+  /* 文本颜色 - 高对比度 */
+  --text-primary: #111827;
+  --text-secondary: #374151;
+  --text-tertiary: #6b7280;
+  --text-high-contrast: #000000;
+  --text-summary: #1f2937;
+}
+
+/* 暗黑主题文本颜色 */
+.dark {
+  --text-primary: #f9fafb;
+  --text-secondary: #e5e7eb;
+  --text-tertiary: #9ca3af;
+  --text-high-contrast: #ffffff;
+  --text-summary: #f3f4f6;
+}
+
+/* ========================================================================== */
+/* 全局文本渲染优化 */
+/* ========================================================================== */
+
+/* 基础文本渲染优化 - 应用到所有元素 */
+* {
+  /* 字体平滑 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  
+  /* 文本渲染优化 */
+  text-rendering: optimizeLegibility;
+  
+  /* 字体特性设置 */
+  font-feature-settings: 'kern' 1;
+  font-variant-ligatures: common-ligatures;
+  
+  /* 字体显示优化 */
+  font-display: swap;
+}
+
+/* 高DPI显示器优化 */
+@media (min-resolution: 2dppx) {
+  * {
+    -webkit-font-smoothing: subpixel-antialiased;
+  }
+}
+
+/* 根元素字体设置 */
+html {
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  color: var(--text-primary);
+}
+
+/* Body元素优化 */
+body {
+  font-family: var(--font-family-primary);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+  color: var(--text-primary);
+  letter-spacing: var(--letter-spacing-normal);
+  
+  /* 防止文本选择时的模糊 */
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* ========================================================================== */
+/* 文本增强工具类 */
+/* ========================================================================== */
+
+/* ========================================================================== */
+/* CSS文本增强工具类 - 扩展版 */
+/* ========================================================================== */
+
+/* 基础文本增强类 */
+.text-enhanced {
+  font-family: var(--font-family-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'kern' 1;
+  font-variant-ligatures: common-ligatures;
+}
+
+/* 高对比度文本 */
+.text-high-contrast {
+  color: var(--text-high-contrast);
+  font-weight: var(--font-weight-medium);
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+.dark .text-high-contrast {
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* 信息摘要专用样式 */
+.text-summary {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-normal);
+  color: var(--text-summary);
+  letter-spacing: var(--letter-spacing-wide);
+  
+  /* 增强可读性 */
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 清晰文本类 - 防止模糊 */
+.text-crisp {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'kern' 1;
+  
+  /* 防止子像素渲染问题 */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* 超清晰文本类 - 最高质量渲染 */
+.text-ultra-crisp {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+  font-feature-settings: 'kern' 1, 'liga' 1;
+  font-variant-ligatures: common-ligatures;
+  
+  /* 强制硬件加速 */
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+  
+  /* 防止模糊 */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+
+/* 抗锯齿增强类 */
+.text-antialiased {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.text-subpixel-antialiased {
+  -webkit-font-smoothing: subpixel-antialiased;
+  -moz-osx-font-smoothing: auto;
+}
+
+/* 文本渲染优化类 */
+.text-optimize-legibility {
+  text-rendering: optimizeLegibility;
+}
+
+.text-optimize-speed {
+  text-rendering: optimizeSpeed;
+}
+
+.text-geometric-precision {
+  text-rendering: geometricPrecision;
+}
+
+/* 字体特性增强类 */
+.text-kerning {
+  font-kerning: normal;
+  font-feature-settings: 'kern' 1;
+}
+
+.text-ligatures {
+  font-variant-ligatures: common-ligatures;
+  font-feature-settings: 'liga' 1;
+}
+
+.text-no-ligatures {
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0;
+}
+
+/* 中文文本优化 */
+.text-chinese-optimized {
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Source Han Sans SC', 'Noto Sans CJK SC', var(--font-family-primary);
+  font-weight: var(--font-weight-normal);
+  letter-spacing: 0.05em;
+}
+
+/* 英文文本优化 */
+.text-english-optimized {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* 等宽字体优化 */
+.text-mono-optimized {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* 数字优化 */
+.text-numeric-optimized {
+  font-variant-numeric: lining-nums tabular-nums;
+  font-feature-settings: 'lnum' 1, 'tnum' 1;
+}
+
+/* ========================================================================== */
+/* 字体大小工具类 */
+/* ========================================================================== */
+
+.text-xs-enhanced { 
+  font-size: var(--font-size-xs); 
+  line-height: var(--line-height-tight);
+  font-weight: var(--font-weight-medium);
+}
+
+.text-sm-enhanced { 
+  font-size: var(--font-size-sm); 
+  line-height: var(--line-height-normal);
+  font-weight: var(--font-weight-medium);
+}
+
+.text-base-enhanced { 
+  font-size: var(--font-size-base); 
+  line-height: var(--line-height-normal);
+  font-weight: var(--font-weight-normal);
+}
+
+.text-lg-enhanced { 
+  font-size: var(--font-size-lg); 
+  line-height: var(--line-height-normal);
+  font-weight: var(--font-weight-normal);
+}
+
+.text-xl-enhanced { 
+  font-size: var(--font-size-xl); 
+  line-height: var(--line-height-tight);
+  font-weight: var(--font-weight-medium);
+}
+
+/* ========================================================================== */
+/* 响应式文本缩放 */
+/* ========================================================================== */
+
+/* 移动设备文本优化 */
+@media (max-width: 640px) {
+  .text-summary {
+    font-size: 0.8125rem; /* 13px */
+    line-height: 1.4;
+  }
+  
+  .text-sm-enhanced {
+    font-size: 0.8125rem;
+  }
+  
+  .text-base-enhanced {
+    font-size: 0.9375rem; /* 15px */
+  }
+}
+
+/* 平板设备文本优化 */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .text-summary {
+    font-size: var(--font-size-sm);
+    line-height: 1.45;
+  }
+}
+
+/* 大屏幕文本优化 */
+@media (min-width: 1025px) {
+  .text-summary {
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-normal);
+  }
+}
+
+/* ========================================================================== */
+/* 主题感知文本渲染 */
+/* ========================================================================== */
+
+/* 明亮主题文本优化 */
+.light-theme .text-enhanced,
+:root:not(.dark) .text-enhanced {
+  color: var(--text-primary);
+  text-shadow: none;
+}
+
+/* 暗黑主题文本优化 */
+.dark .text-enhanced {
+  color: var(--text-primary);
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.3);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 暗黑主题下的信息摘要 */
+.dark .text-summary {
+  color: var(--text-summary);
+  font-weight: var(--font-weight-medium);
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+/* ========================================================================== */
+/* 对比度和可访问性 */
+/* ========================================================================== */
+
+/* 确保最小对比度 4.5:1 */
+.text-accessible {
+  color: var(--text-high-contrast);
+  font-weight: var(--font-weight-medium);
+  min-height: 1.5em;
+}
+
+/* 高对比度模式支持 */
+@media (prefers-contrast: high) {
+  .text-enhanced,
+  .text-summary,
+  .text-high-contrast {
+    color: var(--text-high-contrast);
+    font-weight: var(--font-weight-semibold);
+    text-shadow: none;
+  }
+  
+  .dark .text-enhanced,
+  .dark .text-summary,
+  .dark .text-high-contrast {
+    color: var(--text-high-contrast);
+    text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+  }
+}
+
+/* ========================================================================== */
+/* 特殊组件文本样式 */
+/* ========================================================================== */
+
+/* 按钮文本优化 */
+.btn-text-enhanced {
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--letter-spacing-wide);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 导航文本优化 */
+.nav-text-enhanced {
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  letter-spacing: var(--letter-spacing-normal);
+  color: var(--text-secondary);
+}
+
+/* 模态框文本优化 */
+.modal-text-enhanced {
+  line-height: var(--line-height-relaxed);
+  color: var(--text-primary);
+  font-weight: var(--font-weight-normal);
+}
+
+/* 工具提示文本优化 */
+.tooltip-text-enhanced {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+/* 表单标签文本优化 */
+.form-label-enhanced {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  letter-spacing: var(--letter-spacing-normal);
+}
+
+/* ========================================================================== */
+/* 高DPI显示优化 */
+/* ========================================================================== */
+
+/* 标准DPI优化 */
+@media (max-resolution: 1.5dppx) {
+  .text-dpi-standard {
+    -webkit-font-smoothing: subpixel-antialiased;
+    -moz-osx-font-smoothing: auto;
+    text-rendering: optimizeSpeed;
+  }
+}
+
+/* 高DPI优化 (Retina等) */
+@media (min-resolution: 1.5dppx) {
+  .text-dpi-high {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: geometricPrecision;
+  }
+  
+  /* 自动应用到所有文本增强类 */
+  .text-enhanced,
+  .text-crisp,
+  .text-ultra-crisp {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* 超高DPI优化 (4K等) */
+@media (min-resolution: 2.5dppx) {
+  .text-dpi-ultra {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: geometricPrecision;
+    font-feature-settings: 'kern' 1, 'liga' 1;
+  }
+  
+  /* 增强所有文本类 */
+  .text-enhanced,
+  .text-crisp,
+  .text-ultra-crisp,
+  .text-summary {
+    font-weight: calc(var(--font-weight-normal) + 50);
+    letter-spacing: 0.01em;
+  }
+}
+
+/* DPI自适应类 */
+.text-dpi-adaptive {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+@media (max-resolution: 1.5dppx) {
+  .text-dpi-adaptive {
+    -webkit-font-smoothing: subpixel-antialiased;
+    -moz-osx-font-smoothing: auto;
+  }
+}
+
+@media (min-resolution: 2dppx) {
+  .text-dpi-adaptive {
+    text-rendering: geometricPrecision;
+    font-feature-settings: 'kern' 1, 'liga' 1;
+  }
+}
+
+/* ========================================================================== */
+/* 浏览器特定优化 */
+/* ========================================================================== */
+
+/* WebKit浏览器优化 */
+@supports (-webkit-font-smoothing: antialiased) {
+  .text-webkit-optimized {
+    -webkit-font-smoothing: antialiased;
+    -webkit-text-stroke: 0.01em transparent;
+  }
+}
+
+/* Firefox浏览器优化 */
+@-moz-document url-prefix() {
+  .text-firefox-optimized {
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/* Edge/IE浏览器优化 */
+@supports (-ms-high-contrast: active) {
+  .text-edge-optimized {
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'kern' 1;
+  }
+}
+
+/* ========================================================================== */
+/* 性能优化文本类 */
+/* ========================================================================== */
+
+/* GPU加速文本渲染 */
+.text-gpu-accelerated {
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* 文本渲染性能优化 */
+.text-performance-optimized {
+  contain: layout style;
+  will-change: auto;
+  transform: translateZ(0);
+}
+
+/* 避免重排的文本容器 */
+.text-container-stable {
+  contain: layout;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+/* 文本缓存优化 */
+.text-cache-optimized {
+  contain: style layout;
+  content-visibility: auto;
+  contain-intrinsic-size: 0 1.2em;
+}
+
+/* ========================================================================== */
+/* 性能优化 */
+/* ========================================================================== */
+
+/* 文本渲染性能优化 */
+.text-performance-optimized {
+  contain: layout style;
+  will-change: auto;
+  transform: translateZ(0);
+}
+
+/* 避免重排的文本容器 */
+.text-container-stable {
+  contain: layout;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+/* ========================================================================== */
+/* 调试和开发辅助 */
+/* ========================================================================== */
+
+/* 开发模式下显示文本边界（仅在开发环境使用） */
+.debug-text-boundaries {
+  outline: 1px solid rgba(255, 0, 0, 0.3);
+  background: rgba(255, 255, 0, 0.1);
+}
+
+/* 显示字体信息（仅在开发环境使用） */
+.debug-font-info::after {
+  content: attr(data-font-size) ' / ' attr(data-line-height);
+  position: absolute;
+  top: -1.5em;
+  left: 0;
+  font-size: 0.75rem;
+  color: red;
+  background: white;
+  padding: 2px 4px;
+  border: 1px solid red;
+  z-index: 9999;
+}

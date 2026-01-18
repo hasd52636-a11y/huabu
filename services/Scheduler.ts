@@ -576,6 +576,16 @@ export class Scheduler {
 
       const parsed = JSON.parse(stored);
       
+      // Validate structure and ensure schedules is always an array
+      if (!parsed.schedules || !Array.isArray(parsed.schedules)) {
+        console.warn('Invalid schedules structure, returning empty array');
+        return {
+          version: Scheduler.STORAGE_VERSION,
+          schedules: [],
+          lastUpdated: new Date()
+        };
+      }
+      
       // Convert date strings back to Date objects
       parsed.lastUpdated = new Date(parsed.lastUpdated);
       parsed.schedules = parsed.schedules.map((schedule: any) => ({

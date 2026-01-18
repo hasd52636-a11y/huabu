@@ -1,0 +1,219 @@
+/* 主样式文件 - 导入所有样式模块 */
+
+/* 导入兼容性样式 */
+@import './src/styles/compatibility.css';
+
+/* 导入Tailwind CSS */
+@import './src/styles/tailwind.css';
+
+/* 导入增强主题样式 */
+@import './src/styles/enhanced-theme.css';
+
+/* 导入文本清晰度增强样式 */
+@import './src/styles/text-clarity.css';
+
+/* 导入简化版文本清晰度样式 */
+@import './src/styles/simple-text-clarity.css';
+
+/* 全局样式覆盖和增强 */
+html {
+  /* 确保使用优化的字体栈 */
+  font-family: var(--font-family-primary, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif);
+  /* 启用平滑滚动 */
+  scroll-behavior: smooth;
+}
+
+/* 应用文本增强到所有文本元素 */
+body, 
+p, 
+span, 
+div, 
+h1, h2, h3, h4, h5, h6,
+button,
+input,
+textarea,
+select,
+label {
+  /* 应用文本清晰度增强 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* 确保信息摘要使用增强样式 */
+.summary,
+.info-summary,
+.text-summary,
+[class*="summary"] {
+  @apply text-summary;
+}
+
+/* 确保所有按钮使用增强文本 */
+button {
+  @apply btn-text-enhanced;
+}
+
+/* 确保所有导航元素使用增强文本 */
+nav,
+nav a,
+.nav-item {
+  @apply nav-text-enhanced;
+}
+
+/* 确保所有模态框内容使用增强文本 */
+.modal,
+.modal-content,
+[role="dialog"] {
+  @apply modal-text-enhanced;
+}
+
+/* 确保所有表单标签使用增强文本 */
+label,
+.form-label {
+  @apply form-label-enhanced;
+}
+
+/* 工具提示增强 */
+.tooltip,
+[role="tooltip"] {
+  @apply tooltip-text-enhanced;
+}
+
+/* 全局动画性能优化 */
+*,
+*::before,
+*::after {
+  /* 启用硬件加速 */
+  transform: translateZ(0);
+  /* 优化重绘性能 */
+  will-change: auto;
+}
+
+/* 滚动条样式增强 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-secondary);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-gold-primary);
+  border-radius: var(--radius-full);
+  transition: background var(--animation-duration-fast) ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gold-accent);
+}
+
+/* 选择文本样式 */
+::selection {
+  background: var(--color-gold-glow);
+  color: var(--color-text-primary);
+}
+
+/* 焦点样式增强 */
+:focus-visible {
+  outline: 2px solid var(--color-gold-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* 禁用状态样式 */
+:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* 加载状态动画 */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* 脉冲动画 */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* 弹跳动画 */
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(-25%);
+    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+  }
+  50% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+.animate-bounce {
+  animation: bounce 1s infinite;
+}
+
+/* 渐入动画 */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in var(--animation-duration-normal) ease-out;
+}
+
+/* 滑入动画 */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right var(--animation-duration-normal) var(--animation-easing-spring);
+}
+
+/* 缩放动画 */
+@keyframes scale-in {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in var(--animation-duration-normal) var(--animation-easing-spring);
+}
