@@ -33,14 +33,22 @@ export class ConnectionEngine {
 
   /**
    * Propagates data from a source block to all connected downstream blocks
+   * Enhanced to handle multiple content types (instruction + attachment + generated)
    */
-  propagateData(fromBlockId: string, data: string, blockType: BlockType, blockNumber: string): void {
+  propagateData(fromBlockId: string, data: string, blockType: BlockType, blockNumber: string, block?: any): void {
+    // 构建复合数据对象
+    const compositeData = this.buildCompositeData(data, block);
+    
     const blockData: BlockData = {
       blockId: fromBlockId,
       blockNumber,
-      content: data,
+      content: compositeData.primaryContent, // 主要传输内容
       type: blockType,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      // 扩展字段用于传输复合数据
+      attachmentContent: compositeData.attachmentContent,
+      instructionContent: compositeData.instructionContent,
+      generatedContent: compositeData.generatedContent
     };
 
     // Update cache
@@ -51,10 +59,50 @@ export class ConnectionEngine {
       if (connection.fromId === fromBlockId) {
         connection.dataFlow.lastUpdate = Date.now();
         connection.dataFlow.dataType = blockType;
-        connection.dataFlow.lastData = data;
+        connection.dataFlow.lastData = compositeData.primaryContent;
       }
     }
   }
+
+  /**
+   * 构建复合数据对象，决定传输优先级
+   */
+  private buildCompositeData(data: string, block?: any): {
+    primaryContent: string;
+    attachmentContent?: string;
+    instructionContent?: string;
+    generatedContent?: string;
+  } {
+    if (!block) {
+      return { primaryContent: data };
+    }
+
+    const result = {
+      primaryContent: '',
+      attachmentContent: block.attachmentContent,
+      instructionContent: block.originalPrompt,
+      generatedContent: block.content
+    };
+
+    // 简化的数据传输优先级：
+    // 1. 主要内容（block.content）- 优先级最高
+    // 2. 附件内容（仅文本模块，且没有主要内容时）
+    
+    if (result.generatedContent && result.generatedContent.trim()) {
+      // 有主要内容时，传输主要内容
+      result.primaryContent = result.generatedContent;
+    } else if (block.type === 'text' && result.attachmentContent && result.attachmentContent.trim()) {
+      // 只有文本模块的附件内容才会传输，且只在没有主要内容时
+      result.primaryContent = result.attachmentContent;
+    } else {
+      // 兜底：使用原始数据
+      result.primaryContent = data || '';
+    }
+
+    return result;
+  }
+
+
 
   /**
    * Gets all upstream data for a specific block
@@ -96,26 +144,26 @@ export class ConnectionEngine {
     const maxLength = 50;
     let summary = data.content.trim();
     
-    // 对不同类型的内容进行不同的摘要处理
+    // 根据数据类型生成简洁的摘要
     if (data.type === 'text') {
-      // 文本内容：取前50个字符
+      // 文本模块：直接显示内容摘要
       if (summary.length > maxLength) {
         summary = summary.substring(0, maxLength) + '...';
       }
     } else if (data.type === 'image') {
-      // 图片内容：显示图片信息
-      if (summary.startsWith('data:image/')) {
-        const sizeMatch = summary.match(/data:image\/(\w+);/);
+      // 图片模块：显示图片类型信息
+      if (data.content && data.content.startsWith('data:image/')) {
+        const sizeMatch = data.content.match(/data:image\/(\w+);/);
         const format = sizeMatch ? sizeMatch[1].toUpperCase() : 'IMAGE';
         summary = `${format}图片`;
-      } else if (summary.startsWith('http')) {
+      } else if (data.content && data.content.startsWith('http')) {
         summary = '在线图片';
       } else {
         summary = '图片内容';
       }
     } else if (data.type === 'video') {
-      // 视频内容：显示视频信息
-      if (summary.startsWith('http')) {
+      // 视频模块：显示视频类型信息
+      if (data.content && data.content.startsWith('http')) {
         summary = '视频文件';
       } else {
         summary = '视频内容';

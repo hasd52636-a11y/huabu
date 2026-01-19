@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Plus, Image as ImageIcon, Video, Settings, Sun, Moon, Zap, 
   MessageSquare, LayoutGrid, X, Key, Upload, Cpu, HelpCircle, Save, FilePlus, Paperclip, Eraser, Copy, Check,
-  Trash2, Layers, Languages, Globe, RotateCcw, MonitorX, Send, Play, Download,
+  Trash2, Layers, Languages, Globe, RotateCcw, MonitorX, Send, Play, Download, Hand, Brain,
   Type as TextIcon, BrainCircuit, Sparkles, ChevronLeft, ChevronRight, ImagePlus, FileText, Info, Loader2, ArrowUpRight,
   ChevronDown, Database, Sliders, ExternalLink, ShieldCheck, ListOrdered, FolderOpen, User, PanelLeft, PanelRight
 } from 'lucide-react';
@@ -28,6 +28,12 @@ import { BatchProcessor } from './services/BatchProcessor';
 import { ExportService } from './services/ExportService';
 import { MultiImageGenerator } from './services/MultiImageGenerator';
 import { loadPresetPrompts, savePresetPrompts } from './services/PresetPromptStorage';
+import VoiceCommandFeedback from './components/VoiceCommandFeedback';
+import VoiceCommandHelp from './components/VoiceCommandHelp';
+import GestureController from './components/GestureController';
+import GestureHelp from './components/GestureHelp';
+import AIGestureDemo from './components/AIGestureDemo';
+import { gestureRecognizer } from './services/GestureRecognizer';
 import { connectionEngine } from './services/ConnectionEngine';
 import { COLORS, I18N, MIN_ZOOM, MAX_ZOOM } from './constants.tsx';
 import { getAssistantGuideContent, createAssistantSystemPrompt } from './config/assistant-guide';
@@ -79,7 +85,18 @@ const App: React.FC = () => {
   
   // Voice Input State
   const [isVoiceRecording, setIsVoiceRecording] = useState<boolean>(false);
+  const [isVoiceProcessing, setIsVoiceProcessing] = useState<boolean>(false);
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
+  const [wakeWord] = useState<string>('曹操'); // 唤醒词
+  const [showVoiceFeedback, setShowVoiceFeedback] = useState<boolean>(false);
+  const [showVoiceHelp, setShowVoiceHelp] = useState<boolean>(false);
+  const [lastVoiceCommand, setLastVoiceCommand] = useState<{text: string, command: string} | null>(null);
+
+  // Gesture Control State
+  const [showGestureController, setShowGestureController] = useState<boolean>(false);
+  const [showGestureHelp, setShowGestureHelp] = useState<boolean>(false);
+  const [showAIGestureDemo, setShowAIGestureDemo] = useState<boolean>(false);
+  const [isGestureActive, setIsGestureActive] = useState<boolean>(false);
 
   // New functionality state
   const [showExportModal, setShowExportModal] = useState(false);
@@ -114,7 +131,7 @@ const App: React.FC = () => {
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   
   // 获取token context
-  const { updateConsumption } = useTokenContext();
+  const { updateConsumption, checkTokenLimit, showTokenLimitModal } = useTokenContext();
 
   // 使用新的配置结构
   const [modelConfig, setModelConfig] = useState<NewModelConfig>({
@@ -307,8 +324,27 @@ const App: React.FC = () => {
       
       recognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
-        setSidebarInput(prev => prev + transcript);
-        setIsVoiceRecording(false);
+        
+        // 检查是否包含唤醒词
+        if (transcript.includes(wakeWord)) {
+          
+          // 提取唤醒词后的内容
+          const commandText = transcript.split(wakeWord)[1]?.trim();
+          if (commandText && commandText.length > 0) {
+            // 有指令内容，处理语音指令
+            setIsVoiceRecording(false);
+            setIsVoiceProcessing(true);
+            handleVoiceCommand(commandText);
+          } else {
+            // 只有唤醒词，显示在输入框中等待用户继续
+            setSidebarInput(prev => prev + `${wakeWord} - 请继续说出指令`);
+            setIsVoiceRecording(false);
+          }
+        } else {
+          // 没有唤醒词，按原来的方式处理（直接添加到输入框）
+          setSidebarInput(prev => prev + transcript);
+          setIsVoiceRecording(false);
+        }
       };
       
       recognition.onerror = (event: any) => {
@@ -323,6 +359,186 @@ const App: React.FC = () => {
       setRecognition(recognition);
     }
   }, [lang]);
+  
+  // 语音指令处理函数
+  const handleVoiceCommand = async (commandText: string) => {
+    try {
+      
+      // 简单的关键词匹配解析指令
+      const command = parseVoiceCommand(commandText);
+      
+      if (command.command !== 'unknown') {
+        // 执行指令
+        await executeVoiceCommand(command);
+      } else {
+        // 未识别的指令，显示在输入框中
+        setSidebarInput(prev => prev + commandText);
+        setIsVoiceProcessing(false);
+      }
+    } catch (error) {
+      console.error('语音指令处理失败:', error);
+      setSidebarInput(prev => prev + commandText);
+      setIsVoiceProcessing(false);
+    }
+  };
+
+  const parseVoiceCommand = (text: string) => {
+    // 使用智能指令库进行匹配
+    const { voiceCommandLibrary } = require('./services/VoiceCommandLibrary');
+    const matchResult = voiceCommandLibrary.matchCommand(text);
+    
+    if (matchResult.command !== 'unknown') {
+      return {
+        command: matchResult.command,
+        content: text.replace(/帮我|请|生成|制作/g, '').trim(),
+        confidence: matchResult.confidence,
+        matched_pattern: matchResult.matched_pattern
+      };
+    }
+
+    return { command: 'unknown', content: text, confidence: 0 };
+  };
+
+  // 执行语音指令
+  const executeVoiceCommand = async (command: any) => {
+    
+    // 保存指令信息用于反馈
+    setLastVoiceCommand({
+      text: command.content,
+      command: command.command
+    });
+    
+    switch (command.command) {
+      case 'generate_text':
+        // 创建文字块并生成内容
+        await createAndGenerateBlock('text', command.content);
+        break;
+      case 'generate_image':
+        // 创建图片块并生成内容
+        await createAndGenerateBlock('image', command.content, command.params);
+        break;
+      case 'generate_video':
+        // 创建视频块并生成内容
+        await createAndGenerateBlock('video', command.content);
+        break;
+      case 'clear_canvas':
+        // 清空画布
+        handleCanvasClear();
+        break;
+      case 'reset_view':
+        // 重置视角
+        handleResetView();
+        break;
+      case 'auto_layout':
+        // 自动布局
+        handleAutoLayout();
+        break;
+      case 'copy_blocks':
+        // 复制选中的块
+        handleCanvasCopy();
+        break;
+      case 'select_all':
+        // 全选
+        handleSelectAll();
+        break;
+      case 'zoom_in':
+        // 放大画布
+        setZoom(prev => Math.min(prev * 1.2, 3));
+        break;
+      case 'zoom_out':
+        // 缩小画布
+        setZoom(prev => Math.max(prev / 1.2, 0.1));
+        break;
+      case 'show_config':
+        // 显示配置
+        setShowConfig(true);
+        break;
+      case 'switch_theme':
+        // 切换主题
+        setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+        break;
+      default:
+        console.log('未知指令类型:', command.command);
+    }
+
+    setIsVoiceProcessing(false);
+
+    // 如果置信度较低，显示反馈界面
+    if (command.confidence && command.confidence < 0.8) {
+      setTimeout(() => {
+        setShowVoiceFeedback(true);
+      }, 2000); // 2秒后显示反馈
+    }
+  };
+
+  // 创建块并生成内容
+  const createAndGenerateBlock = async (type: 'text' | 'image' | 'video', content: string, params?: any) => {
+    // 在画布中心创建新块
+    const centerX = -pan.x / zoom + (window.innerWidth * 0.7) / (2 * zoom); // 考虑侧边栏宽度
+    const centerY = -pan.y / zoom + window.innerHeight / (2 * zoom);
+
+    const newBlock = addBlock(type, '', centerX, centerY);
+    
+    // 等待块创建完成后生成内容
+    setTimeout(async () => {
+      if (newBlock) {
+        await handleGenerate(newBlock.id, content);
+      }
+    }, 100);
+  };
+
+  const handleSelectAll = () => {
+    const allIds = blocks.map(block => block.id);
+    setSelectedIds(allIds);
+    alert(`已选中所有 ${allIds.length} 个模块`);
+  };
+
+  // 手势命令处理函数
+  const handleGestureCommand = (gesture: string) => {
+    // 更新手势识别器的画布状态
+    gestureRecognizer.updateCanvasState({
+      blockCount: blocks.length,
+      selectedCount: selectedIds.length,
+      hasContent: blocks.some(b => b.content && b.content.trim()),
+      zoomLevel: zoom,
+      panPosition: pan
+    });
+
+    switch (gesture) {
+      case 'zoom_in':
+        setZoom(prev => Math.min(prev * 1.2, MAX_ZOOM));
+        break;
+      case 'zoom_out':
+        setZoom(prev => Math.max(prev / 1.2, MIN_ZOOM));
+        break;
+      case 'move_up':
+        setPan(prev => ({ ...prev, y: prev.y + 50 }));
+        break;
+      case 'move_down':
+        setPan(prev => ({ ...prev, y: prev.y - 50 }));
+        break;
+      case 'move_left':
+        setPan(prev => ({ ...prev, x: prev.x + 50 }));
+        break;
+      case 'move_right':
+        setPan(prev => ({ ...prev, x: prev.x - 50 }));
+        break;
+      case 'reset_view':
+        handleResetView();
+        break;
+      case 'clear_canvas':
+        handleCanvasClear();
+        break;
+      case 'auto_layout':
+        handleAutoLayout();
+        break;
+      case 'select_all':
+        handleSelectAll();
+        break;
+      default:
+        console.log('未知手势:', gesture);
+    }
+  };
   
   // Voice Recording Functions
   const toggleVoiceRecording = () => {
@@ -1095,6 +1311,12 @@ const App: React.FC = () => {
   };
 
   const handleGenerate = async (blockId: string, prompt: string) => {
+    // 检查token限制
+    if (!checkTokenLimit()) {
+      showTokenLimitModal();
+      return;
+    }
+
     // 使用useState的函数形式更新状态，确保每次都能访问到最新的blocks状态
     let block = blocks.find(b => b.id === blockId);
     let retryCount = 0;
@@ -1379,6 +1601,12 @@ const App: React.FC = () => {
   };
 
   const handleSidebarSend = async () => {
+    // 检查token限制
+    if (!checkTokenLimit()) {
+      showTokenLimitModal();
+      return;
+    }
+
     // 将新配置转换为旧格式以兼容现有代码
     const legacyConfig = convertNewToLegacyConfig(modelConfig);
     
@@ -1613,75 +1841,35 @@ ${inputText || "Generate from attachment"}
       // Scroll to bottom
       setTimeout(() => chatScrollRef.current?.scrollTo({ top: chatScrollRef.current.scrollHeight, behavior: 'smooth' }), 100);
       
-      // Load the guide content from the configuration file
-      const guideContent = getAssistantGuideContent();
-      
-      // Update the message with the guide content
-      setTimeout(() => {
-        setMessages(prev => prev.map(msg => 
-          msg.id === guideLoadingMessage.id 
-            ? { ...msg, content: `🧚‍♀️ 欢迎仙尊降临！AUTO CANVAS 携全球顶流 AI 神技候场，任君差遣🔥\n✨ 花式提问，秒速安排！\n\n🎨 创作文字，读取文本\n🖼️ 分析图片，创作图片\n📹 分析视频链接，创作视频\n⚡ 编订您自己的自动化工作流\n\n💫 都是我的拿手好戏。有什么使用疑问冲我来！\n\n💖 微信：Wirelesscharger`, isGenerating: false } 
-            : msg
-        ));
+      // Simulate loading the guide from a file
+      // In a real implementation, you would read the actual file content
+      const guideContent = `# Canvas 智能创作平台操作指南
 
-        
-        // Scroll to bottom again
-        setTimeout(() => chatScrollRef.current?.scrollTo({ top: chatScrollRef.current.scrollHeight, behavior: 'smooth' }), 100);
-        
-        // Enable assistant mode and save guide content
-        setIsAssistantMode(true);
-        setAssistantGuideContent(guideContent);
-      }, 1000);
-      
-    } catch (error) {
-      console.error('Error loading operation guide:', error);
-      
-      // Show error message to user
-      const errorMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        type: 'text',
-        content: `加载操作指南时出错: ${(error as Error).message}`,
-        timestamp: new Date().toLocaleTimeString()
-      };
-      
-      setMessages(prev => [...prev, errorMessage]);
-    }
-  };
+## 前言
 
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY });
-  };
+您好！我是 Canvas 智能创作平台的引导机器人。这份指南将帮助您快速上手并掌握 Canvas 的核心功能，从基础操作到高级应用，按使用流程由浅入深进行介绍。
 
-  const handleCloseContextMenu = () => {
-    setContextMenu(null);
-  };
+## 目录
 
-  const handleDeleteBlock = (blockId: string) => {
-    setBlocks(prev => prev.filter(block => block.id !== blockId));
-    setContextMenu(null);
-  };
+1. **快速开始**
+   - 1.1 项目启动
+   - 1.2 API 配置
+   - 1.3 界面概览
 
-  const handleStartBatchProcessing = async (config: BatchVideoConfig) => {
-    try {
-      await batchProcessor.startProcessing(config);
-      setBatchState(batchProcessor.getProcessingStatus());
-      setShowBatchVideoModal(false);
-    } catch (error) {
-      console.error('Failed to start batch processing:', error);
-    }
-  };
+2. **基础创作**
+   - 2.1 创建模块
+   - 2.2 文本生成
+   - 2.3 图片生成
+   - 2.4 视频生成
 
-  const handleMinimizeProgress = () => {
-    setIsProgressMinimized(true);
-  };
+3. **智能助手**
+   - 3.1 多模态对话
+   - 3.2 工具调用
+   - 3.3 内容投射
 
-  const handleRestoreProgress = () => {
-    setIsProgressMinimized(false);
-  };
-
-  const handlePauseBatch = () => {
+4. **进阶功能**
+   - 4.1 多图生成
+   - 4.2 角色客串功能
    - 4.3 文件上传
    - 4.4 批量处理
 
@@ -2211,7 +2399,7 @@ Canvas 智能创作平台
       setTimeout(() => {
         setMessages(prev => prev.map(msg => 
           msg.id === guideLoadingMessage.id 
-            ? { ...msg, content: `🧚‍♀️ 欢迎仙尊降临！AUTO CANVAS 携全球顶流 AI 神技候场，任君差遣🔥\n✨ 花式提问，秒速安排！\n\n🎨 创作文字，读取文本\n🖼️ 分析图片，创作图片\n📹 分析视频链接，创作视频\n⚡ 编订您自己的自动化工作流\n\n💫 都是我的拿手好戏。有什么使用疑问冲我来！\n\n💖 微信：Wirelesscharger`, isGenerating: false } 
+            ? { ...msg, content: `🧚‍♀️ 欢迎使用Canvas智能创作平台！我是您的AI助手，可以帮助您解答平台使用问题。\n\n💫 您可以询问关于模块创建、AI生成、工作流配置等任何问题！\n\n💖 微信：wirelesscharger`, isGenerating: false } 
             : msg
         ));
 
@@ -2221,7 +2409,7 @@ Canvas 智能创作平台
         
         // Enable assistant mode and save guide content
         setIsAssistantMode(true);
-        setAssistantGuideContent(guideContent);
+        setAssistantGuideContent(getAssistantGuideContent());
       }, 1000);
       
     } catch (error) {
@@ -2436,6 +2624,12 @@ Canvas 智能创作平台
   };
 
   const handleStartAutomationExecution = async (source?: BatchInputSource) => {
+    // 检查token限制
+    if (!checkTokenLimit()) {
+      showTokenLimitModal();
+      return;
+    }
+
     if (!isAutomationTemplate) return;
     
     const inputSource = source || batchInputSource;
@@ -2721,37 +2915,56 @@ ${block.content}
       <header className={`fixed top-0 left-0 right-0 h-28 flex items-center justify-between px-16 z-[300] border-b-2 backdrop-blur-3xl ${theme === 'dark' ? 'bg-slate-900/80 border-white/5' : 'bg-white/80 border-black/5 shadow-sm'} rounded-br-3xl`}>
         <div className="flex items-center gap-8">
            <div className="flex items-center justify-center">
-             <svg width="48" height="48" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-               {/* 背景圆形 - 浅灰色 */}
-               <circle cx="16" cy="16" r="15" fill="#f8fafc" stroke="#8b5cf6" strokeWidth="1"/>
+             <svg width="64" height="40" viewBox="0 0 64 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+               {/* 渐变定义 */}
+               <defs>
+                 <linearGradient id="faceGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                   <stop offset="0%" style={{stopColor:"#8b5cf6", stopOpacity:1}} />
+                   <stop offset="50%" style={{stopColor:"#6366f1", stopOpacity:1}} />
+                   <stop offset="100%" style={{stopColor:"#4338ca", stopOpacity:1}} />
+                 </linearGradient>
+                 <linearGradient id="hatGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                   <stop offset="0%" style={{stopColor:"#1e1b4b", stopOpacity:1}} />
+                   <stop offset="100%" style={{stopColor:"#0f0f23", stopOpacity:1}} />
+                 </linearGradient>
+               </defs>
                
-               {/* 眼睛轮廓 - 紫色流畅曲线构成上下眼睑 */}
-               <path d="M6 16c0-6 4.5-10 10-10s10 4 10 10" stroke="#8b5cf6" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
-               <path d="M6 16c0 6 4.5 10 10 10s10-4 10-10" stroke="#8b5cf6" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+               {/* 胡须底部 */}
+               <path d="M12 32 Q32 28 52 32 L56 40 H8 Z" fill="#2D1B69"/>
                
-               {/* 眼睛内部白色椭圆区域 */}
-               <ellipse cx="16" cy="16" rx="7" ry="5" fill="white"/>
+               {/* 脸部轮廓 */}
+               <path d="M32 12 L38 13 Q42 18 37 24 L35 29 Q29 30 24 28 L27 22 Q22 16 32 12" fill="url(#faceGrad)" stroke="#4338ca" strokeWidth="1"/>
                
-               {/* 虹膜 - 紫色半透明圆环 */}
-               <circle cx="16" cy="16" r="4" fill="#8b5cf6" fillOpacity="0.2" stroke="#8b5cf6" strokeWidth="1"/>
+               {/* 官帽 */}
+               <path d="M27 12 L37 12 L40 6 L35 4 L24 6 Z" fill="url(#hatGrad)" stroke="#1e1b4b" strokeWidth="1"/>
                
-               {/* 瞳孔 - 深蓝色圆形 */}
-               <circle cx="16" cy="16" r="2.5" fill="#1e40af"/>
+               {/* 帽饰 */}
+               <rect x="30" y="3" width="4" height="3" fill="#fbbf24" stroke="#f59e0b" strokeWidth="0.5" rx="1"/>
                
-               {/* 高光点 - 白色装饰点 */}
-               <circle cx="17.5" cy="14.5" r="1" fill="white"/>
+               {/* 胡须细节 */}
+               <path d="M27 23 Q22 32 19 37 M30 25 Q30 34 29 39 M35 24 Q40 33 43 36" 
+                     stroke="#1e1b4b" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
                
-               {/* 左右两侧对称曲线装饰 */}
-               <path d="M3 12c2-1.5 4-1.5 6 0" stroke="#8b5cf6" strokeWidth="2" fill="none" strokeLinecap="round"/>
-               <path d="M3 20c2 1.5 4 1.5 6 0" stroke="#8b5cf6" strokeWidth="2" fill="none" strokeLinecap="round"/>
-               <path d="M23 12c2-1.5 4-1.5 6 0" stroke="#8b5cf6" strokeWidth="2" fill="none" strokeLinecap="round"/>
-               <path d="M23 20c2 1.5 4 1.5 6 0" stroke="#8b5cf6" strokeWidth="2" fill="none" strokeLinecap="round"/>
+               {/* 眼睛 */}
+               <ellipse cx="29" cy="17" rx="1.5" ry="1" fill="#1e1b4b"/>
+               <ellipse cx="35" cy="17" rx="1.5" ry="1" fill="#1e1b4b"/>
+               <circle cx="29.5" cy="16.5" r="0.3" fill="white"/>
+               <circle cx="35.5" cy="16.5" r="0.3" fill="white"/>
+               
+               {/* 鼻子 */}
+               <path d="M32 18 L32.5 19 L32 20 L31.5 19 Z" fill="#6366f1"/>
+               
+               {/* 嘴巴 */}
+               <path d="M30 21 Q32 22 34 21" stroke="#1e1b4b" strokeWidth="0.8" fill="none" strokeLinecap="round"/>
+               
+               {/* 面部轮廓线 */}
+               <path d="M33 15 Q37 15.5 39 15" stroke="#4338ca" strokeWidth="0.5" fill="none" strokeLinecap="round"/>
              </svg>
            </div>
            <h1 className="font-black text-3xl md:text-4xl uppercase tracking-tighter leading-tight">
              {lang === 'zh' ? (
                <>
-                 <span className="text-slate-900 dark:text-white font-bold tracking-widest" style={{letterSpacing: '0.2em'}}>智慧</span>
+                 <span className="text-slate-900 dark:text-white font-bold tracking-widest" style={{letterSpacing: '0.2em'}}>曹操</span>
                  <span className="text-amber-500 font-bold tracking-widest relative" style={{letterSpacing: '0.2em'}}>
                    画布
                    <span className="absolute -bottom-1 left-0 w-full h-1 bg-amber-500/50 rounded-full"></span>
@@ -2789,6 +3002,25 @@ ${block.content}
            >
              <Key size={24} strokeWidth={3} />
              <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">{t.api}</span>
+           </button>
+
+           {/* Gesture Control Button */}
+           <button 
+            onClick={() => setShowGestureController(true)} 
+            className={`p-5 rounded-2xl border-2 transition-all flex items-center gap-3 ${theme === 'dark' ? 'bg-white/5 border-white/5 hover:bg-purple-500/20 text-purple-500' : 'bg-white border-black/5 hover:shadow-xl text-purple-600'}`}
+           >
+             <Hand size={24} strokeWidth={3} />
+             <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">{lang === 'zh' ? '手势' : 'Gesture'}</span>
+           </button>
+
+           {/* AI Gesture Demo Button */}
+           <button 
+            onClick={() => setShowAIGestureDemo(true)} 
+            className={`p-5 rounded-2xl border-2 transition-all flex items-center gap-3 ${theme === 'dark' ? 'bg-white/5 border-white/5 hover:bg-blue-500/20 text-blue-500' : 'bg-white border-black/5 hover:shadow-xl text-blue-600'}`}
+            title={lang === 'zh' ? 'AI手势控制演示' : 'AI Gesture Control Demo'}
+           >
+             <Brain size={24} strokeWidth={3} />
+             <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">{lang === 'zh' ? 'AI演示' : 'AI Demo'}</span>
            </button>
            
            {/* Admin Monitoring Button - Hidden by default, shown with Ctrl+Shift+A */}
@@ -2913,27 +3145,27 @@ ${block.content}
       )}
 
       {/* Toolbar (Left) */}
-      <aside className={`fixed left-12 top-1/2 -translate-y-1/2 w-28 flex flex-col items-center py-16 gap-10 z-[300] border-2 rounded-[4rem] shadow-3xl backdrop-blur-3xl ${theme === 'dark' ? 'bg-slate-900/80 border-white/5' : 'bg-white/95 border-black/5'}`}>
+      <aside className={`fixed left-12 top-1/2 -translate-y-1/2 w-24 flex flex-col items-center py-12 gap-6 z-[300] border-2 border-purple-400/50 rounded-[3rem] shadow-3xl backdrop-blur-3xl ${theme === 'dark' ? 'bg-slate-900/80' : 'bg-white/95'}`}>
         <button 
           onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')} 
-          className="w-16 h-16 bg-amber-500 text-white rounded-2xl shadow-2xl hover:scale-110 active:scale-90 transition-all border-2 border-white/20 flex items-center justify-center font-black text-lg"
+          className="w-14 h-14 bg-amber-500 text-white rounded-2xl shadow-2xl hover:scale-110 active:scale-90 transition-all border-2 border-white/20 flex items-center justify-center font-black text-base"
           title={lang === 'zh' ? 'Switch to English' : '切换为中文'}
         >
           {lang === 'zh' ? 'EN' : '中'}
         </button>
 
-        <div className="w-16 h-px bg-slate-300/30" />
+        <div className="w-12 h-px bg-slate-300/30" />
         
-        <button onClick={() => addBlock('text')} className="p-6 text-blue-500 hover:bg-blue-500/10 rounded-3xl transition-all" title={t.addText}><TextIcon size={28} /></button>
-        <button onClick={() => addBlock('image')} className="p-6 text-emerald-500 hover:bg-emerald-500/10 rounded-3xl transition-all" title={t.addImage}><ImageIcon size={28} /></button>
-        <button onClick={() => addBlock('video')} className="p-6 text-red-500 hover:bg-red-500/10 rounded-3xl transition-all" title={t.addVideo}><Video size={28} /></button>
+        <button onClick={() => addBlock('text')} className="p-4 text-blue-500 hover:bg-blue-500/10 rounded-2xl transition-all" title={t.addText}><TextIcon size={24} /></button>
+        <button onClick={() => addBlock('image')} className="p-4 text-emerald-500 hover:bg-emerald-500/10 rounded-2xl transition-all" title={t.addImage}><ImageIcon size={24} /></button>
+        <button onClick={() => addBlock('video')} className="p-4 text-red-500 hover:bg-red-500/10 rounded-2xl transition-all" title={t.addVideo}><Video size={24} /></button>
         
-        <div className="w-16 h-px bg-slate-300/30" />
+        <div className="w-12 h-px bg-slate-300/30" />
         
-        <button onClick={() => { setZoom(0.5); setPan({ x: 0, y: 0 }); }} className="p-6 text-slate-400 hover:text-amber-500 transition-all" title={t.ctxReset}><RotateCcw size={28} /></button>
+        <button onClick={() => { setZoom(0.5); setPan({ x: 0, y: 0 }); }} className="p-4 text-slate-400 hover:text-amber-500 transition-all" title={t.ctxReset}><RotateCcw size={24} /></button>
       </aside>
 
-      <main className="flex-1 h-full pt-28 pl-44" style={{ marginRight: showSidebar ? `${sidebarWidth}px` : 0 }}>
+      <main className="flex-1 h-full pt-28 pl-40" style={{ marginRight: showSidebar ? `${sidebarWidth}px` : 0 }}>
         <Canvas 
           blocks={blocks} connections={connections} zoom={zoom} pan={pan} selectedIds={selectedIds} theme={theme} lang={lang} isPerfMode={false} isAutomationTemplate={isAutomationTemplate} modelConfig={modelConfig}
           menuConfig={currentMenuConfig}
@@ -3115,7 +3347,7 @@ ${block.content}
       </main>
 
       {showSidebar && (
-        <aside style={{ width: `${sidebarWidth}px` }} className={`fixed right-0 top-28 bottom-0 flex flex-col z-[300] border-l-2 ${theme === 'dark' ? 'bg-slate-900 border-white/5' : 'bg-white border-black/5'} rounded-tl-3xl rounded-bl-3xl`}>
+        <aside style={{ width: `${sidebarWidth}px` }} className={`fixed right-0 top-28 bottom-0 flex flex-col z-[300] border-l-2 border-purple-400/50 ${theme === 'dark' ? 'bg-slate-900' : 'bg-white'} rounded-tl-3xl rounded-bl-3xl`}>
           <div onMouseDown={startResizing} className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-amber-500/20 z-[310]" />
           <div className="p-4 border-b-2 border-black/5 flex flex-col gap-4">
                <div className="flex items-center justify-between">
@@ -3316,14 +3548,34 @@ ${block.content}
                  {/* Clear Chat Button */}
                  <button onClick={() => setMessages([])} className="p-3 text-slate-400 hover:text-red-500 transition-colors" title={t.ctxClear}><Eraser size={22} /></button>
                  <button onClick={() => chatImageInputRef.current?.click()} className="p-3 text-slate-400 hover:text-emerald-500 transition-colors" title={t.tips.upload}><ImagePlus size={22} /></button>
-                 <button onClick={() => chatTextInputRef.current?.click()} className="p-3 text-slate-400 hover:text-blue-500 transition-colors" title={t.tips.upload}><Paperclip size={22} /></button>
+                 <button onClick={() => chatTextInputRef.current?.click()} className="p-3 text-slate-400 hover:text-blue-500 transition-colors" title={chatMode === 'text' && modelCapabilityDetector.isVideoUploadEnabled(chatMode, modelConfig) ? (lang === 'zh' ? '上传文件或视频' : 'Upload File or Video') : (lang === 'zh' ? '上传文件' : 'Upload File')}><Paperclip size={22} /></button>
                  {/* Voice Input Button */}
                  <button 
                    onClick={toggleVoiceRecording} 
-                   className={`p-3 transition-colors ${isVoiceRecording ? 'text-red-500 animate-pulse' : 'text-slate-400 hover:text-rose-500'}`} 
-                   title={isVoiceRecording ? (lang === 'zh' ? '停止录音' : 'Stop Recording') : (lang === 'zh' ? '语音输入' : 'Voice Input')}
+                   disabled={isVoiceProcessing}
+                   className={`p-3 transition-colors ${
+                     isVoiceProcessing ? 'text-yellow-500 animate-spin' :
+                     isVoiceRecording ? 'text-red-500 animate-pulse' : 
+                     'text-slate-400 hover:text-rose-500'
+                   } ${isVoiceProcessing ? 'cursor-not-allowed' : ''}`} 
+                   title={
+                     isVoiceProcessing ? (lang === 'zh' ? '正在处理指令...' : 'Processing Command...') :
+                     isVoiceRecording ? (lang === 'zh' ? '停止录音' : 'Stop Recording') : 
+                     (lang === 'zh' ? `语音输入 (说"${wakeWord}"唤醒)` : `Voice Input (Say "${wakeWord}" to wake)`)
+                   }
                  >
-                   {isVoiceRecording ? <span className="text-xl">🔴</span> : <span className="text-xl">🎤</span>}
+                   {isVoiceProcessing ? <span className="text-xl">⚙️</span> :
+                    isVoiceRecording ? <span className="text-xl">🔴</span> : 
+                    <span className="text-xl">🎤</span>}
+                 </button>
+                 
+                 {/* Voice Help Button */}
+                 <button 
+                   onClick={() => setShowVoiceHelp(true)}
+                   className="p-3 text-slate-400 hover:text-blue-500 transition-colors"
+                   title={lang === 'zh' ? '语音指令帮助' : 'Voice Command Help'}
+                 >
+                   <span className="text-xl">❓</span>
                  </button>
                  <button onClick={handleSidebarSend} className="p-4 bg-slate-900 text-amber-400 rounded-2xl hover:scale-110 active:scale-95 transition-all shadow-lg"><Send size={24} fill="currentColor" /></button>
               </div>
@@ -3467,6 +3719,52 @@ ${block.content}
         theme={theme}
         lang={lang}
         shenmaService={aiServiceAdapter.getShenmaService()}
+      />
+
+      {/* Voice Command Feedback */}
+      {showVoiceFeedback && lastVoiceCommand && (
+        <VoiceCommandFeedback
+          originalText={lastVoiceCommand.text}
+          recognizedCommand={lastVoiceCommand.command}
+          isVisible={showVoiceFeedback}
+          onClose={() => setShowVoiceFeedback(false)}
+          onFeedbackSubmitted={() => {
+            console.log('用户反馈已提交');
+            setShowVoiceFeedback(false);
+          }}
+          lang={lang}
+        />
+      )}
+
+      {/* Voice Command Help */}
+      <VoiceCommandHelp
+        isOpen={showVoiceHelp}
+        onClose={() => setShowVoiceHelp(false)}
+        lang={lang}
+      />
+
+      {/* Gesture Controller */}
+      <GestureController
+        isOpen={showGestureController}
+        onClose={() => setShowGestureController(false)}
+        onGestureCommand={handleGestureCommand}
+        theme={theme}
+        lang={lang}
+      />
+
+      {/* Gesture Help */}
+      <GestureHelp
+        isOpen={showGestureHelp}
+        onClose={() => setShowGestureHelp(false)}
+        lang={lang}
+      />
+
+      {/* AI Gesture Demo */}
+      <AIGestureDemo
+        isOpen={showAIGestureDemo}
+        onClose={() => setShowAIGestureDemo(false)}
+        theme={theme}
+        lang={lang}
       />
 
     </div>

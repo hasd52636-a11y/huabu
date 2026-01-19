@@ -51,6 +51,7 @@ export class AutoExecutionService {
   private onNodeExecute?: (nodeId: string, prompt: string) => Promise<void>;
   private onCreateBlock?: (block: Block) => void;
   private resultHandling?: 'canvas' | 'download'; // 结果处理方式
+  private currentBatchIndex?: number; // 当前批次索引
 
   // 默认间隔时间（秒）
   private readonly DEFAULT_INTERVALS = {
@@ -273,7 +274,7 @@ export class AutoExecutionService {
   }
 
   /**
-   * 计算等待时间
+   * 计算等待时间 - 优化版，确保有足够时间完成AI生成
    */
   private calculateWaitTime(blockType: BlockType, actualDuration?: number): number {
     const baseInterval = this.config.mode === 'custom' && this.config.customInterval
@@ -281,12 +282,23 @@ export class AutoExecutionService {
       : this.DEFAULT_INTERVALS[this.config.mode][blockType];
 
     if (this.config.enableSmartInterval && actualDuration) {
-      // 基于实际执行时间调整间隔
-      const adaptiveInterval = Math.max(baseInterval, actualDuration / 1000 + 30);
-      return Math.min(adaptiveInterval, baseInterval * 2); // 最多是基础间隔的2倍
+      // 基于实际执行时间调整间隔，确保有足够缓冲时间
+      const bufferTime = 30; // 30秒缓冲时间
+      const adaptiveInterval = Math.max(
+        baseInterval, 
+        (actualDuration / 1000) + bufferTime
+      );
+      return Math.min(adaptiveInterval, baseInterval * 3); // 最多是基础间隔的3倍
     }
 
-    return baseInterval;
+    // 为不同类型设置最小安全间隔
+    const minSafeIntervals = {
+      text: 45,    // 文本最少45秒
+      image: 90,   // 图片最少90秒  
+      video: 180   // 视频最少3分钟
+    };
+
+    return Math.max(baseInterval, minSafeIntervals[blockType]);
   }
 
   /**
@@ -333,6 +345,7 @@ export class AutoExecutionService {
       }
 
       const currentData = batchData[dataIndex];
+      this.currentBatchIndex = dataIndex; // 设置当前批次索引
       
       // 更新进度信息
       this.progress.currentNodeId = `batch_${dataIndex + 1}`;
@@ -347,20 +360,30 @@ export class AutoExecutionService {
         connections,
         workflowClone,
         currentData,
-        startNode
+        startNode,
+        dataIndex,
+        batchData
       );
       
-      // 计算下一个数据项的等待时间
-      const waitTime = this.calculateWaitTime('text'); // 批量数据间隔使用文本模块的间隔
+      // 计算下一个数据项的等待时间 - 确保有足够时间保存结果
+      const waitTime = Math.max(
+        this.calculateWaitTime('text'), // 基础间隔
+        10 // 最少10秒缓冲时间，确保结果保存完成
+      );
       
       // 等待指定时间后继续下一个数据项
-      await this.delay(waitTime * 1000);
+      if (dataIndex < batchData.length - 1) { // 不是最后一个数据项
+        console.log(`[AutoExecutionService] 批次 ${dataIndex + 1} 完成，等待 ${waitTime} 秒后继续下一批次...`);
+        await this.delay(waitTime * 1000);
+      }
     }
 
     // 所有批量数据处理完成
     this.progress.status = 'completed';
     this.isRunning = false;
     this.notifyProgress();
+    
+    console.log(`[AutoExecutionService] ✓ 所有 ${batchData.length} 个批次执行完成`);
   }
 
   /**
@@ -371,7 +394,9 @@ export class AutoExecutionService {
     connections: Connection[],
     executionPlan: ExecutionNode[],
     batchDataItem: string,
-    startNode: ExecutionNode
+    startNode: ExecutionNode,
+    dataIndex: number,
+    batchData: string[]
   ): Promise<void> {
     // 对工作流中的每个节点执行处理
     for (let nodeIndex = 0; nodeIndex < executionPlan.length; nodeIndex++) {
@@ -404,12 +429,7 @@ export class AutoExecutionService {
         if (nodeIndex === 0) {
           // 起始节点：保留用户配置的提示词，使用占位符替换注入批量数据
           const originalPrompt = currentBlock.originalPrompt || currentBlock.content || '';
-          // 支持多种占位符格式：{data}, {input}, {batch}等
-          prompt = originalPrompt.replace(/\{\s*(data|input|batch)\s*\}/gi, batchDataItem);
-          // 如果没有占位符，将批量数据追加到提示词末尾
-          if (prompt === originalPrompt) {
-            prompt = `${originalPrompt}\n\n${batchDataItem}`;
-          }
+          prompt = this.replaceBatchVariables(originalPrompt, batchDataItem, dataIndex, batchData.length);
         } else {
           // 后续节点：查找前一个节点的输出作为输入
           const previousNode = executionPlan[nodeIndex - 1];
@@ -418,18 +438,15 @@ export class AutoExecutionService {
           if (previousBlock?.content) {
             // 如果前一个节点有输出，使用它作为当前节点的输入
             const originalPrompt = currentBlock.originalPrompt || currentBlock.content || '';
-            prompt = originalPrompt.replace(/\{\s*(data|input|previous)\s*\}/gi, previousBlock.content);
-            // 如果没有占位符，将前一个节点的输出追加到当前提示词末尾
-            if (prompt === originalPrompt) {
-              prompt = `${originalPrompt}\n\n${previousBlock.content}`;
-            }
+            prompt = this.replaceNodeVariables(originalPrompt, previousBlock.content, batchDataItem, dataIndex, batchData.length);
           } else {
             // 作为备选，使用当前块的配置
-            prompt = currentBlock.originalPrompt || currentBlock.content || '';
+            const originalPrompt = currentBlock.originalPrompt || currentBlock.content || '';
+            prompt = this.replaceBatchVariables(originalPrompt, batchDataItem, dataIndex, batchData.length);
           }
         }
 
-        // 执行当前节点
+        // 执行当前节点 - 等待完成
         await this.onNodeExecute?.(currentNode.blockId, prompt);
         
         // 记录成功
@@ -470,22 +487,95 @@ export class AutoExecutionService {
       const finalBlock = blocks.find(b => b.id === finalNode.blockId);
       
       if (finalBlock && finalBlock.content) {
+        // 立即保存当前结果到新模块，避免被下一轮覆盖
+        const resultContent = finalBlock.content; // 立即获取结果内容
+        
         // 创建新模块，复制原始模块配置
-        // 不设置 x 和 y，让 App.tsx 中的 addBlock 函数处理位置计算
-        // 这样可以保持一致的从左到右、从上到下的布局逻辑
         const newBlock: Block = {
           ...finalBlock,
           id: crypto.randomUUID(),
-          content: finalBlock.content, // 保存执行结果
+          content: resultContent, // 使用保存的结果内容
           status: 'idle',
-          x: undefined,
-          y: undefined
+          x: undefined, // 让 addBlock 自动计算位置
+          y: undefined, // 让 addBlock 自动计算位置
+          // 添加批量生成标识，便于后续整理
+          isBatchGenerated: true,
+          batchIndex: this.currentBatchIndex || 0
         };
         
-        // 通过回调添加到画布
+        // 通过回调添加到画布 - 这会立即创建新模块
         this.onCreateBlock(newBlock);
+        
+        // 等待一小段时间确保新模块创建完成，再继续下一轮
+        await this.delay(1000); // 1秒缓冲时间
       }
     }
+  }
+
+  /**
+   * 替换批量数据变量
+   */
+  private replaceBatchVariables(
+    prompt: string, 
+    batchDataItem: string, 
+    currentIndex: number, 
+    totalCount: number
+  ): string {
+    let result = prompt;
+    
+    // 基本变量
+    result = result.replace(/\{\s*(data|input|batch|content)\s*\}/gi, batchDataItem);
+    
+    // 索引变量
+    result = result.replace(/\{\s*index\s*\}/gi, (currentIndex + 1).toString());
+    result = result.replace(/\{\s*number\s*\}/gi, (currentIndex + 1).toString());
+    
+    // 总数变量
+    result = result.replace(/\{\s*total\s*\}/gi, totalCount.toString());
+    result = result.replace(/\{\s*count\s*\}/gi, totalCount.toString());
+    
+    // 进度变量
+    const progress = Math.round(((currentIndex + 1) / totalCount) * 100);
+    result = result.replace(/\{\s*progress\s*\}/gi, `${progress}%`);
+    
+    // 时间变量
+    const now = new Date();
+    result = result.replace(/\{\s*date\s*\}/gi, now.toLocaleDateString());
+    result = result.replace(/\{\s*time\s*\}/gi, now.toLocaleTimeString());
+    result = result.replace(/\{\s*datetime\s*\}/gi, now.toLocaleString());
+    
+    // 如果没有找到任何占位符，将批量数据追加到提示词末尾
+    if (result === prompt && batchDataItem.trim()) {
+      result = `${prompt}\n\n${batchDataItem}`;
+    }
+    
+    return result;
+  }
+
+  /**
+   * 替换节点间变量
+   */
+  private replaceNodeVariables(
+    prompt: string, 
+    previousContent: string, 
+    batchDataItem: string, 
+    currentIndex: number, 
+    totalCount: number
+  ): string {
+    let result = prompt;
+    
+    // 前一个节点的输出
+    result = result.replace(/\{\s*(previous|prev|output|result)\s*\}/gi, previousContent);
+    
+    // 批量数据变量
+    result = this.replaceBatchVariables(result, batchDataItem, currentIndex, totalCount);
+    
+    // 如果没有找到任何占位符，将前一个节点的输出追加到提示词末尾
+    if (result === prompt && previousContent.trim()) {
+      result = `${prompt}\n\n${previousContent}`;
+    }
+    
+    return result;
   }
 
   /**

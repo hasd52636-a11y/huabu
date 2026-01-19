@@ -14,6 +14,7 @@ interface TemplateManagerProps {
   currentCanvas: CanvasState;
   onLoadTemplate: (canvas: CanvasState, isAutomation?: boolean) => void;
   lang: 'zh' | 'en';
+  theme: 'light' | 'dark';
 }
 
 const TemplateManager: React.FC<TemplateManagerProps> = ({
@@ -21,7 +22,8 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
   onClose,
   currentCanvas,
   onLoadTemplate,
-  lang
+  lang,
+  theme
 }) => {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -31,15 +33,16 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
   const [editingTemplate, setEditingTemplate] = useState<string | null>(null);
   const [newTemplateName, setNewTemplateName] = useState('');
   const [newTemplateDescription, setNewTemplateDescription] = useState('');
+  const [isAutomationTemplate, setIsAutomationTemplate] = useState(false);
 
   const t = {
     zh: {
-      title: '模板管理',
-      saveTemplate: '保存模板',
-      loadTemplate: '加载模板',
-      searchPlaceholder: '搜索模板...',
-      templateName: '模板名称',
-      templateDescription: '模板描述（可选）',
+      title: '自动化工作流',
+      saveTemplate: '保存工作流',
+      loadTemplate: '加载工作流',
+      searchPlaceholder: '搜索工作流...',
+      templateName: '工作流名称',
+      templateDescription: '工作流描述（可选）',
       save: '保存',
       cancel: '取消',
       delete: '删除',
@@ -47,30 +50,30 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
       export: '导出',
       import: '导入',
       edit: '编辑',
-      noTemplates: '暂无模板',
-      createFirst: '创建您的第一个模板',
+      noTemplates: '暂无工作流',
+      createFirst: '创建您的第一个工作流',
       blocks: '个模块',
       connections: '个连接',
       created: '创建于',
       updated: '更新于',
-      confirmDelete: '确定要删除这个模板吗？',
-      saveSuccess: '模板保存成功',
-      loadSuccess: '模板加载成功',
-      deleteSuccess: '模板删除成功',
-      duplicateSuccess: '模板复制成功',
-      exportSuccess: '模板导出成功',
-      importSuccess: '模板导入成功',
+      confirmDelete: '确定要删除这个工作流吗？',
+      saveSuccess: '工作流保存成功',
+      loadSuccess: '工作流加载成功',
+      deleteSuccess: '工作流删除成功',
+      duplicateSuccess: '工作流复制成功',
+      exportSuccess: '工作流导出成功',
+      importSuccess: '工作流导入成功',
       error: '操作失败',
-      invalidFile: '无效的模板文件',
-      nameRequired: '请输入模板名称'
+      invalidFile: '无效的工作流文件',
+      nameRequired: '请输入工作流名称'
     },
     en: {
-      title: 'Template Manager',
-      saveTemplate: 'Save Template',
-      loadTemplate: 'Load Template',
-      searchPlaceholder: 'Search templates...',
-      templateName: 'Template Name',
-      templateDescription: 'Template Description (Optional)',
+      title: 'Automation Workflow',
+      saveTemplate: 'Save Workflow',
+      loadTemplate: 'Load Workflow',
+      searchPlaceholder: 'Search workflows...',
+      templateName: 'Workflow Name',
+      templateDescription: 'Workflow Description (Optional)',
       save: 'Save',
       cancel: 'Cancel',
       delete: 'Delete',
@@ -78,22 +81,22 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
       export: 'Export',
       import: 'Import',
       edit: 'Edit',
-      noTemplates: 'No templates',
-      createFirst: 'Create your first template',
+      noTemplates: 'No workflows',
+      createFirst: 'Create your first workflow',
       blocks: ' blocks',
       connections: ' connections',
       created: 'Created',
       updated: 'Updated',
-      confirmDelete: 'Are you sure you want to delete this template?',
-      saveSuccess: 'Template saved successfully',
-      loadSuccess: 'Template loaded successfully',
-      deleteSuccess: 'Template deleted successfully',
-      duplicateSuccess: 'Template duplicated successfully',
-      exportSuccess: 'Template exported successfully',
-      importSuccess: 'Template imported successfully',
+      confirmDelete: 'Are you sure you want to delete this workflow?',
+      saveSuccess: 'Workflow saved successfully',
+      loadSuccess: 'Workflow loaded successfully',
+      deleteSuccess: 'Workflow deleted successfully',
+      duplicateSuccess: 'Workflow duplicated successfully',
+      exportSuccess: 'Workflow exported successfully',
+      importSuccess: 'Workflow imported successfully',
       error: 'Operation failed',
-      invalidFile: 'Invalid template file',
-      nameRequired: 'Please enter template name'
+      invalidFile: 'Invalid workflow file',
+      nameRequired: 'Please enter workflow name'
     }
   }[lang];
 
@@ -135,6 +138,7 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
       );
       setNewTemplateName('');
       setNewTemplateDescription('');
+      setIsAutomationTemplate(false);
       setShowSaveDialog(false);
       await loadTemplates();
       showSuccess(t.saveSuccess);
@@ -143,6 +147,28 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // 智能分析是否应该推荐为自动化模板
+  const analyzeAutomationPotential = (canvas: CanvasState): boolean => {
+    // 如果有连接关系，推荐为自动化模板
+    if (canvas.connections && canvas.connections.length > 0) {
+      return true;
+    }
+    
+    // 如果有多个模块，推荐为自动化模板
+    if (canvas.blocks && canvas.blocks.length > 1) {
+      return true;
+    }
+    
+    return false;
+  };
+
+  // 打开保存对话框时自动分析
+  const handleOpenSaveDialog = () => {
+    const shouldRecommendAutomation = analyzeAutomationPotential(currentCanvas);
+    setIsAutomationTemplate(shouldRecommendAutomation);
+    setShowSaveDialog(true);
   };
 
   const handleLoadTemplate = async (templateId: string) => {
@@ -254,14 +280,14 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[400] flex items-center justify-center p-4">
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
           <h2 className={`text-2xl font-bold text-slate-900 dark:text-white ${applyTextEnhancements('', { enhanced: true, highContrast: true, chineseOptimized: true })}`}>{t.title}</h2>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setShowSaveDialog(true)}
+              onClick={handleOpenSaveDialog}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <Save size={18} />
@@ -412,18 +438,18 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
 
         {/* Save Dialog */}
         {showSaveDialog && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[450]">
             <div className={`
               bg-white rounded-lg p-6 max-w-md w-full mx-4
               ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}
             `}>
               <h3 className="text-lg font-semibold mb-4">
-                {lang === 'zh' ? '保存模板' : 'Save Template'}
+                {lang === 'zh' ? '保存工作流' : 'Save Workflow'}
               </h3>
               <div className="space-y-4">
                 <input 
                   type="text" 
-                  placeholder={lang === 'zh' ? '模板名称' : 'Template Name'}
+                  placeholder={lang === 'zh' ? '工作流名称' : 'Workflow Name'}
                   value={newTemplateName}
                   onChange={(e) => setNewTemplateName(e.target.value)}
                   className={`
@@ -435,7 +461,7 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
                   `}
                 />
                 <textarea 
-                  placeholder={lang === 'zh' ? '模板描述' : 'Template Description'}
+                  placeholder={lang === 'zh' ? '工作流描述' : 'Workflow Description'}
                   value={newTemplateDescription}
                   onChange={(e) => setNewTemplateDescription(e.target.value)}
                   className={`
@@ -446,12 +472,35 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
                     }
                   `}
                 />
+                
+                {/* 自动化模板选择 */}
+                <div className="flex items-center gap-3 p-3 border rounded-lg bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+                  <input
+                    type="checkbox"
+                    id="automation-checkbox"
+                    checked={isAutomationTemplate}
+                    onChange={(e) => setIsAutomationTemplate(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                  <label htmlFor="automation-checkbox" className="flex-1 cursor-pointer">
+                    <div className="font-medium text-blue-900 dark:text-blue-100">
+                      {lang === 'zh' ? '保存为自动化工作流' : 'Save as Automation Workflow'}
+                    </div>
+                    <div className="text-sm text-blue-700 dark:text-blue-300">
+                      {lang === 'zh' 
+                        ? '自动分析连接关系，支持一键执行整个工作流' 
+                        : 'Auto-analyze connections and support one-click workflow execution'
+                      }
+                    </div>
+                  </label>
+                </div>
                 <div className="flex justify-end gap-2">
                   <button 
                     onClick={() => {
                       setShowSaveDialog(false);
                       setNewTemplateName('');
                       setNewTemplateDescription('');
+                      setIsAutomationTemplate(false);
                       setError(null);
                     }}
                     className={`
@@ -465,7 +514,7 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
                     {lang === 'zh' ? '取消' : 'Cancel'}
                   </button>
                   <button 
-                    onClick={handleSaveTemplate}
+                    onClick={() => handleSaveTemplate(newTemplateName, isAutomationTemplate)}
                     className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg"
                   >
                     {lang === 'zh' ? '保存' : 'Save'}

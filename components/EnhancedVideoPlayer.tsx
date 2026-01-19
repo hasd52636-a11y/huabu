@@ -25,6 +25,7 @@ const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
   const [isMuted, setIsMuted] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [loadAttempts, setLoadAttempts] = useState(0);
   const [showControls, setShowControls] = useState(false);
 
@@ -72,8 +73,22 @@ const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
       setHasError(false);
     };
 
-    const handlePlay = () => setIsPlaying(true);
+    const handlePlay = () => {
+      setIsPlaying(true);
+      setIsBuffering(false);
+    };
+
     const handlePause = () => setIsPlaying(false);
+
+    const handleWaiting = () => {
+      console.log('[EnhancedVideoPlayer] Video buffering:', src);
+      setIsBuffering(true);
+    };
+
+    const handlePlaying = () => {
+      console.log('[EnhancedVideoPlayer] Video playing (buffering ended):', src);
+      setIsBuffering(false);
+    };
 
     // Add event listeners
     video.addEventListener('loadstart', handleLoadStart);
@@ -82,6 +97,8 @@ const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
     video.addEventListener('loadeddata', handleLoadedData);
     video.addEventListener('play', handlePlay);
     video.addEventListener('pause', handlePause);
+    video.addEventListener('waiting', handleWaiting);
+    video.addEventListener('playing', handlePlaying);
 
     return () => {
       video.removeEventListener('loadstart', handleLoadStart);
@@ -90,6 +107,8 @@ const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
       video.removeEventListener('loadeddata', handleLoadedData);
       video.removeEventListener('play', handlePlay);
       video.removeEventListener('pause', handlePause);
+      video.removeEventListener('waiting', handleWaiting);
+      video.removeEventListener('playing', handlePlaying);
     };
   }, [src, loadAttempts, onError]);
 
@@ -195,6 +214,13 @@ const EnhancedVideoPlayer: React.FC<EnhancedVideoPlayerProps> = ({
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/50">
           <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+        </div>
+      )}
+      
+      {/* Buffering overlay */}
+      {isBuffering && !isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+          <div className="w-10 h-10 border-4 border-blue-300 border-t-blue-500 rounded-full animate-spin" />
         </div>
       )}
 

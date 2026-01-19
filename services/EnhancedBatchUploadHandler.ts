@@ -49,7 +49,7 @@ export interface BatchUploadProgress {
 export class EnhancedBatchUploadHandler {
   private static readonly MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
   private static readonly MAX_BATCH_SIZE = 100; // 最大批量数量
-  private static readonly SUPPORTED_TEXT_FORMATS = ['.txt', '.md', '.js', '.ts', '.tsx', '.json', '.css', '.html', '.doc', '.docx'];
+  private static readonly SUPPORTED_TEXT_FORMATS = ['.txt', '.md', '.js', '.ts', '.tsx', '.json', '.css', '.html', '.doc', '.docx', '.pdf'];
   private static readonly SUPPORTED_IMAGE_FORMATS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
   private static readonly SUPPORTED_VIDEO_FORMATS = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'];
 
@@ -190,6 +190,20 @@ export class EnhancedBatchUploadHandler {
    */
   private static readTextFile(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
+      const fileExt = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+      
+      // 对于PDF和Word文件，返回特殊标识，让AI服务处理
+      if (fileExt === '.pdf') {
+        resolve(`[PDF文件内容将通过AI服务解析]\n文件名: ${file.name}\n文件大小: ${Math.round(file.size / 1024)}KB`);
+        return;
+      }
+      
+      if (fileExt === '.doc' || fileExt === '.docx') {
+        resolve(`[Word文件内容将通过AI服务解析]\n文件名: ${file.name}\n文件大小: ${Math.round(file.size / 1024)}KB`);
+        return;
+      }
+      
+      // 对于普通文本文件，直接读取内容
       const reader = new FileReader();
       reader.onload = (e) => resolve(e.target?.result as string);
       reader.onerror = () => reject(new Error('文件读取失败'));

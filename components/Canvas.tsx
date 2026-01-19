@@ -3,6 +3,7 @@ import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { Block, Connection, EnhancedConnection, Character, MultiImageConfig, ImageInput, ShenmaImageEditOptions, NewModelConfig, convertNewToLegacyConfig, MenuConfig } from '../types';
 import BlockComponent from './BlockComponent';
 import VirtualizedCanvas from './VirtualizedCanvas';
+import VoiceCommandController from './VoiceCommandController';
 import { COLORS, SNAP_SIZE, I18N } from '../constants.tsx';
 import { connectionEngine } from '../services/ConnectionEngine';
 import { AutoExecutor } from '../services/AutoExecutor';
@@ -50,6 +51,7 @@ interface CanvasProps {
   onOpenCharacterPanel?: () => void;
   // Image-related props
   onMultiImageGenerate?: (sourceBlock: Block, config: MultiImageConfig) => void;
+  onOpenSmearRemovalModal?: (imageUrl: string) => void;
   // Model configuration for AI services
   modelConfig: NewModelConfig;
   // Menu configuration for dynamic menus
@@ -81,6 +83,7 @@ const Canvas: React.FC<CanvasProps> = ({
   availableCharacters = [],
   onCharacterSelect,
   onOpenCharacterPanel,
+  onOpenSmearRemovalModal,
   modelConfig,
   menuConfig
 }) => {
@@ -269,19 +272,69 @@ const Canvas: React.FC<CanvasProps> = ({
         settings: { zoom, pan }
       };
 
-      // Execute workflow with progress simulation
+      // Start progress tracking
+      const progressInterval = setInterval(() => {
+        // Get current execution status from autoExecutor if available
+        // For now, we'll simulate progress until we get real progress from AutoExecutor
+        setExecutionProgress(prev => {
+          if (prev < 90) return prev + 5; // Slow progress until completion
+          return prev; // Stay at 90% until actual completion
+        });
+      }, 1000);
+
+      // Execute workflow with real progress tracking
       const result = await autoExecutor.executeWorkflow(canvasState);
       
-      // Simulate progress updates
-      let progress = 0;
-      const progressInterval = setInterval(() => {
-        progress += 20;
-        setExecutionProgress(progress);
-        if (progress >= 100) {
-          clearInterval(progressInterval);
-          setIsExecuting(false);
-        }
-      }, 500);
+      // Clear progress interval
+      clearInterval(progressInterval);
+      
+      // Apply execution results back to canvas blocks
+      if (result.status === 'completed' || result.status === 'failed') {
+        result.results.forEach(blockResult => {
+          if (blockResult.status === 'completed' && blockResult.output) {
+            // Find the block by ID and update its content
+            const block = blocks.find(b => b.id === blockResult.blockId);
+            if (block) {
+              console.log(`Updating block ${block.number} with generated content:`, blockResult.output.substring(0, 100) + '...');
+              
+              // Update block content with the generated result
+              onUpdateBlock(blockResult.blockId, {
+                content: blockResult.output,
+                status: 'idle',
+                // Update metadata based on block type
+                ...(block.type === 'image' && {
+                  imageMetadata: {
+                    ...block.imageMetadata,
+                    generatedAt: Date.now()
+                  }
+                }),
+                ...(block.type === 'video' && {
+                  videoMetadata: {
+                    ...block.videoMetadata,
+                    generatedAt: Date.now()
+                  }
+                })
+              });
+            }
+          } else if (blockResult.status === 'failed') {
+            // Update block status to show error
+            const block = blocks.find(b => b.id === blockResult.blockId);
+            if (block) {
+              console.error(`Block ${block.number} execution failed:`, blockResult.error);
+              onUpdateBlock(blockResult.blockId, {
+                status: 'error'
+              });
+            }
+          }
+        });
+      }
+      
+      // Update progress to 100% and stop execution
+      setExecutionProgress(100);
+      setTimeout(() => {
+        setIsExecuting(false);
+        setExecutionProgress(0);
+      }, 1000);
       
       console.log('Workflow execution completed:', result);
     } catch (error) {
@@ -460,6 +513,141 @@ const Canvas: React.FC<CanvasProps> = ({
     setUseVirtualization(!useVirtualization);
   }, [useVirtualization]);
 
+  // 语音指令处理函数
+  const handleVoiceCommand = async (voiceCommand: any) => {
+    console.log('收到语音指令:', voiceCommand);
+    
+    try {
+      switch (voiceCommand.command) {
+        case 'generate_text':
+          await handleGenerateText(voiceCommand);
+          break;
+        case 'generate_image':
+          await handleGenerateImage(voiceCommand);
+          break;
+        case 'generate_video':
+          await handleGenerateVideo(voiceCommand);
+          break;
+        case 'add_to_canvas':
+          await handleAddToCanvas(voiceCommand);
+          break;
+        default:
+          console.log('未识别的指令:', voiceCommand.command);
+          // 可以显示提示信息给用户
+          break;
+      }
+    } catch (error) {
+      console.error('执行语音指令失败:', error);
+    }
+  };
+
+  // 生成文字内容
+  const handleGenerateText = async (voiceCommand: any) => {
+    if (!onCreateBlock) return;
+    
+    // 在画布中心创建新的文字块
+    const centerX = -pan.x / zoom + containerDimensions.width / (2 * zoom);
+    const centerY = -pan.y / zoom + containerDimensions.height / (2 * zoom);
+    
+    // 创建文字块
+    const newBlock = {
+      type: 'text' as const,
+      content: '', // 初始为空，等待AI生成
+      originalPrompt: voiceCommand.content,
+      status: 'generating' as const,
+      width: 300,
+      height: 200
+    };
+    
+    onCreateBlock(newBlock, centerX, centerY);
+    
+    // 等待块创建后再生成内容
+    setTimeout(() => {
+      // 找到最新创建的块（通常是最后一个）
+      const latestBlock = blocks[blocks.length - 1];
+      if (latestBlock) {
+        onGenerate(latestBlock.id, voiceCommand.content);
+      }
+    }, 100);
+  };
+
+  // 生成图片内容
+  const handleGenerateImage = async (voiceCommand: any) => {
+    if (!onCreateBlock) return;
+    
+    const centerX = -pan.x / zoom + containerDimensions.width / (2 * zoom);
+    const centerY = -pan.y / zoom + containerDimensions.height / (2 * zoom);
+    
+    // 创建图片块
+    const newBlock = {
+      type: 'image' as const,
+      content: '',
+      originalPrompt: voiceCommand.content,
+      status: 'generating' as const,
+      width: voiceCommand.params?.aspectRatio === '9:16' ? 300 : 
+             voiceCommand.params?.aspectRatio === '16:9' ? 400 : 350,
+      height: voiceCommand.params?.aspectRatio === '9:16' ? 533 : 
+              voiceCommand.params?.aspectRatio === '16:9' ? 225 : 350,
+      imageMetadata: {
+        aspectRatio: voiceCommand.params?.aspectRatio || '1:1',
+        style: voiceCommand.params?.style || ''
+      }
+    };
+    
+    onCreateBlock(newBlock, centerX, centerY);
+    
+    // 生成图片内容
+    setTimeout(() => {
+      const latestBlock = blocks[blocks.length - 1];
+      if (latestBlock) {
+        // 构建包含风格的提示词
+        let fullPrompt = voiceCommand.content;
+        if (voiceCommand.params?.style) {
+          fullPrompt += `, ${voiceCommand.params.style}风格`;
+        }
+        onGenerate(latestBlock.id, fullPrompt);
+      }
+    }, 100);
+  };
+
+  // 生成视频内容
+  const handleGenerateVideo = async (voiceCommand: any) => {
+    if (!onCreateBlock) return;
+    
+    const centerX = -pan.x / zoom + containerDimensions.width / (2 * zoom);
+    const centerY = -pan.y / zoom + containerDimensions.height / (2 * zoom);
+    
+    // 创建视频块
+    const newBlock = {
+      type: 'video' as const,
+      content: '',
+      originalPrompt: voiceCommand.content,
+      status: 'generating' as const,
+      width: 400,
+      height: 300,
+      videoMetadata: {
+        duration: voiceCommand.params?.duration || 30,
+        aspectRatio: '16:9'
+      }
+    };
+    
+    onCreateBlock(newBlock, centerX, centerY);
+    
+    // 生成视频内容
+    setTimeout(() => {
+      const latestBlock = blocks[blocks.length - 1];
+      if (latestBlock) {
+        onGenerate(latestBlock.id, voiceCommand.content);
+      }
+    }, 100);
+  };
+
+  // 添加到画布（这个功能可能需要根据具体需求调整）
+  const handleAddToCanvas = async (voiceCommand: any) => {
+    console.log('添加到画布功能暂未实现，指令:', voiceCommand.text);
+    // 这里可以实现将最近生成的内容添加到画布的逻辑
+  };
+
   const renderConnections = () => {
     // Update connection engine with current connections
     connectionEngine.updateConnections(connections);
@@ -528,16 +716,16 @@ const Canvas: React.FC<CanvasProps> = ({
                     if (isAutomationTemplate) {
                       // Automation Mode: Show instruction at output node right side, first 8 chars
                       
-                      // Output node position - exact location of the output circle
-                      const outputX = fromBlock.x + fromBlock.width; // Exact right edge of block
-                      const outputY = fromBlock.y + 10; // Top output node position (adjusted based on actual design)
+                      // Output node position - 更靠近模块边框
+                      const outputX = fromBlock.x + fromBlock.width; // 模块右边缘
+                      const outputY = fromBlock.y + 10; // 输出节点位置
                       
-                      // Significantly increased bubble dimensions for optimal aesthetics
-                      const bubbleWidth = 120 / zoom; // Much wider for better visual balance
-                      const bubbleHeight = 28 / zoom; // Slightly increased height for better proportion
+                      // 优化气泡尺寸
+                      const bubbleWidth = 100 / zoom; // 稍微缩小宽度
+                      const bubbleHeight = 24 / zoom; // 稍微缩小高度
                       
-                      // Position bubble directly adjacent to the output node
-                      const bubbleX = outputX + 2 / zoom; // 2px gap from block edge
+                      // 气泡更靠近模块边框 - 减少间距
+                      const bubbleX = outputX + 8 / zoom; // 只有8px间距，更靠近
                       const bubbleY = outputY - bubbleHeight / 2;
                       
                       return (
@@ -695,34 +883,48 @@ const Canvas: React.FC<CanvasProps> = ({
 
       {/* Performance Controls */}
       <div className="absolute top-4 left-4 z-50 flex flex-col gap-2">
-        {/* Performance Toggle */}
-        <button
-          onClick={toggleVirtualization}
-          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all shadow-lg ${
-            useVirtualization
-              ? 'bg-green-500 text-white hover:bg-green-600'
-              : theme === 'dark'
-                ? 'bg-slate-800/90 text-white hover:bg-slate-700'
-                : 'bg-white/90 text-gray-700 hover:bg-white'
-          }`}
-          title={lang === 'zh' ? '性能优化模式' : 'Performance Optimization Mode'}
-        >
-          {useVirtualization ? <Zap size={16} /> : <ZapOff size={16} />}
-          <span>{lang === 'zh' ? '性能模式' : 'Perf Mode'}</span>
-        </button>
-
-        {/* Enhanced Performance Dashboard */}
-        <PerformanceMonitoringDashboard 
-          theme={theme}
+        {/* Voice Command Controller */}
+        <VoiceCommandController
+          onCommand={handleVoiceCommand}
           lang={lang}
-          blocks={blocks}
-          useVirtualization={useVirtualization}
-          zoom={zoom}
-          performanceOptimizationSystem={performanceOptimizationSystem}
+          wakeWord="曹操"
+          className="mb-2"
         />
+        
+        {/* Performance Toggle */}
+        {/* Performance Mode Button - Hidden from regular users */}
+        {false && (
+          <button
+            onClick={toggleVirtualization}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all shadow-lg ${
+              useVirtualization
+                ? 'bg-green-500 text-white hover:bg-green-600'
+                : theme === 'dark'
+                  ? 'bg-slate-800/90 text-white hover:bg-slate-700'
+                  : 'bg-white/90 text-gray-700 hover:bg-white'
+            }`}
+            title={lang === 'zh' ? '性能优化模式' : 'Performance Optimization Mode'}
+          >
+            {useVirtualization ? <Zap size={16} /> : <ZapOff size={16} />}
+            <span>{lang === 'zh' ? '性能模式' : 'Perf Mode'}</span>
+          </button>
+        )}
+
+        {/* Enhanced Performance Dashboard - Hidden from regular users */}
+        {false && (
+          <PerformanceMonitoringDashboard 
+            theme={theme}
+            lang={lang}
+            blocks={blocks}
+            useVirtualization={useVirtualization}
+            zoom={zoom}
+            performanceOptimizationSystem={performanceOptimizationSystem}
+          />
+        )}
       </div>
-      {/* Automation Controls - Disabled temporarily */}
-      {/* <div className="absolute top-4 right-4 z-50 flex flex-col gap-2">
+      {/* Automation Controls - Disabled to avoid duplicate with AutomationControlPanel */}
+      {false && (
+      <div className="absolute top-4 right-4 z-50 flex flex-col gap-2">
         <button
           onClick={toggleAutomationControls}
           className={`px-3 py-2 rounded-3xl text-sm font-medium transition-all ${
@@ -765,10 +967,13 @@ const Canvas: React.FC<CanvasProps> = ({
                     <span>{lang === 'zh' ? '执行进度' : 'Progress'}</span>
                     <span>{Math.round(executionProgress)}%</span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-3xl h-2">
+                  <div className="w-full bg-gray-200 rounded-3xl h-2 overflow-hidden">
                     <div 
                       className="bg-blue-500 h-2 rounded-3xl transition-all duration-300"
-                      style={{ width: `${executionProgress}%` }}
+                      style={{ 
+                        width: `${Math.min(executionProgress, 100)}%`,
+                        maxWidth: '100%'
+                      }}
                     />
                   </div>
                 </div>
@@ -779,7 +984,7 @@ const Canvas: React.FC<CanvasProps> = ({
                 disabled={blocks.length === 0}
                 className="w-full px-3 py-2 rounded-3xl text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white disabled:bg-gray-300 disabled:cursor-not-allowed transition-all"
               >
-                {lang === 'zh' ? '保存模板' : 'Save Template'}
+                {lang === 'zh' ? '保存工作流' : 'Save Workflow'}
               </button>
 
               <div className="border-t border-gray-200 pt-3 space-y-2">
@@ -813,7 +1018,8 @@ const Canvas: React.FC<CanvasProps> = ({
             </div>
           </div>
         )}
-      </div> */}
+      </div>
+      )}
 
       <div 
         style={{ 
@@ -844,7 +1050,7 @@ const Canvas: React.FC<CanvasProps> = ({
               // Propagate data when block generates content
               const block = blocks.find(b => b.id === id);
               if (block) {
-                connectionEngine.propagateData(id, block.content, block.type, block.number);
+                connectionEngine.propagateData(id, block.content, block.type, block.number, block);
               }
               onGenerate(id, prompt);
             }}
@@ -912,7 +1118,7 @@ const Canvas: React.FC<CanvasProps> = ({
                     // Propagate data when block generates content
                     const block = blocks.find(b => b.id === id);
                     if (block) {
-                      connectionEngine.propagateData(id, block.content, block.type, block.number);
+                      connectionEngine.propagateData(id, block.content, block.type, block.number, block);
                     }
                     onGenerate(id, prompt);
                   }}
@@ -921,7 +1127,7 @@ const Canvas: React.FC<CanvasProps> = ({
                     if (updates.content !== undefined) {
                       const block = blocks.find(b => b.id === id);
                       if (block) {
-                        connectionEngine.propagateData(id, updates.content, block.type, block.number);
+                        connectionEngine.propagateData(id, updates.content, block.type, block.number, { ...block, ...updates });
                       }
                     }
                     onUpdateBlock(id, updates);
@@ -937,6 +1143,7 @@ const Canvas: React.FC<CanvasProps> = ({
                   onOpenMultiImageModal={handleOpenMultiImageModal}
                   onCloseCharacterSelector={handleCloseCharacterSelector}
                   onOpenImageEditModal={handleOpenImageEditModal}
+                  onOpenSmearRemovalModal={onOpenSmearRemovalModal}
                   onResolvePrompt={onResolvePrompt}
                   menuConfig={menuConfig}
                 />

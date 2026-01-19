@@ -253,7 +253,7 @@ export const I18N = {
     presetPromptLibrary: '我的提示词库',
     presetPromptPlaceholder: '点击编辑提示词内容...',
     characterCount: '字符计数',
-    selectPrompt: '选择提示词',
+    selectPrompt: '激活使用',
     promptSlot: '提示词槽位',
     emptySlot: '空槽位',
     savePrompts: '保存提示词',

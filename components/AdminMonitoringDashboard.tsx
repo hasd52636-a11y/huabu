@@ -147,7 +147,7 @@ const AdminMonitoringDashboard: React.FC<AdminMonitoringDashboardProps> = ({
 
   if (!isAuthenticated) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[400]">
         <div className={`${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} rounded-lg p-6`}>
           <div className="text-center">
             <h3 className="text-lg font-semibold mb-4">Admin Authentication Required</h3>
@@ -176,7 +176,7 @@ const AdminMonitoringDashboard: React.FC<AdminMonitoringDashboardProps> = ({
 
   if (!data) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[400]">
         <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg p-6`}>
           <RefreshCw className="w-6 h-6 animate-spin mx-auto" />
           <p className="mt-2">Loading admin dashboard data...</p>
@@ -186,7 +186,7 @@ const AdminMonitoringDashboard: React.FC<AdminMonitoringDashboardProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[400]">
       <div className={`${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} 
                       rounded-lg shadow-2xl w-11/12 h-5/6 max-w-7xl flex flex-col`}>
         

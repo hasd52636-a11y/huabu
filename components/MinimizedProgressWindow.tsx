@@ -1,53 +1,64 @@
 import React from 'react';
 
 interface MinimizedProgressWindowProps {
-  isVisible: boolean;
-  progress: {
+  isVisible?: boolean;
+  current?: number;
+  total?: number;
+  status?: string;
+  progress?: {
     total: number;
     completed: number;
     failed: number;
     pending: number;
   };
-  isProcessing: boolean;
+  isProcessing?: boolean;
   onClick: () => void;
   theme: 'light' | 'dark';
-  lang: 'zh' | 'en';
+  lang?: 'zh' | 'en';
 }
 
 const MinimizedProgressWindow: React.FC<MinimizedProgressWindowProps> = ({
-  isVisible,
+  isVisible = true,
+  current = 0,
+  total = 0,
+  status = 'idle',
   progress,
   isProcessing,
   onClick,
   theme,
-  lang
+  lang = 'zh'
 }) => {
   if (!isVisible) return null;
 
-  const completionPercentage = progress.total > 0 
-    ? Math.round((progress.completed / progress.total) * 100) 
+  // Use either the new progress prop or the legacy current/total props
+  const completedCount = progress ? progress.completed : current;
+  const totalCount = progress ? progress.total : total;
+  const isCurrentlyProcessing = progress ? isProcessing : (status === 'processing');
+
+  const completionPercentage = totalCount > 0 
+    ? Math.round((completedCount / totalCount) * 100) 
     : 0;
 
   const progressText = lang === 'zh' 
-    ? `${progress.completed}/${progress.total}`
-    : `${progress.completed}/${progress.total}`;
+    ? `${completedCount}/${totalCount}`
+    : `${completedCount}/${totalCount}`;
 
   const statusText = lang === 'zh' 
-    ? (isProcessing ? '生成中...' : '已完成')
-    : (isProcessing ? 'Processing...' : 'Completed');
+    ? (isCurrentlyProcessing ? '生成中...' : '已完成')
+    : (isCurrentlyProcessing ? 'Processing...' : 'Completed');
 
   return (
     <div
       className={`
         fixed top-5 right-5 z-50 cursor-pointer
-        w-30 h-20 rounded-lg shadow-lg border
+        w-32 h-20 rounded-lg shadow-lg border
         flex flex-col items-center justify-center
         transition-all duration-300 hover:scale-105
         ${theme === 'dark' 
           ? 'bg-gray-800 border-gray-600 text-white' 
           : 'bg-white border-gray-300 text-gray-900'
         }
-        ${isProcessing 
+        ${isCurrentlyProcessing 
           ? (theme === 'dark' 
               ? 'ring-2 ring-green-400 animate-pulse' 
               : 'ring-2 ring-green-500 animate-pulse'
@@ -73,11 +84,11 @@ const MinimizedProgressWindow: React.FC<MinimizedProgressWindowProps> = ({
       <div className="flex items-center space-x-2 mb-1">
         <div className={`
           w-2 h-2 rounded-full
-          ${isProcessing 
+          ${isCurrentlyProcessing 
             ? (theme === 'dark' ? 'bg-green-400' : 'bg-green-500')
             : (theme === 'dark' ? 'bg-gray-500' : 'bg-gray-400')
           }
-          ${isProcessing ? 'animate-pulse' : ''}
+          ${isCurrentlyProcessing ? 'animate-pulse' : ''}
         `} />
         <span className="text-sm font-medium">
           {progressText}
@@ -94,20 +105,23 @@ const MinimizedProgressWindow: React.FC<MinimizedProgressWindowProps> = ({
         {statusText}
       </div>
 
-      {/* Progress bar */}
+      {/* Progress bar - Fixed width to prevent overflow */}
       <div className={`
-        w-full h-1 rounded-full mt-1
+        w-28 h-1 rounded-full mt-1
         ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'}
       `}>
         <div
           className={`
             h-full rounded-full transition-all duration-300
-            ${isProcessing 
+            ${isCurrentlyProcessing 
               ? (theme === 'dark' ? 'bg-green-400' : 'bg-green-500')
               : (theme === 'dark' ? 'bg-gray-500' : 'bg-gray-400')
             }
           `}
-          style={{ width: `${completionPercentage}%` }}
+          style={{ 
+            width: `${Math.min(completionPercentage, 100)}%`,
+            maxWidth: '100%'
+          }}
         />
       </div>
     </div>

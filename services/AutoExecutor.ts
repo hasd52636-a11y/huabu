@@ -102,6 +102,8 @@ export class AutoExecutor {
     const executionId = this.generateExecutionId();
     const startTime = new Date();
 
+    console.log(`[AutoExecutor] Starting workflow execution ${executionId} with ${canvas.blocks.length} blocks`);
+
     try {
       // Validate workflow before execution
       const validation = this.validateWorkflow(canvas);
@@ -129,6 +131,10 @@ export class AutoExecutor {
 
       // Calculate execution order using topological sort
       const executionOrder = this.calculateExecutionOrder(canvas.blocks, canvas.connections);
+      console.log(`[AutoExecutor] Execution order:`, executionOrder.map(id => {
+        const block = canvas.blocks.find(b => b.id === id);
+        return block ? `${block.number}(${block.type})` : id;
+      }));
       
       // Execute blocks in order
       for (let i = 0; i < executionOrder.length; i++) {
@@ -146,6 +152,7 @@ export class AutoExecutor {
         if (!block) continue;
 
         context.progress.current = block.number;
+        console.log(`[AutoExecutor] Executing block ${block.number} (${i + 1}/${executionOrder.length})`);
         
         try {
           const result = await this.executeBlock(block, canvas, context);
@@ -157,8 +164,10 @@ export class AutoExecutor {
             context.progress.completed++;
             // Propagate data to downstream blocks
             this.connectionEngine.propagateData(blockId, result.output || '', block.type, block.number);
+            console.log(`[AutoExecutor] ✓ Block ${block.number} completed successfully`);
           } else {
             context.progress.failed++;
+            console.log(`[AutoExecutor] ✗ Block ${block.number} failed:`, result.error);
           }
         } catch (error) {
           const errorResult: BlockResult = {
@@ -181,6 +190,7 @@ export class AutoExecutor {
             timestamp: new Date(),
             retryCount: 0
           });
+          console.error(`[AutoExecutor] ✗ Block ${block.number} execution failed:`, error);
         }
       }
 
@@ -196,10 +206,18 @@ export class AutoExecutor {
         errors: context.errors.length > 0 ? context.errors : undefined
       };
 
+      console.log(`[AutoExecutor] Workflow execution ${executionId} completed:`, {
+        status: finalStatus,
+        completed: context.progress.completed,
+        failed: context.progress.failed,
+        total: context.progress.total
+      });
+
       this.activeExecutions.delete(executionId);
       return result;
 
     } catch (error) {
+      console.error(`[AutoExecutor] Workflow execution ${executionId} failed:`, error);
       this.activeExecutions.delete(executionId);
       throw error;
     }
@@ -412,30 +430,36 @@ export class AutoExecutor {
   private async executeBlock(block: Block, canvas: CanvasState, context: ExecutionContext): Promise<BlockResult> {
     const startTime = Date.now();
     
+    console.log(`[AutoExecutor] Starting execution of block ${block.number} (${block.type})`);
+    
     try {
       // Get upstream data for variable resolution
       const upstreamData = this.connectionEngine.getUpstreamData(block.id);
+      console.log(`[AutoExecutor] Block ${block.number} has ${upstreamData.length} upstream connections`);
       
       // Resolve variables in block content (prompt)
       const resolvedPrompt = this.variableSystem.resolveVariables(block.content, upstreamData);
+      console.log(`[AutoExecutor] Block ${block.number} resolved prompt:`, resolvedPrompt.substring(0, 100) + '...');
       
-      // Execute based on block type
+      // Execute based on block type using real AI services
       let output: string;
       switch (block.type) {
         case 'text':
-          output = await this.executeTextBlock(resolvedPrompt, context.options);
+          output = await this.executeTextBlock(resolvedPrompt, block, context.options);
           break;
         case 'image':
-          output = await this.executeImageBlock(resolvedPrompt, context.options);
+          output = await this.executeImageBlock(resolvedPrompt, block, context.options);
           break;
         case 'video':
-          output = await this.executeVideoBlock(resolvedPrompt, context.options);
+          output = await this.executeVideoBlock(resolvedPrompt, block, context.options);
           break;
         default:
           throw new Error(`Unsupported block type: ${block.type}`);
       }
 
       const executionTime = Date.now() - startTime;
+
+      console.log(`[AutoExecutor] Block ${block.number} execution completed in ${executionTime}ms`);
 
       return {
         blockId: block.id,
@@ -449,6 +473,8 @@ export class AutoExecutor {
     } catch (error) {
       const executionTime = Date.now() - startTime;
       
+      console.error(`[AutoExecutor] Block ${block.number} execution failed after ${executionTime}ms:`, error);
+      
       return {
         blockId: block.id,
         blockNumber: block.number,
@@ -461,39 +487,243 @@ export class AutoExecutor {
   }
 
   /**
-   * Execute text block using AI service
+   * Execute text block using real AI service
    */
-  private async executeTextBlock(prompt: string, options: ExecutionOptions): Promise<string> {
-    // Add small delay to simulate real execution time
-    await new Promise(resolve => setTimeout(resolve, 1));
-    
-    // This would integrate with existing AI service adapters
-    // For now, return a mock response
-    return `Generated text response for: ${prompt.substring(0, 50)}...`;
+  private async executeTextBlock(prompt: string, block: Block, options: ExecutionOptions): Promise<string> {
+    try {
+      console.log(`[AutoExecutor] Executing text block ${block.number} with prompt:`, prompt.substring(0, 100) + '...');
+      
+      // Import AI service adapter
+      const { MultiProviderAIService } = await import('../adapters/AIServiceAdapter');
+      const aiService = new MultiProviderAIService();
+      
+      // Get model configuration from global settings or use defaults
+      const modelConfig = this.getModelConfig();
+      
+      // Prepare content for AI service
+      const contents = this.prepareTextContent(prompt, block);
+      
+      console.log(`[AutoExecutor] Calling AI service with provider: ${modelConfig.provider}, model: ${modelConfig.textModel}`);
+      
+      // Call AI service
+      const result = await aiService.generateText(contents, {
+        provider: modelConfig.provider as any, // Cast to avoid type issues
+        apiKey: modelConfig.apiKey,
+        baseUrl: modelConfig.baseUrl,
+        modelId: modelConfig.textModel
+      });
+      
+      console.log(`[AutoExecutor] Text generation completed for block ${block.number}:`, result.substring(0, 100) + '...');
+      return result;
+    } catch (error) {
+      console.error(`[AutoExecutor] Text generation failed for block ${block.number}:`, error);
+      throw new Error(`Text generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   /**
-   * Execute image block using AI service
+   * Execute image block using real AI service
    */
-  private async executeImageBlock(prompt: string, options: ExecutionOptions): Promise<string> {
-    // Add small delay to simulate real execution time
-    await new Promise(resolve => setTimeout(resolve, 1));
-    
-    // This would integrate with existing AI service adapters
-    // For now, return a mock image URL
-    return `data:image/png;base64,mock_image_data_for_${prompt.substring(0, 20)}`;
+  private async executeImageBlock(prompt: string, block: Block, options: ExecutionOptions): Promise<string> {
+    try {
+      console.log(`[AutoExecutor] Executing image block ${block.number} with prompt:`, prompt.substring(0, 100) + '...');
+      
+      // Import AI service adapter
+      const { MultiProviderAIService } = await import('../adapters/AIServiceAdapter');
+      const aiService = new MultiProviderAIService();
+      
+      // Get model configuration
+      const modelConfig = this.getModelConfig();
+      
+      // Prepare content for AI service
+      const contents = this.prepareImageContent(prompt, block);
+      
+      console.log(`[AutoExecutor] Calling AI service with provider: ${modelConfig.provider}, model: ${modelConfig.imageModel}`);
+      
+      // Call AI service
+      const result = await aiService.generateImage(contents, {
+        provider: modelConfig.provider as any, // Cast to avoid type issues
+        apiKey: modelConfig.apiKey,
+        baseUrl: modelConfig.baseUrl,
+        modelId: modelConfig.imageModel
+      });
+      
+      console.log(`[AutoExecutor] Image generation completed for block ${block.number}`);
+      return result;
+    } catch (error) {
+      console.error(`[AutoExecutor] Image generation failed for block ${block.number}:`, error);
+      throw new Error(`Image generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   /**
-   * Execute video block using AI service
+   * Execute video block using real AI service
    */
-  private async executeVideoBlock(prompt: string, options: ExecutionOptions): Promise<string> {
-    // Add small delay to simulate real execution time
-    await new Promise(resolve => setTimeout(resolve, 1));
+  private async executeVideoBlock(prompt: string, block: Block, options: ExecutionOptions): Promise<string> {
+    try {
+      console.log(`[AutoExecutor] Executing video block ${block.number} with prompt:`, prompt.substring(0, 100) + '...');
+      
+      // Import AI service adapter
+      const { MultiProviderAIService } = await import('../adapters/AIServiceAdapter');
+      const aiService = new MultiProviderAIService();
+      
+      // Get model configuration
+      const modelConfig = this.getModelConfig();
+      
+      // Prepare content for AI service
+      const contents = this.prepareVideoContent(prompt, block);
+      
+      console.log(`[AutoExecutor] Calling AI service with provider: ${modelConfig.provider}, model: ${modelConfig.videoModel}`);
+      
+      // Call AI service
+      const result = await aiService.generateVideo(contents, {
+        provider: modelConfig.provider as any, // Cast to avoid type issues
+        apiKey: modelConfig.apiKey,
+        baseUrl: modelConfig.baseUrl,
+        modelId: modelConfig.videoModel
+      });
+      
+      console.log(`[AutoExecutor] Video generation completed for block ${block.number}`);
+      return result;
+    } catch (error) {
+      console.error(`[AutoExecutor] Video generation failed for block ${block.number}:`, error);
+      throw new Error(`Video generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Get model configuration from global settings or defaults
+   */
+  private getModelConfig() {
+    // Try to get configuration from localStorage or global settings
+    try {
+      // First try the new configuration format
+      const newConfigData = localStorage.getItem('newModelConfig');
+      if (newConfigData) {
+        const newConfig = JSON.parse(newConfigData);
+        console.log('[AutoExecutor] Loading new model config:', newConfig);
+        
+        // Extract provider settings for text generation (primary use case)
+        const textProvider = newConfig.text?.provider || 'shenma';
+        const credentials = newConfig.providers?.[textProvider];
+        
+        if (credentials) {
+          const config = {
+            provider: textProvider,
+            apiKey: credentials.apiKey || '',
+            baseUrl: credentials.baseUrl || 'https://hk-api.gptbest.vip',
+            textModel: newConfig.text?.modelId || 'gpt-4o',
+            imageModel: newConfig.image?.modelId || 'nano-banana',
+            videoModel: newConfig.video?.modelId || 'sora_video2'
+          };
+          console.log('[AutoExecutor] Using config:', {
+            ...config,
+            apiKey: config.apiKey ? `${config.apiKey.substring(0, 8)}...` : 'NOT SET'
+          });
+          return config;
+        }
+      }
+      
+      // Fallback to legacy configuration format
+      const savedConfig = localStorage.getItem('modelConfig');
+      if (savedConfig) {
+        const config = JSON.parse(savedConfig);
+        console.log('[AutoExecutor] Loading legacy model config');
+        return {
+          provider: config.provider || 'shenma',
+          apiKey: config.apiKey || '',
+          baseUrl: config.baseUrl || 'https://hk-api.gptbest.vip',
+          textModel: config.textModel || 'gpt-4o',
+          imageModel: config.imageModel || 'nano-banana',
+          videoModel: config.videoModel || 'sora_video2'
+        };
+      }
+    } catch (error) {
+      console.warn('Failed to load model config from localStorage:', error);
+    }
     
-    // This would integrate with existing AI service adapters
-    // For now, return a mock video URL
-    return `https://example.com/video/mock_video_for_${prompt.substring(0, 20)}.mp4`;
+    // Default configuration
+    console.warn('[AutoExecutor] Using default configuration - API key not configured!');
+    return {
+      provider: 'shenma',
+      apiKey: '',
+      baseUrl: 'https://hk-api.gptbest.vip',
+      textModel: 'gpt-4o',
+      imageModel: 'nano-banana',
+      videoModel: 'sora_video2'
+    };
+  }
+
+  /**
+   * Prepare text content for AI service
+   */
+  private prepareTextContent(prompt: string, block: Block): any {
+    // Combine instruction and attachment content if available
+    let finalPrompt = prompt;
+    
+    if (block.attachmentContent) {
+      finalPrompt = `${prompt}\n\n参考内容：\n${block.attachmentContent}`;
+    }
+    
+    return {
+      parts: [{ text: finalPrompt }]
+    };
+  }
+
+  /**
+   * Prepare image content for AI service
+   */
+  private prepareImageContent(prompt: string, block: Block): any {
+    const contents: any = {
+      parts: [{ text: prompt }]
+    };
+    
+    // Add reference image if available
+    if (block.attachmentContent) {
+      contents.referenceImage = block.attachmentContent;
+    }
+    
+    // Add aspect ratio if specified
+    if (block.aspectRatio) {
+      contents.aspectRatio = block.aspectRatio;
+    }
+    
+    return contents;
+  }
+
+  /**
+   * Prepare video content for AI service
+   */
+  private prepareVideoContent(prompt: string, block: Block): any {
+    const contents: any = {
+      parts: [{ text: prompt }]
+    };
+    
+    // Add reference images/videos if available
+    if (block.attachmentContent) {
+      if (block.attachmentContent.startsWith('data:image/')) {
+        contents.referenceImage = [block.attachmentContent];
+      } else if (block.attachmentContent.startsWith('data:video/')) {
+        contents.referenceVideo = block.attachmentContent;
+      }
+    }
+    
+    // Add aspect ratio and duration if specified
+    if (block.aspectRatio) {
+      contents.aspectRatio = block.aspectRatio;
+    }
+    
+    if (block.duration) {
+      contents.duration = parseInt(block.duration);
+    }
+    
+    // Add character parameters if available
+    if (block.characterUrl) {
+      contents.characterUrl = block.characterUrl;
+      contents.characterTimestamps = block.characterTimestamps;
+    }
+    
+    return contents;
   }
 
   /**

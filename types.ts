@@ -16,6 +16,8 @@ export interface ExtendedProviderConfig {
   videoModel?: string;
   visionModel?: string;
   thinkingModel?: string;
+  volcAccountId?: string;
+  qwenWorkspace?: string;
 }
 
 export interface ProviderSettings {
@@ -436,6 +438,10 @@ export interface Block {
   // 存储已创建的角色列表
   availableCharacters?: Character[];
   
+  // 附件相关字段
+  attachmentContent?: string;   // 附件内容（文本块专用）
+  attachmentFileName?: string;  // 附件文件名
+  
   // 图片功能增强字段
   originalPrompt?: string;     // 生成时使用的原始提示词
   imageMetadata?: {           // 图片元数据
@@ -445,6 +451,19 @@ export interface Block {
     model?: string;
     generatedAt?: number;
     fileSize?: number;
+    originalReferenceImage?: string; // 参考图片
+    referenceFileName?: string;      // 参考图片文件名
+  };
+  
+  // 视频功能增强字段
+  videoMetadata?: {           // 视频元数据
+    duration?: number;
+    aspectRatio?: string;
+    model?: string;
+    generatedAt?: number;
+    fileSize?: number;
+    originalReferenceVideo?: string; // 参考视频
+    referenceFileName?: string;      // 参考视频文件名
   };
   
   // 多图生成相关字段
@@ -477,6 +496,10 @@ export interface BlockData {
   content: string;
   type: BlockType;
   timestamp: number;
+  // 扩展字段用于复合数据传输
+  attachmentContent?: string;   // 附件内容
+  instructionContent?: string;  // 指令内容
+  generatedContent?: string;    // 生成结果内容
 }
 
 // Variable reference for prompt enhancement

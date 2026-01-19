@@ -12,6 +12,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Edit3, History, Save, Undo, Settings } from 'lucide-react';
 import { ImageInput, ShenmaImageEditOptions, EditPreset, EditOperation } from '../types';
+import SmearEditCanvas from './SmearEditCanvas';
 
 interface ImageEditModalProps {
   isOpen: boolean;
@@ -291,7 +292,7 @@ const ImageEditModal: React.FC<ImageEditModalProps> = ({
             </div>
           </div>
 
-          {/* Smear Edit Canvas - Temporarily Disabled */}
+          {/* Smear Edit Canvas */}
           {showSmearEditor && images.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-3">
@@ -305,14 +306,11 @@ const ImageEditModal: React.FC<ImageEditModalProps> = ({
                   {t[lang].backToEdit}
                 </button>
               </div>
-              <div className="w-full p-8 bg-gray-100 dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-center">
-                <p className="text-gray-600 dark:text-gray-400 mb-2">
-                  {lang === 'zh' ? '涂抹编辑功能暂时不可用' : 'Smear editing feature temporarily unavailable'}
-                </p>
-                <p className="text-sm text-gray-500 dark:text-gray-500">
-                  {lang === 'zh' ? '此功能正在开发中，敬请期待' : 'This feature is under development'}
-                </p>
-              </div>
+              <SmearEditCanvas
+                imageUrl={typeof images[0] === 'string' ? images[0] : URL.createObjectURL(images[0])}
+                onMaskGenerated={(maskDataUrl) => setCurrentMask(maskDataUrl)}
+                lang={lang}
+              />
               {currentMask && (
                 <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                   <p className="text-sm text-green-700 dark:text-green-300">

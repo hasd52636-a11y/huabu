@@ -136,7 +136,7 @@ const PromptPreviewPopover: React.FC<PromptPreviewPopoverProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 backdrop-blur-sm bg-black/50">
+    <div className="fixed inset-0 flex items-center justify-center z-[400] backdrop-blur-sm bg-black/50">
       <div 
         ref={popoverRef}
         className={`relative w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${theme === 'dark' ? 'bg-slate-900' : 'bg-white'}`}
@@ -247,7 +247,7 @@ const PromptPreviewPopover: React.FC<PromptPreviewPopoverProps> = ({
                               ? t[lang].originalPrompt 
                               : t[lang].prompt}
                           </h4>
-                          <p className={`whitespace-pre-wrap text-sm p-3 rounded-lg ${
+                          <p className={`whitespace-pre-wrap text-sm p-3 rounded-lg max-h-48 overflow-y-auto ${
                             theme === 'dark' ? 'bg-slate-900 text-slate-200' : 'bg-white text-slate-800'
                           }`}>
                             {prompt}
@@ -311,7 +311,7 @@ const PromptPreviewPopover: React.FC<PromptPreviewPopoverProps> = ({
                           <h4 className={`text-sm font-medium mb-2 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
                             {t[lang].resolvedPrompt}
                           </h4>
-                          <p className={`whitespace-pre-wrap text-sm p-3 rounded-lg border-2 ${
+                          <p className={`whitespace-pre-wrap text-sm p-3 rounded-lg border-2 max-h-48 overflow-y-auto ${
                             theme === 'dark' 
                               ? 'bg-blue-900/20 border-blue-700 text-blue-200' 
                               : 'bg-blue-50 border-blue-200 text-blue-800'

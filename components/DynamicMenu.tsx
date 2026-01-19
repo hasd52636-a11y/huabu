@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { MenuConfig, MenuItem } from '../types.js';
 import { COLORS, I18N } from '../constants.tsx';
-import { useAccessibility } from '../hooks/useAccessibility';
 import {
   Trash2, RefreshCw, Scissors, Type as TextIcon, 
   Image as ImageIcon, Play, MoveDiagonal2, Type, 
@@ -52,44 +51,7 @@ const DynamicMenu: React.FC<DynamicMenuProps> = ({
 }) => {
   const t = I18N[lang];
   const theme = blockType === 'text' ? COLORS.text : blockType === 'image' ? COLORS.image : COLORS.video;
-  const { enhanceElement, announce } = useAccessibility();
   const menuRef = useRef<HTMLDivElement>(null);
-
-  // Enhance accessibility when component mounts
-  useEffect(() => {
-    if (menuRef.current) {
-      enhanceElement(menuRef.current, {
-        role: 'toolbar',
-        ariaLabel: `${blockType} ${t.menu || '菜单'}`,
-      });
-
-      // Enhance all buttons in the menu
-      const buttons = menuRef.current.querySelectorAll('button');
-      buttons.forEach((button: Element, index: number) => {
-        enhanceElement(button as HTMLElement, {
-          tabIndex: index === 0 ? 0 : -1, // Only first button is tabbable
-          keyboardHandler: (event: KeyboardEvent) => {
-            if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-              const nextIndex = event.key === 'ArrowRight' 
-                ? (index + 1) % buttons.length 
-                : (index - 1 + buttons.length) % buttons.length;
-              (buttons[nextIndex] as HTMLElement).focus();
-              event.preventDefault();
-            }
-          }
-        });
-      });
-    }
-  }, [menuConfig, enhanceElement, blockType, t.menu]);
-
-  // Announce status changes
-  useEffect(() => {
-    if (blockStatus === 'processing') {
-      announce(t.tips?.generating || '生成中...', 'polite');
-    } else if (blockStatus === 'error') {
-      announce('生成失败，请重试', 'assertive');
-    }
-  }, [blockStatus, announce, t.tips]);
 
   const getIcon = (iconName?: string) => {
     const IconMap: Record<string, React.ComponentType<any>> = {
@@ -149,7 +111,7 @@ const DynamicMenu: React.FC<DynamicMenuProps> = ({
         <div key={item.action} className="relative group/btn">
           <button
             onClick={handleClick}
-            className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 text-slate-700 dark:text-white ${item.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-black/5 dark:hover:bg-white/10'}`}
+            className={`w-12 h-12 rounded-2xl border-2 border-violet-500 flex items-center justify-center transition-all duration-300 hover:scale-110 text-slate-700 dark:text-white ${item.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-violet-500/10 dark:hover:bg-violet-500/20'}`}
             disabled={item.disabled}
           >
             <div className="text-xl">
@@ -159,13 +121,13 @@ const DynamicMenu: React.FC<DynamicMenuProps> = ({
           <Tooltip label={item.label} />
           
           {/* 子菜单弹出层 - 简化设计 */}
-          <div className="absolute left-1/2 -translate-x-1/2 top-full mt-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 z-[1000] min-w-[200px] overflow-hidden opacity-0 invisible group-hover/btn:opacity-100 group-hover/btn:visible transition-all duration-300 translate-y-2 group-hover/btn:translate-y-0">
+          <div className="absolute left-1/2 -translate-x-1/2 top-full mt-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border-2 border-violet-500 z-[1000] min-w-[200px] overflow-hidden opacity-0 invisible group-hover/btn:opacity-100 group-hover/btn:visible transition-all duration-300 translate-y-2 group-hover/btn:translate-y-0">
             <div className="p-3 space-y-2">
               {item.children.slice(0, 8).map(child => ( // 增加子菜单数量限制
                 <button
                   key={child.action}
                   onClick={(e: React.MouseEvent) => { e.stopPropagation(); onMenuItemClick(child.action, child.featureId); }}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 text-left text-sm transition-all duration-200"
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-violet-500/30 hover:bg-violet-500/10 dark:hover:bg-violet-500/20 hover:border-violet-500 text-left text-sm transition-all duration-200"
                   disabled={child.disabled}
                 >
                   <span className="w-6 h-6 flex items-center justify-center">
@@ -185,7 +147,7 @@ const DynamicMenu: React.FC<DynamicMenuProps> = ({
       <div key={item.action} className="relative group/btn">
         <button
           onClick={handleClick}
-          className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 text-slate-700 dark:text-white ${item.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-black/5 dark:hover:bg-white/10'}`}
+          className={`w-12 h-12 rounded-2xl border-2 border-violet-500 flex items-center justify-center transition-all duration-300 hover:scale-110 text-slate-700 dark:text-white ${item.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-violet-500/10 dark:hover:bg-violet-500/20'}`}
           disabled={item.disabled}
         >
           <div className="text-xl">
@@ -206,7 +168,7 @@ const DynamicMenu: React.FC<DynamicMenuProps> = ({
       <div key="regenerate" className="relative group/btn">
         <button 
           onClick={(e: React.MouseEvent) => { e.stopPropagation(); onMenuItemClick('regenerate'); }} 
-          className="w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 text-slate-700 dark:text-white hover:bg-black/5 dark:hover:bg-white/10"
+          className="w-12 h-12 rounded-2xl border-2 border-violet-500 flex items-center justify-center transition-all duration-300 hover:scale-110 text-slate-700 dark:text-white hover:bg-violet-500/10 dark:hover:bg-violet-500/20"
         >
           <div className={`text-xl ${isGenerating ? 'animate-spin' : ''}`}>
             <RefreshCw size={20} />
@@ -218,7 +180,7 @@ const DynamicMenu: React.FC<DynamicMenuProps> = ({
       <div key="delete" className="relative group/btn">
         <button 
           onClick={(e: React.MouseEvent) => { e.stopPropagation(); onMenuItemClick('delete'); }} 
-          className="w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 text-slate-700 dark:text-white hover:bg-red-500/20 hover:text-red-500 dark:hover:text-red-400"
+          className="w-12 h-12 rounded-2xl border-2 border-violet-500 flex items-center justify-center transition-all duration-300 hover:scale-110 text-slate-700 dark:text-white hover:bg-red-500/20 hover:text-red-500 dark:hover:text-red-400 hover:border-red-500"
         >
           <div className="text-xl">
             <Trash2 size={20} />
@@ -234,7 +196,7 @@ const DynamicMenu: React.FC<DynamicMenuProps> = ({
         <div key="edit" className="relative group/btn">
           <button 
             onClick={(e: React.MouseEvent) => { e.stopPropagation(); onMenuItemClick('toggleEdit'); }}
-            className="w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 text-slate-700 dark:text-white hover:bg-black/5 dark:hover:bg-white/10"
+            className="w-12 h-12 rounded-2xl border-2 border-violet-500 flex items-center justify-center transition-all duration-300 hover:scale-110 text-slate-700 dark:text-white hover:bg-violet-500/10 dark:hover:bg-violet-500/20"
           >
             <div className="text-xl">
               <Pencil size={20} />
@@ -248,7 +210,7 @@ const DynamicMenu: React.FC<DynamicMenuProps> = ({
     if (blockType === 'image' && selectedRatio && onRatioChange) {
       basicButtons.unshift(
         <div key="ratio" className="relative group/btn">
-          <div className="w-12 h-12 rounded-2xl overflow-hidden flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 transition-all duration-300 hover:scale-110">
+          <div className="w-12 h-12 rounded-2xl border-2 border-violet-500 overflow-hidden flex items-center justify-center hover:bg-violet-500/10 dark:hover:bg-violet-500/20 transition-all duration-300 hover:scale-110">
             <AspectRatioButton 
               selectedRatio={selectedRatio}
               onRatioChange={onRatioChange}
@@ -270,7 +232,7 @@ const DynamicMenu: React.FC<DynamicMenuProps> = ({
               const newRatio = blockAspectRatio === '16:9' ? '9:16' : '16:9';
               onMenuItemClick('toggleAspectRatio', undefined, { newRatio });
             }} 
-            className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 text-slate-700 dark:text-white hover:bg-black/5 dark:hover:bg-white/10 ${blockAspectRatio === '16:9' ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
+            className={`w-12 h-12 rounded-2xl border-2 border-violet-500 flex items-center justify-center transition-all duration-300 hover:scale-110 text-slate-700 dark:text-white hover:bg-violet-500/10 dark:hover:bg-violet-500/20 ${blockAspectRatio === '16:9' ? 'bg-violet-500/20 dark:bg-violet-500/30' : ''}`}
           >
             <div className="text-xl">
               {blockAspectRatio === '16:9' ? <Monitor size={20} /> : <Smartphone size={20} />}
@@ -287,7 +249,7 @@ const DynamicMenu: React.FC<DynamicMenuProps> = ({
         <div key="upload" className="relative group/btn">
           <button 
             onClick={(e: React.MouseEvent) => { e.stopPropagation(); onMenuItemClick('upload'); }} 
-            className="w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 text-slate-700 dark:text-white hover:bg-black/5 dark:hover:bg-white/10"
+            className="w-12 h-12 rounded-2xl border-2 border-violet-500 flex items-center justify-center transition-all duration-300 hover:scale-110 text-slate-700 dark:text-white hover:bg-violet-500/10 dark:hover:bg-violet-500/20"
           >
             <div className="text-xl">
               <Paperclip size={20} />
@@ -302,13 +264,13 @@ const DynamicMenu: React.FC<DynamicMenuProps> = ({
   };
 
   return (
-    <div ref={menuRef} className="flex items-center gap-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-white/20 rounded-3xl px-4 py-3 shadow-2xl relative max-w-[90vw]" role="toolbar" aria-label={`${blockType} menu`} style={{ overflow: 'visible' }}>
+    <div ref={menuRef} className="flex items-center gap-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-2 border-violet-500 rounded-3xl px-4 py-3 shadow-2xl relative max-w-[90vw]" role="toolbar" aria-label={`${blockType} menu`} style={{ overflow: 'visible' }}>
       <div className="flex items-center gap-3 min-w-max" style={{ overflow: 'visible' }}>
         {/* 状态指示器 - 仅在生成中显示 */}
         {blockStatus === 'processing' && (
           <div className="relative group/btn">
-            <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center animate-pulse">
-              <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+            <div className="w-12 h-12 bg-violet-500/10 border-2 border-violet-500 rounded-2xl flex items-center justify-center animate-pulse">
+              <div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin"></div>
             </div>
             <Tooltip label={t.tips?.generating || '生成中...'} />
           </div>

@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FeatureAssemblyPanelProps, FeatureModule, MenuConfig } from '../types.js';
 import { menuConfigManager } from '../utils/MenuConfigManager.js';
-import { useAccessibility } from '../hooks/useAccessibility';
 
 /**
  * 功能管理面板
@@ -21,37 +20,36 @@ const FeatureAssemblyPanel: React.FC<FeatureAssemblyPanelProps> = ({
   const [menuType, setMenuType] = useState<'floating' | 'context'>('floating');
   // 用于跟踪正在被添加的功能，实现飞入动画
   const [animatingFeatures, setAnimatingFeatures] = useState<Set<string>>(new Set());
-  const { enhanceElement, announce } = useAccessibility();
+  // 用于管理动画超时，避免冲突
+  const [pendingAnimations, setPendingAnimations] = useState<Map<string, NodeJS.Timeout>>(new Map());
+  // 用于防抖功能切换操作
+  const [toggleDebounce, setToggleDebounce] = useState<NodeJS.Timeout | null>(null);
   const panelRef = React.useRef<HTMLDivElement>(null);
 
-  // Enhance accessibility when component mounts
-  React.useEffect(() => {
-    if (panelRef.current) {
-      enhanceElement(panelRef.current, {
-        role: 'region',
-        ariaLabel: '功能管理面板',
-      });
 
-      // Enhance all feature buttons
-      const buttons = panelRef.current.querySelectorAll('button[data-feature-id]');
-      buttons.forEach((button) => {
-        const featureId = button.getAttribute('data-feature-id');
-        const feature = allFeatures.find(f => f.id === featureId);
-        if (feature) {
-          enhanceElement(button as HTMLElement, {
-            ariaLabel: `${feature.name}: ${feature.description}`,
-            ariaPressed: localSelectedFeatures.includes(feature.id) ? 'true' : 'false'
-          });
-        }
+
+  // 清理定时器，防止内存泄漏
+  React.useEffect(() => {
+    return () => {
+      // 清理防抖定时器
+      if (toggleDebounce) {
+        clearTimeout(toggleDebounce);
+      }
+      
+      // 清理所有动画定时器
+      pendingAnimations.forEach(timeout => {
+        clearTimeout(timeout);
       });
-    }
-  }, [allFeatures, localSelectedFeatures, enhanceElement]);
+    };
+  }, [toggleDebounce, pendingAnimations]);
 
   // 初始化数据
   useEffect(() => {
+    console.log('[FeatureAssemblyPanel] Initializing with model:', currentModel, 'provider:', currentProvider);
     setIsLoading(true);
     try {
       const features = menuConfigManager.getFeatures();
+      console.log('[FeatureAssemblyPanel] Loaded features:', features.length, features);
       setAllFeatures(features);
     } catch (error) {
       console.error('Failed to load features:', error);
@@ -99,74 +97,167 @@ const FeatureAssemblyPanel: React.FC<FeatureAssemblyPanelProps> = ({
 
   // 切换功能选择
   const toggleFeature = (featureId: string) => {
-    setLocalSelectedFeatures(prev => {
-      let newSelectedFeatures;
-      
-      // 找到当前功能的类型
-      const feature = allFeatures.find(f => f.id === featureId);
-      if (!feature) return prev;
-      
-      if (prev.includes(featureId)) {
-        // 允许用户取消选择任何功能，包括基础功能
-        newSelectedFeatures = prev.filter(id => id !== featureId);
-        announce(`已移除功能：${feature.name}`, 'polite');
-      } else {
-        // 计算当前该类型已选中的功能数
-        // 每个模块类型有不同的数量限制
-        const selectedFeaturesByType = prev.filter(id => {
-          const f = allFeatures.find(item => item.id === id);
-          return f && f.type === feature.type;
+    console.log('[FeatureAssemblyPanel] toggleFeature called with:', featureId);
+    
+    // 清除现有的防抖定时器
+    if (toggleDebounce) {
+      clearTimeout(toggleDebounce);
+    }
+    
+    // 防抖处理，避免快速点击导致的状态冲突
+    const timeout = setTimeout(() => {
+      try {
+        console.log('[FeatureAssemblyPanel] Processing feature toggle for:', featureId);
+        
+        setLocalSelectedFeatures(prev => {
+          console.log('[FeatureAssemblyPanel] Current selected features:', prev);
+          
+          let newSelectedFeatures;
+          
+          // 找到当前功能的类型
+          const feature = allFeatures.find(f => f.id === featureId);
+          if (!feature) {
+            console.warn(`Feature ${featureId} not found in allFeatures:`, allFeatures);
+            return prev;
+          }
+          
+          console.log('[FeatureAssemblyPanel] Found feature:', feature);
+          
+          // 验证功能可用性
+          const available = isFeatureAvailable(feature);
+          console.log('[FeatureAssemblyPanel] Feature availability:', available, {
+            currentModel,
+            currentProvider,
+            requiredModels: feature.requiredModels,
+            requiredProviders: feature.requiredProviders
+          });
+          
+          if (!available) {
+            console.warn(`Feature ${featureId} is not available for current model`);
+            alert(`功能 "${feature.name}" 当前不可用\n\n当前模型: ${currentModel}\n当前提供商: ${currentProvider}\n\n需要的模型: ${feature.requiredModels.join(', ') || '任意'}\n需要的提供商: ${feature.requiredProviders?.join(', ') || '任意'}`);
+            return prev;
+          }
+          
+          if (prev.includes(featureId)) {
+            // 允许用户取消选择任何功能，包括基础功能
+            newSelectedFeatures = prev.filter(id => id !== featureId);
+            
+            // 清除该功能的动画状态
+            const existingTimeout = pendingAnimations.get(featureId);
+            if (existingTimeout) {
+              clearTimeout(existingTimeout);
+              setPendingAnimations(prev => {
+                const newMap = new Map(prev);
+                newMap.delete(featureId);
+                return newMap;
+              });
+            }
+            setAnimatingFeatures(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(featureId);
+              return newSet;
+            });
+          } else {
+            // 计算当前该类型已选中的功能数
+            // 每个模块类型有不同的数量限制
+            const selectedFeaturesByType = prev.filter(id => {
+              const f = allFeatures.find(item => item.id === id);
+              return f && f.type === feature.type;
+            });
+            
+            // 不同类型功能的数量限制
+            // 文本、图片、视频模块：最多3个额外功能（基础功能如编辑、上传等在悬浮菜单中内置，不计入限制）
+            // 鼠标右键模块：最多12个功能
+            const maxFeatures = feature.type === 'general' ? 12 : 3;
+            const typeName = feature.type === 'text' ? '文本' : 
+                            feature.type === 'image' ? '图片' : 
+                            feature.type === 'video' ? '视频' : 
+                            feature.type === 'voice' ? '语音' : '鼠标右键';
+            
+            if (selectedFeaturesByType.length >= maxFeatures) {
+              const message = feature.type === 'general' 
+                ? `${typeName}模块最多只能启用${maxFeatures}个功能`
+                : `${typeName}模块最多只能添加${maxFeatures}个额外功能（基础功能如编辑、上传等不限制）`;
+              alert(message);
+              return prev;
+            }
+            
+            newSelectedFeatures = [...prev, featureId];
+            
+            // 清除该功能现有的动画超时
+            const existingTimeout = pendingAnimations.get(featureId);
+            if (existingTimeout) {
+              clearTimeout(existingTimeout);
+            }
+            
+            // 添加到动画集合，触发飞入动画
+            setAnimatingFeatures(prev => new Set(prev).add(featureId));
+            
+            // 设置新的动画超时
+            const animationTimeout = setTimeout(() => {
+              setAnimatingFeatures(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(featureId);
+                return newSet;
+              });
+              setPendingAnimations(prev => {
+                const newMap = new Map(prev);
+                newMap.delete(featureId);
+                return newMap;
+              });
+            }, 300);
+            
+            setPendingAnimations(prev => new Map(prev).set(featureId, animationTimeout));
+          }
+          
+          // 更新功能选择
+          onFeatureChange(newSelectedFeatures);
+          
+          // 批量更新菜单配置（防抖处理）
+          batchUpdateMenuConfig(newSelectedFeatures);
+          
+          return newSelectedFeatures;
         });
-        
-        // 不同类型功能的数量限制
-        // 文本、图片、视频模块：最多3个额外功能（基础功能如编辑、上传等在悬浮菜单中内置，不计入限制）
-        // 鼠标右键模块：最多12个功能
-        const maxFeatures = feature.type === 'general' ? 12 : 3;
-        const typeName = feature.type === 'text' ? '文本' : 
-                        feature.type === 'image' ? '图片' : 
-                        feature.type === 'video' ? '视频' : 
-                        feature.type === 'voice' ? '语音' : '鼠标右键';
-        
-        if (selectedFeaturesByType.length >= maxFeatures) {
-          const message = feature.type === 'general' 
-            ? `${typeName}模块最多只能启用${maxFeatures}个功能`
-            : `${typeName}模块最多只能添加${maxFeatures}个额外功能（基础功能如编辑、上传等不限制）`;
-          announce(message, 'assertive');
-          alert(message);
-          return prev;
+      } catch (error) {
+        console.error('Error toggling feature:', error);
+        alert('功能切换失败，请刷新页面重试');
+      }
+    }, 100); // 100ms 防抖延迟
+    
+    setToggleDebounce(timeout);
+  };
+
+  // 批量更新菜单配置，使用防抖避免频繁操作
+  const batchUpdateMenuConfig = useCallback(
+    (() => {
+      let timeoutId: NodeJS.Timeout | null = null;
+      
+      return (features: string[]) => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
         }
         
-        newSelectedFeatures = [...prev, featureId];
-        announce(`已添加功能：${feature.name}`, 'polite');
-        
-        // 添加到动画集合，触发飞入动画
-        setAnimatingFeatures(prev => new Set(prev).add(featureId));
-        // 300ms 后移除动画状态
-        setTimeout(() => {
-          setAnimatingFeatures(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(featureId);
-            return newSet;
-          });
-        }, 300);
-      }
-      
-      // 更新功能选择
-      onFeatureChange(newSelectedFeatures);
-      
-      // 生成新的菜单配置并更新
-      if (onMenuConfigChange) {
-        // 生成悬浮菜单配置
-        const floatingMenuConfig = menuConfigManager.generateMenuConfigForModel(currentModel, newSelectedFeatures, '菜单配置', 'floating');
-        // 保存配置到localStorage
-        menuConfigManager.saveConfig(floatingMenuConfig);
-        menuConfigManager.setCurrentConfig(floatingMenuConfig.id);
-        onMenuConfigChange(floatingMenuConfig);
-      }
-      
-      return newSelectedFeatures;
-    });
-  };
+        timeoutId = setTimeout(() => {
+          if (onMenuConfigChange) {
+            try {
+              const floatingMenuConfig = menuConfigManager.generateMenuConfigForModel(
+                currentModel, 
+                features, 
+                '菜单配置', 
+                'floating'
+              );
+              menuConfigManager.saveConfig(floatingMenuConfig);
+              menuConfigManager.setCurrentConfig(floatingMenuConfig.id);
+              onMenuConfigChange(floatingMenuConfig);
+            } catch (error) {
+              console.error('Failed to update menu config:', error);
+            }
+          }
+        }, 300); // 300ms 防抖延迟
+      };
+    })(),
+    [currentModel, onMenuConfigChange]
+  );
 
   // 根据类型过滤功能
   const getFilteredFeatures = () => {
@@ -303,176 +394,181 @@ const FeatureAssemblyPanel: React.FC<FeatureAssemblyPanelProps> = ({
   const featureGroups = groupFeaturesByType();
 
   return (
-    <div ref={panelRef} className="p-6 bg-gradient-to-br from-white to-gray-50 dark:from-slate-900 dark:to-slate-800 rounded-3xl shadow-2xl border border-gray-200/50 dark:border-slate-700/50 max-h-full overflow-y-auto backdrop-blur-sm" role="region" aria-label="功能管理面板">
-      {/* 飞入画布动画样式 */}
-      <style jsx>{`
-        @keyframes flyToCanvas {
-          0% {
-            opacity: 1;
-            transform: translate(0, 0) scale(1) rotate(0deg);
-          }
-          50% {
-            opacity: 0.8;
-            transform: translate(50px, -50px) scale(1.2) rotate(180deg);
-          }
-          100% {
-            opacity: 0;
-            transform: translate(100px, -100px) scale(0) rotate(360deg);
-          }
-        }
-        
-        .animate-fly-to-canvas {
-          animation: flyToCanvas 0.3s ease-out forwards;
-          position: absolute;
-          z-index: 100;
-        }
+    <div ref={panelRef} className="p-6 bg-gradient-to-br from-white to-gray-50 dark:from-slate-900 dark:to-slate-800 rounded-3xl shadow-2xl border-2 border-violet-500 max-h-full overflow-y-auto backdrop-blur-sm" role="region" aria-label="功能管理面板">
+      {/* 添加CSS样式到head */}
+      {typeof window !== 'undefined' && (() => {
+        const styleId = 'feature-assembly-styles';
+        if (!document.getElementById(styleId)) {
+          const style = document.createElement('style');
+          style.id = styleId;
+          style.textContent = `
+            @keyframes flyToCanvas {
+              0% {
+                opacity: 1;
+                transform: translate(0, 0) scale(1) rotate(0deg);
+              }
+              50% {
+                opacity: 0.8;
+                transform: translate(50px, -50px) scale(1.2) rotate(180deg);
+              }
+              100% {
+                opacity: 0;
+                transform: translate(100px, -100px) scale(0) rotate(360deg);
+              }
+            }
+            
+            .animate-fly-to-canvas {
+              animation: flyToCanvas 0.3s ease-out forwards;
+              position: absolute;
+              z-index: 100;
+            }
 
-        .glass-effect {
-          background: rgba(255, 255, 255, 0.1);
-          backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-        }
+            .glass-effect {
+              background: rgba(255, 255, 255, 0.1);
+              backdrop-filter: blur(10px);
+              border: 2px solid #8b5cf6;
+            }
 
-        .feature-button-glow {
-          box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
-        }
+            .feature-button-glow {
+              box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+            }
 
-        /* 拟态风格 */
-        .neumorphism {
-          background: linear-gradient(145deg, #f0f0f0, #cacaca);
-          box-shadow: 20px 20px 60px #bebebe, -20px -20px 60px #ffffff;
-        }
+            .neumorphism {
+              background: linear-gradient(145deg, #f0f0f0, #cacaca);
+              box-shadow: 20px 20px 60px #bebebe, -20px -20px 60px #ffffff;
+              border: 2px solid #8b5cf6;
+            }
 
-        .neumorphism-dark {
-          background: linear-gradient(145deg, #2a2a2a, #1e1e1e);
-          box-shadow: 20px 20px 60px #1a1a1a, -20px -20px 60px #343434;
-        }
+            .neumorphism-dark {
+              background: linear-gradient(145deg, #2a2a2a, #1e1e1e);
+              box-shadow: 20px 20px 60px #1a1a1a, -20px -20px 60px #343434;
+              border: 2px solid #8b5cf6;
+            }
 
-        .neumorphism-pressed {
-          background: linear-gradient(145deg, #cacaca, #f0f0f0);
-          box-shadow: inset 20px 20px 60px #bebebe, inset -20px -20px 60px #ffffff;
-        }
+            .neumorphism-pressed {
+              background: linear-gradient(145deg, #cacaca, #f0f0f0);
+              box-shadow: inset 20px 20px 60px #bebebe, inset -20px -20px 60px #ffffff;
+              border: 2px solid #8b5cf6;
+            }
 
-        .neumorphism-pressed-dark {
-          background: linear-gradient(145deg, #1e1e1e, #2a2a2a);
-          box-shadow: inset 20px 20px 60px #1a1a1a, inset -20px -20px 60px #343434;
-        }
+            .neumorphism-pressed-dark {
+              background: linear-gradient(145deg, #1e1e1e, #2a2a2a);
+              box-shadow: inset 20px 20px 60px #1a1a1a, inset -20px -20px 60px #343434;
+              border: 2px solid #8b5cf6;
+            }
 
-        /* 玻璃态风格 */
-        .glassmorphism {
-          background: rgba(255, 255, 255, 0.25);
-          backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.18);
-          box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-        }
+            .glassmorphism {
+              background: rgba(255, 255, 255, 0.25);
+              backdrop-filter: blur(20px);
+              border: 2px solid #8b5cf6;
+              box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            }
 
-        .glassmorphism-dark {
-          background: rgba(0, 0, 0, 0.25);
-          backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.18);
-          box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-        }
+            .glassmorphism-dark {
+              background: rgba(0, 0, 0, 0.25);
+              backdrop-filter: blur(20px);
+              border: 2px solid #8b5cf6;
+              box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            }
 
-        /* 立体图标效果 */
-        .icon-3d {
-          filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.3)) 
-                  drop-shadow(-1px -1px 2px rgba(255, 255, 255, 0.8));
-          transform-style: preserve-3d;
-        }
+            .icon-3d {
+              filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.3)) 
+                      drop-shadow(-1px -1px 2px rgba(255, 255, 255, 0.8));
+              transform-style: preserve-3d;
+            }
 
-        .icon-3d:hover {
-          filter: drop-shadow(4px 4px 8px rgba(0, 0, 0, 0.4)) 
-                  drop-shadow(-2px -2px 4px rgba(255, 255, 255, 0.9));
-          transform: translateZ(10px) rotateX(5deg) rotateY(5deg);
-        }
+            .icon-3d:hover {
+              filter: drop-shadow(4px 4px 8px rgba(0, 0, 0, 0.4)) 
+                      drop-shadow(-2px -2px 4px rgba(255, 255, 255, 0.9));
+              transform: translateZ(10px) rotateX(5deg) rotateY(5deg);
+            }
 
-        /* 光泽效果 */
-        .glossy {
-          position: relative;
-          overflow: hidden;
-        }
+            .glossy {
+              position: relative;
+              overflow: hidden;
+            }
 
-        .glossy::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: -100%;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(
-            90deg,
-            transparent,
-            rgba(255, 255, 255, 0.6),
-            transparent
-          );
-          transition: left 0.5s;
-        }
+            .glossy::before {
+              content: '';
+              position: absolute;
+              top: 0;
+              left: -100%;
+              width: 100%;
+              height: 100%;
+              background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(255, 255, 255, 0.6),
+                transparent
+              );
+              transition: left 0.5s;
+            }
 
-        .glossy:hover::before {
-          left: 100%;
-        }
+            .glossy:hover::before {
+              left: 100%;
+            }
 
-        /* 高级渐变按钮 */
-        .gradient-button {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          position: relative;
-          overflow: hidden;
-        }
+            .gradient-button {
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              position: relative;
+              overflow: hidden;
+            }
 
-        .gradient-button::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-          opacity: 0;
-          transition: opacity 0.3s ease;
-        }
+            .gradient-button::before {
+              content: '';
+              position: absolute;
+              top: 0;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+              opacity: 0;
+              transition: opacity 0.3s ease;
+            }
 
-        .gradient-button:hover::before {
-          opacity: 1;
-        }
+            .gradient-button:hover::before {
+              opacity: 1;
+            }
 
-        /* 发光边框 */
-        .glow-border {
-          border: 2px solid transparent;
-          background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4, #feca57) border-box;
-          background-clip: padding-box, border-box;
-        }
+            .glow-border {
+              border: 2px solid #8b5cf6;
+              background: linear-gradient(45deg, #8b5cf6, #a855f7, #c084fc, #ddd6fe, #8b5cf6) border-box;
+              background-clip: padding-box, border-box;
+            }
 
-        /* 彩虹光泽 */
-        .rainbow-shine {
-          background: linear-gradient(
-            45deg,
-            #ff0000, #ff7f00, #ffff00, #00ff00, 
-            #0000ff, #4b0082, #9400d3
-          );
-          background-size: 400% 400%;
-          animation: rainbow 3s ease infinite;
-        }
+            .rainbow-shine {
+              background: linear-gradient(
+                45deg,
+                #8b5cf6, #a855f7, #c084fc, #ddd6fe, 
+                #8b5cf6, #a855f7, #c084fc
+              );
+              background-size: 400% 400%;
+              animation: rainbow 3s ease infinite;
+            }
 
-        @keyframes rainbow {
-          0%, 100% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-        }
+            @keyframes rainbow {
+              0%, 100% { background-position: 0% 50%; }
+              50% { background-position: 100% 50%; }
+            }
 
-        /* 水晶效果 */
-        .crystal {
-          background: linear-gradient(135deg, 
-            rgba(255, 255, 255, 0.1) 0%,
-            rgba(255, 255, 255, 0.05) 50%,
-            rgba(255, 255, 255, 0.1) 100%
-          );
-          backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          box-shadow: 
-            0 8px 32px 0 rgba(31, 38, 135, 0.37),
-            inset 0 1px 0 rgba(255, 255, 255, 0.5),
-            inset 0 -1px 0 rgba(255, 255, 255, 0.1);
+            .crystal {
+              background: linear-gradient(135deg, 
+                rgba(255, 255, 255, 0.1) 0%,
+                rgba(255, 255, 255, 0.05) 50%,
+                rgba(255, 255, 255, 0.1) 100%
+              );
+              backdrop-filter: blur(10px);
+              border: 2px solid #8b5cf6;
+              box-shadow: 
+                0 8px 32px 0 rgba(31, 38, 135, 0.37),
+                inset 0 1px 0 rgba(255, 255, 255, 0.5),
+                inset 0 -1px 0 rgba(255, 255, 255, 0.1);
+            }
+          `;
+          document.head.appendChild(style);
         }
-      `}</style>
+        return null;
+      })()}
       {/* 当前API接口信息 - 拟态玻璃风格 */}
       <div className="mb-6 p-4 glassmorphism dark:glassmorphism-dark rounded-2xl shadow-2xl relative overflow-hidden">
         <div className="absolute inset-0 rainbow-shine opacity-20"></div>
@@ -546,91 +642,101 @@ const FeatureAssemblyPanel: React.FC<FeatureAssemblyPanelProps> = ({
             <p className="text-gray-600 dark:text-gray-300 font-medium mt-6 text-lg">加载功能中...</p>
           </div>
         ) : (
-          <div className="space-y-6">
-            {/* 遍历每个功能组 */}
-            {Object.entries(featureGroups).map(([type, features]) => {
-              if (features.length === 0) return null;
-              if (menuType === 'floating' && type === 'general') return null;
-              if (menuType === 'context' && type !== 'general') return null;
+        <div className="space-y-6">
+          {/* 遍历每个功能组 */}
+          {Object.entries(featureGroups).map(([type, features]) => {
+            if (features.length === 0) return null;
+            
+            // 只显示当前选中菜单类型的功能
+            if (menuType === 'floating' && type === 'general') return null;
+            if (menuType === 'context' && type !== 'general') return null;
 
-              return (
-                <div key={type} className="space-y-4">
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="w-12 h-12 rounded-2xl glassmorphism dark:glassmorphism-dark flex items-center justify-center text-3xl icon-3d glow-border">
-                      {type === 'text' && '📝'}
-                      {type === 'image' && '🖼️'}
-                      {type === 'video' && '🎬'}
-                      {type === 'voice' && '🎤'}
-                      {type === 'general' && '⚙️'}
-                    </div>
-                    <h5 className="text-lg font-bold text-gray-700 dark:text-gray-300">
-                      {getFeatureTypeName(type)}
-                    </h5>
-                    <div className="flex-1 h-0.5 bg-gradient-to-r from-amber-400 via-orange-500 to-transparent rounded-full"></div>
+            return (
+              <div key={type} className="space-y-4">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 rounded-2xl glassmorphism dark:glassmorphism-dark flex items-center justify-center text-3xl icon-3d glow-border">
+                    {type === 'text' && '📝'}
+                    {type === 'image' && '🖼️'}
+                    {type === 'video' && '🎬'}
+                    {type === 'voice' && '🎤'}
+                    {type === 'general' && '⚙️'}
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    {features.map(feature => {
-                      const available = isFeatureAvailable(feature);
-                      const selected = localSelectedFeatures.includes(feature.id);
-                      // 检查是否为基础功能 - 所有 featureId 都是额外功能，基础功能在悬浮菜单中内置
-                      const isBasicFeature = false; // 所有通过 FeatureAssemblyPanel 管理的都是额外功能
-                      // 检查是否为当前模型支持的基础功能
-                      const isSupportedBasicFeature = false;
+                  <h5 className="text-lg font-bold text-gray-700 dark:text-gray-300">
+                    {getFeatureTypeName(type)}
+                  </h5>
+                  <div className="flex-1 h-0.5 bg-gradient-to-r from-amber-400 via-orange-500 to-transparent rounded-full"></div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  {features.map(feature => {
+                    const available = isFeatureAvailable(feature);
+                    const selected = localSelectedFeatures.includes(feature.id);
+                    // 检查是否为基础功能 - 所有 featureId 都是额外功能，基础功能在悬浮菜单中内置
+                    const isBasicFeature = false; // 所有通过 FeatureAssemblyPanel 管理的都是额外功能
+                    // 检查是否为当前模型支持的基础功能
+                    const isSupportedBasicFeature = false;
 
-                      return (
-                        <div key={feature.id} className="relative p-4 flex flex-col items-center group" title={`${feature.name}\n${feature.description}${!available ? '\n\n当前模型不支持此功能' : ''}`}>
-                          {/* 拟态玻璃风格3D按钮 */}
-                          <button
-                            data-feature-id={feature.id}
-                            onClick={() => available && toggleFeature(feature.id)}
-                            className={`relative flex items-center justify-center transition-all duration-700 ease-out cursor-pointer w-24 h-24 rounded-3xl transform hover:scale-110 glossy ${available
-                              ? selected
-                                ? 'neumorphism-pressed dark:neumorphism-pressed-dark text-amber-600 dark:text-amber-400 crystal'
-                                : 'neumorphism dark:neumorphism-dark text-amber-700 dark:text-amber-300 hover:text-amber-600 dark:hover:text-amber-400'
-                              : 'bg-gray-200 dark:bg-gray-700 text-gray-400 opacity-60 cursor-not-allowed'}`}
-                            disabled={!available}
-                            aria-pressed={selected}
-                            aria-label={`${feature.name}: ${feature.description}${!available ? ' (当前模型不支持)' : ''}`}
-                            role="switch"
-                          >
-                            {/* 彩虹光泽效果 */}
-                            {selected && (
-                              <div className="absolute inset-0 rounded-3xl rainbow-shine opacity-20"></div>
-                            )}
-                            
-                            {/* 功能图标 - 3D效果 */}
-                            <div className="relative z-10 w-full h-full">
-                              <FeatureIcon type={feature.type} isSelected={selected} isBasic={isBasicFeature} />
-                            </div>
-                          </button>
-                          
-                          {/* 飞入画布的动画效果 - 增强版 */}
-                          {animatingFeatures.has(feature.id) && (
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                              <div className="w-24 h-24 rounded-3xl glassmorphism glow-border shadow-2xl animate-fly-to-canvas flex items-center justify-center">
-                                <FeatureIcon type={feature.type} isSelected={true} isBasic={isBasicFeature} />
-                              </div>
-                            </div>
+                    return (
+                      <div key={feature.id} className="relative p-4 flex flex-col items-center group" title={`${feature.name}\n${feature.description}${!available ? '\n\n当前模型不支持此功能' : ''}`}>
+                        {/* 拟态玻璃风格3D按钮 */}
+                        <button
+                          data-feature-id={feature.id}
+                          onClick={() => {
+                            console.log('[FeatureAssemblyPanel] Button clicked:', feature.id, 'available:', available);
+                            if (available) {
+                              toggleFeature(feature.id);
+                            } else {
+                              console.log('[FeatureAssemblyPanel] Feature not available, showing alert');
+                              alert(`功能 "${feature.name}" 当前不可用\n\n当前模型: ${currentModel}\n当前提供商: ${currentProvider}\n\n${feature.requiredModels.length > 0 ? `需要的模型: ${feature.requiredModels.join(', ')}` : '支持所有模型'}\n${feature.requiredProviders && feature.requiredProviders.length > 0 ? `需要的提供商: ${feature.requiredProviders.join(', ')}` : '支持所有提供商'}`);
+                            }
+                          }}
+                          className={`relative flex items-center justify-center transition-all duration-700 ease-out cursor-pointer w-24 h-24 rounded-3xl transform hover:scale-110 glossy ${available
+                            ? selected
+                              ? 'neumorphism-pressed dark:neumorphism-pressed-dark text-amber-600 dark:text-amber-400 crystal'
+                              : 'neumorphism dark:neumorphism-dark text-amber-700 dark:text-amber-300 hover:text-amber-600 dark:hover:text-amber-400'
+                            : 'bg-gray-200 dark:bg-gray-700 text-gray-400 opacity-60 cursor-not-allowed'}`}
+                          disabled={!available}
+                          aria-pressed={selected}
+                          aria-label={`${feature.name}: ${feature.description}${!available ? ' (当前模型不支持)' : ''}`}
+                          role="switch"
+                        >
+                          {/* 彩虹光泽效果 */}
+                          {selected && (
+                            <div className="absolute inset-0 rounded-3xl rainbow-shine opacity-20"></div>
                           )}
                           
-                          {/* 功能名称 - 玻璃态设计 */}
-                          <div className={`mt-4 text-center w-full ${available
-                            ? selected
-                              ? `text-amber-700 dark:text-amber-300 ${isBasicFeature ? 'font-bold' : 'font-semibold'}`
-                              : 'text-amber-600 dark:text-amber-400 font-medium'
-                            : 'text-gray-400 dark:text-gray-500'}`}>
-                            <div className="text-sm leading-tight font-semibold">
-                              {feature.name}
+                          {/* 功能图标 - 3D效果 */}
+                          <div className="relative z-10 w-full h-full">
+                            <FeatureIcon type={feature.type} isSelected={selected} isBasic={isBasicFeature} />
+                          </div>
+                        </button>
+                        
+                        {/* 飞入画布的动画效果 - 增强版 */}
+                        {animatingFeatures.has(feature.id) && (
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <div className="w-24 h-24 rounded-3xl glassmorphism glow-border shadow-2xl animate-fly-to-canvas flex items-center justify-center">
+                              <FeatureIcon type={feature.type} isSelected={true} isBasic={isBasicFeature} />
                             </div>
                           </div>
+                        )}
+                        
+                        {/* 功能名称 - 玻璃态设计 */}
+                        <div className={`mt-4 text-center w-full ${available
+                          ? selected
+                            ? `text-amber-700 dark:text-amber-300 ${isBasicFeature ? 'font-bold' : 'font-semibold'}`
+                            : 'text-amber-600 dark:text-amber-400 font-medium'
+                          : 'text-gray-400 dark:text-gray-500'}`}>
+                          <div className="text-sm leading-tight font-semibold">
+                            {feature.name}
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
+        </div>
         )}
       </div>
 

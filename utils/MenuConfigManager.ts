@@ -66,10 +66,42 @@ export class MenuConfigManager {
         allConfigs.push(updatedConfig);
       }
       
+      // 验证localStorage可用性
+      if (typeof Storage === 'undefined') {
+        console.warn('localStorage is not available');
+        return updatedConfig;
+      }
+      
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(allConfigs));
       return updatedConfig;
     } catch (error) {
       console.error('Failed to save menu config:', error);
+      // 如果localStorage满了或其他错误，尝试清理旧配置
+      if (error instanceof Error && error.name === 'QuotaExceededError') {
+        this.cleanupOldConfigs();
+        // 重试一次
+        try {
+          const allConfigs = this.getAllConfigs();
+          const existingIndex = allConfigs.findIndex(c => c.id === config.id);
+          
+          const updatedConfig = {
+            ...config,
+            updatedAt: Date.now()
+          };
+          
+          if (existingIndex >= 0) {
+            allConfigs[existingIndex] = updatedConfig;
+          } else {
+            allConfigs.push(updatedConfig);
+          }
+          
+          localStorage.setItem(this.STORAGE_KEY, JSON.stringify(allConfigs));
+          return updatedConfig;
+        } catch (retryError) {
+          console.error('Failed to save menu config after cleanup:', retryError);
+          throw retryError;
+        }
+      }
       throw error;
     }
   }
@@ -867,6 +899,26 @@ export class MenuConfigManager {
     } catch (error) {
       console.error('Failed to clear all menu configs:', error);
       throw error;
+    }
+  }
+
+  /**
+   * 清理旧配置，保留最近的10个
+   * Clean up old configurations, keep the most recent 10
+   */
+  private cleanupOldConfigs(): void {
+    try {
+      const allConfigs = this.getAllConfigs();
+      if (allConfigs.length <= 10) return;
+      
+      // 按更新时间排序，保留最新的10个
+      const sortedConfigs = allConfigs.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      const configsToKeep = sortedConfigs.slice(0, 10);
+      
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(configsToKeep));
+      console.log(`Cleaned up ${allConfigs.length - configsToKeep.length} old menu configurations`);
+    } catch (error) {
+      console.error('Failed to cleanup old configs:', error);
     }
   }
 }

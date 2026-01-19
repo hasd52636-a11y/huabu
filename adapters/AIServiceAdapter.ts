@@ -38,6 +38,11 @@ export interface AIServiceAdapter {
   editImageAdvanced?(params: AdvancedImageEditParams, settings: ProviderSettings): Promise<string>;
   // 设置token消耗更新回调
   setTokenUpdateCallback?(callback: (amount: number, type: 'text' | 'image' | 'video') => void): void;
+  // ShenmaAPI专用优化方法
+  analyzeMultipleImages?(imageUrls: string[], prompt?: string, settings?: ProviderSettings): Promise<string>;
+  generateVideoFromMultipleImages?(imageUrls: string[], prompt: string, settings?: ProviderSettings): Promise<string>;
+  replaceVideoCharacter?(videoUrl: string, characterImageUrl: string, prompt: string, settings?: ProviderSettings): Promise<string>;
+  transferVideoStyle?(videoUrl: string, style: string, prompt: string, settings?: ProviderSettings): Promise<string>;
 }
 
 // Task 7: Enhanced AI Service Adapter - 新增参数接口
@@ -227,6 +232,14 @@ export class MultiProviderAIService implements AIServiceAdapter {
       apiKeyLength: settings.apiKey?.length || 0,
       baseUrl: settings.baseUrl,
       modelId: settings.modelId
+    });
+    
+    // 调试对话历史
+    console.log('[AIServiceAdapter] generateText contents:', {
+      hasConversationHistory: !!(contents?.conversationHistory),
+      historyLength: contents?.conversationHistory?.length || 0,
+      hasParts: !!(contents?.parts),
+      partsLength: contents?.parts?.length || 0
     });
 
     const executionId = `text_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -621,6 +634,7 @@ export class MultiProviderAIService implements AIServiceAdapter {
   /**
    * 扩展视频生成
    * Enhanced: 使用ErrorHandler进行错误分类和重试逻辑
+   * Enhanced: 智能视频模型选择策略
    */
   async generateVideo(contents: any, settings: ProviderSettings): Promise<string> {
     const executionId = `video_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -645,6 +659,9 @@ export class MultiProviderAIService implements AIServiceAdapter {
         const referenceImages: string[] = [];
         let characterUrl: string | undefined;
         let characterTimestamps: string | undefined;
+        let aspectRatio: '16:9' | '9:16' = '16:9';
+        let duration: number = 10;
+        let quality: 'standard' | 'hd' = 'standard';
         
         if (contents && contents.parts) {
           contents.parts.forEach((part: any) => {
@@ -666,6 +683,22 @@ export class MultiProviderAIService implements AIServiceAdapter {
           // 提取角色客串参数
           characterUrl = contents.characterUrl;
           characterTimestamps = contents.characterTimestamps;
+          
+          // 检查提示词中是否包含角色引用 (@{username} 语法)
+          const characterReferences = userInstruction.match(/@\{[^}]+\}/g);
+          if (characterReferences) {
+            console.log('[AIServiceAdapter] Found character references in prompt:', characterReferences);
+            // 角色引用将直接传递给 Sora2 API，无需额外处理
+          }
+          
+          // 提取视频参数
+          aspectRatio = contents.aspectRatio || '16:9';
+          duration = contents.duration || 10;
+          
+          // 检测质量需求
+          if (userInstruction.includes('高清') || userInstruction.includes('HD') || userInstruction.includes('高质量')) {
+            quality = 'hd';
+          }
           
           // 提取参考图像
           if (contents.referenceImage) {
@@ -694,8 +727,20 @@ export class MultiProviderAIService implements AIServiceAdapter {
         // 图片将单独传递，不合并到prompt中
 
         if (settings.provider === 'shenma' && this.shenmaService) {
+          // 使用智能视频模型选择策略
+          const videoStrategy = this.getVideoModelStrategy({
+            duration,
+            aspectRatio,
+            quality,
+            priority: 'quality' // 默认优先质量
+          });
+
+          console.log(`[AIServiceAdapter] Video generation strategy:`, videoStrategy);
+
           const videoOptions: any = {
-            aspectRatio: '16:9'
+            aspectRatio,
+            duration,
+            model: videoStrategy.primary // 使用主选模型
           };
           
           // 传递参考图像数组
@@ -711,27 +756,104 @@ export class MultiProviderAIService implements AIServiceAdapter {
           if (characterTimestamps) {
             videoOptions.characterTimestamps = characterTimestamps;
           }
-          
-          const result = await this.shenmaService.generateVideo(formattedPrompt, videoOptions);
-          
-          if (!result) {
-            throw new Error('Video generation returned null result');
-          }
-          
-          // 如果返回的是任务信息，需要轮询等待完成
-          if (typeof result === 'object' && result && 'taskId' in result) {
-            return await this.handleAsyncVideo((result as any).taskId, this.shenmaService);
-          }
-          
-          // 如果直接返回URL字符串
-          const videoResult = typeof result === 'string' ? result : (result as any)?.url || '';
 
-          // 更新token消耗
-          if (this.tokenUpdateCallback) {
-            this.tokenUpdateCallback(tokenAmount, 'video');
-          }
+          try {
+            // 尝试主选模型
+            const result = await this.shenmaService.generateVideo(formattedPrompt, videoOptions);
+            
+            if (!result) {
+              throw new Error('Video generation returned null result');
+            }
+            
+            // 如果返回的是任务信息，需要轮询等待完成
+            if (typeof result === 'object' && result && 'taskId' in result) {
+              return await this.handleAsyncVideo((result as any).taskId, this.shenmaService);
+            }
+            
+            // 如果直接返回URL字符串
+            const videoResult = typeof result === 'string' ? result : (result as any)?.url || '';
 
-          return videoResult;
+            // 更新token消耗
+            if (this.tokenUpdateCallback) {
+              this.tokenUpdateCallback(tokenAmount, 'video');
+            }
+
+            return videoResult;
+          } catch (primaryError) {
+            console.warn(`[AIServiceAdapter] Primary video model ${videoStrategy.primary} failed, trying fallback:`, primaryError);
+            
+            // 尝试备选模型
+            try {
+              const fallbackOptions = {
+                ...videoOptions,
+                model: videoStrategy.fallback
+              };
+              
+              const result = await this.shenmaService.generateVideo(formattedPrompt, fallbackOptions);
+              
+              if (!result) {
+                throw new Error('Video generation returned null result');
+              }
+              
+              // 如果返回的是任务信息，需要轮询等待完成
+              if (typeof result === 'object' && result && 'taskId' in result) {
+                return await this.handleAsyncVideo((result as any).taskId, this.shenmaService);
+              }
+              
+              // 如果直接返回URL字符串
+              const videoResult = typeof result === 'string' ? result : (result as any)?.url || '';
+
+              // 更新token消耗
+              if (this.tokenUpdateCallback) {
+                this.tokenUpdateCallback(tokenAmount, 'video');
+              }
+
+              return videoResult;
+            } catch (fallbackError) {
+              console.error(`[AIServiceAdapter] Both primary and fallback video models failed:`, {
+                primary: videoStrategy.primary,
+                fallback: videoStrategy.fallback,
+                primaryError: (primaryError as Error).message,
+                fallbackError: (fallbackError as Error).message
+              });
+              
+              // 如果有扩展选项，尝试最后一次
+              if (videoStrategy.extended) {
+                try {
+                  const extendedOptions = {
+                    ...videoOptions,
+                    model: videoStrategy.extended
+                  };
+                  
+                  const result = await this.shenmaService.generateVideo(formattedPrompt, extendedOptions);
+                  
+                  if (!result) {
+                    throw new Error('Video generation returned null result');
+                  }
+                  
+                  // 如果返回的是任务信息，需要轮询等待完成
+                  if (typeof result === 'object' && result && 'taskId' in result) {
+                    return await this.handleAsyncVideo((result as any).taskId, this.shenmaService);
+                  }
+                  
+                  // 如果直接返回URL字符串
+                  const videoResult = typeof result === 'string' ? result : (result as any)?.url || '';
+
+                  // 更新token消耗
+                  if (this.tokenUpdateCallback) {
+                    this.tokenUpdateCallback(tokenAmount, 'video');
+                  }
+
+                  return videoResult;
+                } catch (extendedError) {
+                  console.error(`[AIServiceAdapter] All video models failed, throwing original error`);
+                  throw primaryError; // 抛出原始错误
+                }
+              } else {
+                throw primaryError; // 抛出原始错误
+              }
+            }
+          }
         }
 
         if (settings.provider === 'zhipu' && this.zhipuService) {
@@ -779,6 +901,68 @@ export class MultiProviderAIService implements AIServiceAdapter {
         operation: 'generateVideo'
       }
     );
+  }
+
+  /**
+   * 获取视频模型选择策略
+   */
+  private getVideoModelStrategy(requirements?: {
+    duration?: number;
+    aspectRatio?: '16:9' | '9:16';
+    quality?: 'standard' | 'hd';
+    priority?: 'speed' | 'quality' | 'compatibility';
+  }): { primary: string; fallback: string; extended?: string } {
+    const { duration = 10, aspectRatio = '16:9', quality = 'standard', priority = 'quality' } = requirements || {};
+
+    // 基于需求选择最佳策略
+    if (priority === 'speed') {
+      // 优先速度：使用标准模型
+      return {
+        primary: 'sora_video2',
+        fallback: 'sora_video2-portrait'
+      };
+    } else if (priority === 'compatibility') {
+      // 优先兼容性：使用最稳定的模型
+      return {
+        primary: 'sora_video2',
+        fallback: 'sora_video2-landscape'
+      };
+    } else {
+      // 优先质量（默认）
+      if (aspectRatio === '9:16') {
+        // 竖屏内容
+        if (duration > 10 && quality === 'hd') {
+          return {
+            primary: 'sora_video2-portrait-hd-15s',
+            fallback: 'sora_video2-portrait-hd',
+            extended: 'sora_video2-portrait'
+          };
+        } else if (quality === 'hd') {
+          return {
+            primary: 'sora_video2-portrait-hd',
+            fallback: 'sora_video2-portrait'
+          };
+        } else {
+          return {
+            primary: 'sora_video2-portrait',
+            fallback: 'sora_video2'
+          };
+        }
+      } else {
+        // 横屏内容
+        if (quality === 'hd') {
+          return {
+            primary: 'sora_video2-landscape',
+            fallback: 'sora_video2'
+          };
+        } else {
+          return {
+            primary: 'sora_video2',
+            fallback: 'sora_video2-landscape'
+          };
+        }
+      }
+    }
   }
 
   /**
@@ -849,6 +1033,7 @@ export class MultiProviderAIService implements AIServiceAdapter {
    * 角色创建功能 - 增强版本，支持重试逻辑和错误处理
    */
   async createCharacter(contents: any, settings: ProviderSettings): Promise<any> {
+    console.log('[AIServiceAdapter] Creating character with Sora2 API');
     this.initializeProviders(settings);
     
     // 从contents中提取角色创建所需的参数
@@ -867,17 +1052,43 @@ export class MultiProviderAIService implements AIServiceAdapter {
       throw new Error('Either url or from_task must be provided for character creation');
     }
     
-    // 验证时间戳格式
-    if (timestamps && !this.validateTimestamps(timestamps)) {
-      throw new Error('Invalid timestamp format. Use format like "0-5,10-15"');
+    // 验证时间戳格式 - Sora2 API uses "start,end" format
+    if (!timestamps) {
+      throw new Error('Timestamps are required for character creation');
+    }
+    
+    const timestampParts = timestamps.split(',');
+    if (timestampParts.length !== 2) {
+      throw new Error('Timestamps must be in format "start,end" (e.g., "1,3")');
+    }
+    
+    const start = parseFloat(timestampParts[0]);
+    const end = parseFloat(timestampParts[1]);
+    
+    if (isNaN(start) || isNaN(end) || start >= end) {
+      throw new Error('Invalid timestamp range');
+    }
+    
+    if ((end - start) > 3 || (end - start) < 1) {
+      throw new Error('Timestamp range must be between 1-3 seconds');
     }
     
     if (settings.provider === 'shenma' && this.shenmaService) {
-      return await this.createCharacterWithRetry({
-        url: videoUrl,
+      // Use the new Sora2 character creation API
+      const params = {
         timestamps,
-        from_task: fromTask
-      }, settings);
+        ...(videoUrl ? { url: videoUrl } : {}),
+        ...(fromTask ? { from_task: fromTask } : {})
+      };
+      
+      try {
+        const result = await this.shenmaService.createCharacter(params);
+        console.log('[AIServiceAdapter] ✓ Character created successfully:', result.username);
+        return result;
+      } catch (error) {
+        console.error('[AIServiceAdapter] Character creation failed:', error);
+        throw error;
+      }
     }
     
     if (settings.provider === 'zhipu' && this.zhipuService) {
@@ -1086,6 +1297,78 @@ export class MultiProviderAIService implements AIServiceAdapter {
   dispose(): void {
     this.shenmaService = null;
     this.zhipuService = null;
+  }
+
+  /**
+   * ShenmaAPI专用：多图分析
+   */
+  async analyzeMultipleImages(imageUrls: string[], prompt?: string, settings?: ProviderSettings): Promise<string> {
+    if (!settings) {
+      throw new Error('Settings required for analyzeMultipleImages');
+    }
+    
+    this.initializeProviders(settings);
+
+    if (settings.provider === 'shenma' && this.shenmaService) {
+      console.log('[AIServiceAdapter] ShenmaAPI multi-image analysis');
+      return await this.shenmaService.analyzeMultipleImages(imageUrls, prompt);
+    }
+
+    throw new Error(`Multi-image analysis not supported by provider: ${settings.provider}`);
+  }
+
+  /**
+   * ShenmaAPI专用：多图生视频
+   */
+  async generateVideoFromMultipleImages(imageUrls: string[], prompt: string, settings?: ProviderSettings): Promise<string> {
+    if (!settings) {
+      throw new Error('Settings required for generateVideoFromMultipleImages');
+    }
+    
+    this.initializeProviders(settings);
+
+    if (settings.provider === 'shenma' && this.shenmaService) {
+      console.log('[AIServiceAdapter] ShenmaAPI multi-image to video generation');
+      return await this.shenmaService.generateVideoFromMultipleImages(imageUrls, prompt);
+    }
+
+    throw new Error(`Multi-image video generation not supported by provider: ${settings.provider}`);
+  }
+
+  /**
+   * ShenmaAPI专用：视频角色替换
+   */
+  async replaceVideoCharacter(videoUrl: string, characterImageUrl: string, prompt: string, settings?: ProviderSettings): Promise<string> {
+    if (!settings) {
+      throw new Error('Settings required for replaceVideoCharacter');
+    }
+    
+    this.initializeProviders(settings);
+
+    if (settings.provider === 'shenma' && this.shenmaService) {
+      console.log('[AIServiceAdapter] ShenmaAPI video character replacement');
+      return await this.shenmaService.replaceVideoCharacter(videoUrl, characterImageUrl, prompt);
+    }
+
+    throw new Error(`Video character replacement not supported by provider: ${settings.provider}`);
+  }
+
+  /**
+   * ShenmaAPI专用：视频风格迁移
+   */
+  async transferVideoStyle(videoUrl: string, style: string, prompt: string, settings?: ProviderSettings): Promise<string> {
+    if (!settings) {
+      throw new Error('Settings required for transferVideoStyle');
+    }
+    
+    this.initializeProviders(settings);
+
+    if (settings.provider === 'shenma' && this.shenmaService) {
+      console.log('[AIServiceAdapter] ShenmaAPI video style transfer');
+      return await this.shenmaService.transferVideoStyle(videoUrl, style, prompt);
+    }
+
+    throw new Error(`Video style transfer not supported by provider: ${settings.provider}`);
   }
 
   /**

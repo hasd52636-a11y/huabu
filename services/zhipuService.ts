@@ -7,7 +7,7 @@
 // - 图像生成：CogView-3-Flash
 // - 高端模型：GLM-4.6V, CogVideoX-3
 
-import { ProviderConfig } from '../types';
+import { ExtendedProviderConfig } from '../types';
 
 export type ZhipuModel = 
   | 'glm-4.5-flash'      // 深度思考（普惠）
@@ -109,12 +109,12 @@ export interface ZhipuImageGenerationResponse {
 }
 
 class ZhipuService {
-  private config: ProviderConfig;
+  private config: ExtendedProviderConfig;
   private baseUrl = 'https://open.bigmodel.cn/api/paas/v4';
   private pollingIntervals: Map<string, NodeJS.Timeout> = new Map();
   private modelConfig: any;
 
-  constructor(config: ProviderConfig) {
+  constructor(config: ExtendedProviderConfig) {
     this.config = config;
     // 从本地存储加载模型配置
     const saved = localStorage.getItem('zhipu_models_config');
@@ -388,6 +388,8 @@ class ZhipuService {
     try {
       const model = options?.model || this.getModel('image');
       console.log(`[ZhipuService] Generating image with ${model}:`, prompt.substring(0, 100) + '...');
+      console.log(`[ZhipuService] API Key configured:`, !!this.config.apiKey);
+      console.log(`[ZhipuService] Base URL:`, this.baseUrl);
 
       const requestBody: ZhipuImageGenerationRequest = {
         model: model,
@@ -399,31 +401,55 @@ class ZhipuService {
         batch_size: 1
       };
 
+      console.log(`[ZhipuService] Request body:`, JSON.stringify(requestBody, null, 2));
+
       const response = await fetch(`${this.baseUrl}/images/generations`, {
         method: 'POST',
         headers: this.getAuthHeader(),
         body: JSON.stringify(requestBody)
       });
 
+      console.log(`[ZhipuService] Response status:`, response.status);
+      console.log(`[ZhipuService] Response headers:`, Object.fromEntries(response.headers.entries()));
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('[ZhipuService] Image generation error:', response.status, errorText);
-        throw new Error(`Image generation failed: ${response.status}`);
+        
+        // Provide more specific error messages
+        if (response.status === 401) {
+          throw new Error(`认证失败：请检查智谱API密钥是否正确配置 (${response.status})`);
+        } else if (response.status === 403) {
+          throw new Error(`权限不足：API密钥可能没有图像生成权限 (${response.status})`);
+        } else if (response.status === 429) {
+          throw new Error(`请求过于频繁：请稍后重试 (${response.status})`);
+        } else if (response.status >= 500) {
+          throw new Error(`服务器错误：智谱API服务暂时不可用 (${response.status})`);
+        } else {
+          throw new Error(`图像生成失败: ${response.status} - ${errorText}`);
+        }
       }
 
       const data: ZhipuImageGenerationResponse = await response.json();
-      console.log('[ZhipuService] Image generation response received');
+      console.log('[ZhipuService] Image generation response received:', JSON.stringify(data, null, 2));
 
       // 只使用图片URL，不使用base64数据
       const imageUrl = data.data?.[0]?.url;
       if (!imageUrl) {
         console.error('[ZhipuService] No image URL in response, raw data:', JSON.stringify(data.data?.[0], null, 2));
-        throw new Error('No image URL returned from API');
+        throw new Error('API返回成功但未包含图片URL，请检查模型配置或联系技术支持');
       }
 
+      console.log(`[ZhipuService] ✅ Image generated successfully:`, imageUrl);
       return imageUrl;
     } catch (error) {
       console.error('[ZhipuService] Generate image error:', error);
+      
+      // Re-throw with more context if it's a network error
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error(`网络连接失败：无法连接到智谱API服务器，请检查网络连接`);
+      }
+      
       throw error;
     }
   }
@@ -434,7 +460,7 @@ class ZhipuService {
    * 使用配置的文本模型（默认 GLM-4-Flash）
    */
   async generateText(
-    prompt: string,
+    input: string | { parts?: any[], conversationHistory?: any[] },
     options?: {
       temperature?: number;
       topP?: number;
@@ -446,21 +472,51 @@ class ZhipuService {
   ): Promise<string> {
     try {
       const model = options?.useThinking ? this.getModel('thinking') : (options?.model || this.getModel('text'));
-      console.log(`[ZhipuService] Generating text with ${model}:`, prompt.substring(0, 100) + '...');
-
-      const messages: any[] = [];
       
-      if (options?.systemPrompt) {
-        messages.push({
-          role: 'system',
-          content: options.systemPrompt
-        });
-      }
+      let messages: any[] = [];
+      let prompt = '';
 
-      messages.push({
-        role: 'user',
-        content: prompt
-      });
+      // 处理不同的输入格式，支持对话历史
+      if (typeof input === 'string') {
+        prompt = input;
+        console.log(`[ZhipuService] Generating text with ${model}:`, prompt.substring(0, 100) + '...');
+        
+        if (options?.systemPrompt) {
+          messages.push({
+            role: 'system',
+            content: options.systemPrompt
+          });
+        }
+
+        messages.push({
+          role: 'user',
+          content: prompt
+        });
+      } else {
+        // 新的对象输入格式，支持对话历史
+        if (input.conversationHistory && input.conversationHistory.length > 0) {
+          // 使用对话历史
+          messages = [...input.conversationHistory];
+          console.log(`[ZhipuService] Using conversation history with ${messages.length} messages`);
+        } else if (input.parts) {
+          // 使用parts格式（兼容现有逻辑）
+          const textParts = input.parts.filter((part: any) => part.text);
+          prompt = textParts.map((part: any) => part.text).join('\n');
+          console.log(`[ZhipuService] Generating text with ${model}:`, prompt.substring(0, 100) + '...');
+          
+          if (options?.systemPrompt) {
+            messages.push({
+              role: 'system',
+              content: options.systemPrompt
+            });
+          }
+
+          messages.push({
+            role: 'user',
+            content: prompt
+          });
+        }
+      }
 
       const requestBody = {
         model: model,
@@ -591,6 +647,8 @@ class ZhipuService {
   async testConnection(): Promise<boolean> {
     try {
       console.log('[ZhipuService] Testing API connection...');
+      console.log(`[ZhipuService] API Key configured:`, !!this.config.apiKey);
+      console.log(`[ZhipuService] Base URL:`, this.baseUrl);
 
       // 使用一个简单的文本生成请求来测试连接（比图片分析更可靠）
       const testPrompt = 'Say "test successful" in one word.';
@@ -603,6 +661,18 @@ class ZhipuService {
       return !!result;
     } catch (error) {
       console.error('[ZhipuService] ❌ Connection test failed:', error);
+      
+      // Provide specific guidance based on error type
+      if (error instanceof Error) {
+        if (error.message.includes('401')) {
+          console.error('[ZhipuService] 💡 建议：检查API密钥是否正确配置');
+        } else if (error.message.includes('403')) {
+          console.error('[ZhipuService] 💡 建议：检查API密钥是否有足够权限');
+        } else if (error.message.includes('fetch')) {
+          console.error('[ZhipuService] 💡 建议：检查网络连接和API地址');
+        }
+      }
+      
       return false;
     }
   }

@@ -32,34 +32,3 @@ dist-ssr
 
 # Vercel
 .vercel
-
-# Test files and directories
-__tests__/
-*.test.ts
-*.test.tsx
-*.spec.ts
-*.spec.tsx
-test-*.ts
-vitest.config.ts
-playwright.config.ts
-
-# Documentation and specs
-docs/
-.kiro/
-scripts/
-*.md
-!README.md
-
-# Demo and development files
-demo-*.js
-test-*.csv
-
-# Development reference files
-*API*.txt
-*api*.txt
-*文档*.txt
-*说明*.txt
-*介绍*.txt
-*模型*.txt
-automation_templates.json
-*.template.json

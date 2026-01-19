@@ -40,7 +40,7 @@ const PresetPromptModal: React.FC<PresetPromptModalProps> = ({
       emptySlot: '空槽位',
       promptSlot: '提示词槽位',
       tooLong: '提示词内容不能超过3000字符',
-      selectPrompt: '选择提示词'
+      selectPrompt: '激活使用'
     },
     en: {
       title: 'My Prompt Library',
@@ -278,7 +278,7 @@ const PresetPromptModal: React.FC<PresetPromptModalProps> = ({
                         <div className={`text-sm leading-relaxed ${
                           theme === 'dark' ? 'text-white/80' : 'text-black/80'
                         }`}>
-                          <div className="line-clamp-12">
+                          <div className="max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent">
                             {prompt.content}
                           </div>
                         </div>

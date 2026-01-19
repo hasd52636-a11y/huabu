@@ -69,6 +69,7 @@ interface BlockProps {
   onOpenImagePreview?: (blockId: string) => void;
   onOpenMultiImageModal?: (blockId: string) => void;
   onOpenImageEditModal?: (blockId: string) => void;
+  onOpenSmearRemovalModal?: (imageUrl: string) => void;
   // Prompt resolution
   onResolvePrompt?: (prompt: string, blockId: string) => {
     original: string;
@@ -117,6 +118,7 @@ const BlockComponent: React.FC<BlockProps> = ({
   onOpenImagePreview,
   onOpenMultiImageModal,
   onOpenImageEditModal,
+  onOpenSmearRemovalModal,
   onResolvePrompt,
   menuConfig,
   modelId
@@ -158,6 +160,10 @@ const BlockComponent: React.FC<BlockProps> = ({
     estimatedTime?: number;
     startTime: number;
   } | null>(null);
+  
+  // 图片加载状态
+  const [isImageLoading, setIsImageLoading] = useState(false);
+  const [imageLoadingProgress, setImageLoadingProgress] = useState(0);
 
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -179,14 +185,17 @@ const BlockComponent: React.FC<BlockProps> = ({
 
   // Update userInput when block content changes (for batch processing and other cases)
   useEffect(() => {
-    // 对于文本模块，可以使用block.content作为输入提示词
+    // 对于自动化模板，优先显示content（详细指令），这样用户可以看到和修改具体的执行指令
     // 对于图片模块，不应该将base64图片设置为userInput，因为这不是用户想要的输入提示词
-    // 只在block.originalPrompt存在或块类型为text时更新userInput
-    if (block.originalPrompt || block.type === 'text') {
-      const contentToUse = block.originalPrompt || block.content || '';
+    if (block.type === 'text' && !block.attachmentContent) {
+      // 对于文本模块，只使用originalPrompt，避免生成结果显示在指令输入框中
+      const contentToUse = block.originalPrompt || '';
       setUserInput(contentToUse);
+    } else if (block.originalPrompt) {
+      // 对于其他类型的模块，使用originalPrompt
+      setUserInput(block.originalPrompt);
     }
-  }, [block.content, block.originalPrompt, block.type]);
+  }, [block.originalPrompt, block.type, block.attachmentContent]);
 
   // Video blocks start empty like text and image blocks
 
@@ -696,7 +705,17 @@ const BlockComponent: React.FC<BlockProps> = ({
       );
 
       if (result.items.length > 0 && result.items[0].status === 'completed') {
-        onUpdate(block.id, { content: result.items[0].content, status: 'idle' });
+        // 文本块：将文件内容保存为附件，不覆盖指令
+        if (block.type === 'text') {
+          onUpdate(block.id, { 
+            attachmentContent: result.items[0].content,
+            attachmentFileName: file.name,
+            status: 'idle' 
+          });
+        } else {
+          // 图片和视频块：保存为主要内容
+          onUpdate(block.id, { content: result.items[0].content, status: 'idle' });
+        }
       } else if (result.items[0].error) {
         alert(result.items[0].error);
       }
@@ -709,7 +728,7 @@ const BlockComponent: React.FC<BlockProps> = ({
 
       // Validate file type based on block type
       const fileExt = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
-      const isValidType = block.type === 'text' && ['.txt', '.md', '.js', '.ts', '.tsx', '.json', '.css', '.html', '.doc', '.docx'].includes(fileExt) ||
+      const isValidType = block.type === 'text' && ['.txt', '.md', '.js', '.ts', '.tsx', '.json', '.css', '.html', '.doc', '.docx', '.pdf'].includes(fileExt) ||
                         block.type === 'image' && ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'].includes(fileExt) ||
                         block.type === 'video' && ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm'].includes(fileExt);
       
@@ -719,22 +738,49 @@ const BlockComponent: React.FC<BlockProps> = ({
       }
 
       const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      // 保存原始参考图，用于重新生成时使用
-      onUpdate(block.id, {
-        content,
-        status: 'idle',
-        imageMetadata: {
-          ...block.imageMetadata,
-          originalReferenceImage: content
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        
+        // 根据块类型处理文件内容
+        if (block.type === 'text') {
+          // 文本块：将文件内容添加到附件字段，不覆盖指令
+          onUpdate(block.id, {
+            attachmentContent: content,
+            attachmentFileName: file.name,
+            status: 'idle'
+          });
+        } else if (block.type === 'image') {
+          // 图片块：将上传的图片保存为附件（参考图片），不覆盖content
+          onUpdate(block.id, {
+            attachmentContent: content, // 保存为附件内容
+            attachmentFileName: file.name,
+            status: 'idle',
+            imageMetadata: {
+              ...block.imageMetadata,
+              originalReferenceImage: content,
+              referenceFileName: file.name
+            }
+          });
+        } else if (block.type === 'video') {
+          // 视频块：将上传的视频保存为附件（参考视频），不覆盖content
+          onUpdate(block.id, {
+            attachmentContent: content, // 保存为附件内容
+            attachmentFileName: file.name,
+            status: 'idle',
+            videoMetadata: {
+              ...block.videoMetadata,
+              originalReferenceVideo: content,
+              referenceFileName: file.name
+            }
+          });
         }
-      });
-    };
+      };
 
     if (block.type === 'text') {
       reader.readAsText(file);
     } else if (block.type === 'image') {
+      reader.readAsDataURL(file);
+    } else if (block.type === 'video') {
       reader.readAsDataURL(file);
     }
     }
@@ -1411,12 +1457,41 @@ const BlockComponent: React.FC<BlockProps> = ({
     }
     
     const selectedRatio = cropOptions[Number(choice) - 1];
-    onUpdate(block.id, { 
-      aspectRatio: selectedRatio as any,
-      isCropped: true 
-    });
     
-    alert(`图片已裁剪为 ${selectedRatio} 比例`);
+    try {
+      onUpdate(block.id, { status: 'processing' });
+      
+      const ShenmaService = (await import('../services/shenmaService')).ShenmaService;
+      const shenmaService = new ShenmaService({
+        provider: 'shenma',
+        baseUrl: 'https://api.shenma.com',
+        apiKey: '',
+        llmModel: 'gpt-4o',
+        imageModel: 'nano-banana',
+        videoModel: 'sora-2',
+        visionModel: 'nano-banana'
+      });
+      
+      // 使用新的图像裁剪API
+      const croppedImage = await shenmaService.cropImage(
+        block.content,
+        `裁剪为${selectedRatio}比例，保持主要内容居中`
+      );
+      
+      onUpdate(block.id, { 
+        content: croppedImage,
+        aspectRatio: selectedRatio as any,
+        isCropped: true,
+        originalPrompt: `${block.originalPrompt || '图片'} - 裁剪为${selectedRatio}`
+      });
+      
+      alert(`图片已裁剪为 ${selectedRatio} 比例`);
+    } catch (error) {
+      console.error('图片裁剪失败:', error);
+      alert(`图片裁剪失败: ${error.message}`);
+    } finally {
+      onUpdate(block.id, { status: 'idle' });
+    }
   };
 
   const handleImageStyleTransfer = async () => {
@@ -1448,13 +1523,10 @@ const BlockComponent: React.FC<BlockProps> = ({
         visionModel: 'nano-banana'
       });
       
-      // 使用图片生成API进行风格迁移
-      const styledImage = await shenmaService.generateImage(
-        `将这张图片转换为${selectedStyle}，保持原有构图和主要元素`,
-        { 
-          aspectRatio: block.aspectRatio || '16:9',
-          style: selectedStyle 
-        }
+      // 使用新的风格迁移API
+      const styledImage = await shenmaService.transferImageStyle(
+        block.content,
+        `转换为${selectedStyle}，保持原有构图和主要元素`
       );
       
       onUpdate(block.id, { 
@@ -1496,10 +1568,10 @@ const BlockComponent: React.FC<BlockProps> = ({
         visionModel: 'nano-banana'
       });
       
-      // 使用图片编辑功能添加元素
-      const editedImage = await shenmaService.generateImage(
-        `在这张图片中自然地添加${element}，保持整体风格和谐`,
-        { aspectRatio: block.aspectRatio || '16:9' }
+      // 使用新的添加元素API
+      const editedImage = await shenmaService.addImageElement(
+        block.content,
+        element
       );
       
       onUpdate(block.id, { 
@@ -1546,10 +1618,10 @@ const BlockComponent: React.FC<BlockProps> = ({
         visionModel: 'nano-banana'
       });
       
-      // 使用图片编辑功能替换元素
-      const editedImage = await shenmaService.generateImage(
-        `将图片中的${oldElement}替换为${newElement}，保持其他部分不变`,
-        { aspectRatio: block.aspectRatio || '16:9' }
+      // 使用新的替换元素API
+      const editedImage = await shenmaService.replaceImageElement(
+        block.content,
+        `将${oldElement}替换为${newElement}`
       );
       
       onUpdate(block.id, { 
@@ -1696,14 +1768,10 @@ const BlockComponent: React.FC<BlockProps> = ({
         visionModel: 'nano-banana'
       });
       
-      // 使用视频生成API创建动作视频
-      const videoResult = await shenmaService.generateVideo(
-        `让图片中的人物执行${selectedAction}动作，动作自然流畅`,
-        {
-          aspectRatio: '16:9',
-          duration: 10,
-          referenceImage: block.content
-        }
+      // 使用新的图像动作化API
+      const taskId = await shenmaService.imageToAction(
+        block.content,
+        `让图片中的人物执行${selectedAction}动作，动作自然流畅`
       );
       
       // 创建新的视频块
@@ -1754,14 +1822,10 @@ const BlockComponent: React.FC<BlockProps> = ({
         visionModel: 'nano-banana'
       });
       
-      // 使用视频生成API创建舞蹈视频
-      const videoResult = await shenmaService.generateVideo(
+      // 使用新的舞蹈生成API
+      const taskId = await shenmaService.generateDanceVideo(
         `让图片中的人物跳${selectedDance}，动作优美流畅，保持人物特征`,
-        {
-          aspectRatio: '9:16', // 舞蹈视频通常用竖屏
-          duration: 15,
-          referenceImage: block.content
-        }
+        block.content
       );
       
       // 创建新的视频块
@@ -1805,8 +1869,22 @@ const BlockComponent: React.FC<BlockProps> = ({
 
   // Smear Editing Handler
   const handleSmearEdit = () => {
-    console.log('Smear edit feature clicked - Feature temporarily disabled');
-    alert(lang === 'zh' ? '此功能暂时不可用' : 'This feature is temporarily unavailable');
+    console.log('Smear edit feature clicked', block.id);
+    if (block.content && block.content.startsWith('data:image/')) {
+      onOpenSmearRemovalModal?.(block.content);
+    } else {
+      alert(lang === 'zh' ? '请先生成或上传图片' : 'Please generate or upload an image first');
+    }
+  };
+
+  // Smear Removal Handler  
+  const handleSmearRemoval = () => {
+    console.log('Smear removal feature clicked', block.id);
+    if (block.content && block.content.startsWith('data:image/')) {
+      onOpenSmearRemovalModal?.(block.content);
+    } else {
+      alert(lang === 'zh' ? '请先生成或上传图片' : 'Please generate or upload an image first');
+    }
   };
 
   // Video Character Replacement Handler
@@ -1868,7 +1946,7 @@ const BlockComponent: React.FC<BlockProps> = ({
         ref={fileInputRef} 
         className="hidden" 
         onChange={handleFileUpload}
-        accept={block.type === 'text' ? ".txt,.md,.js,.ts,.tsx,.json,.css,.html" : block.type === 'image' ? "image/*" : "video/*"}
+        accept={block.type === 'text' ? ".txt,.md,.js,.ts,.tsx,.json,.css,.html,.doc,.docx,.pdf" : block.type === 'image' ? "image/*" : "video/*"}
       />
 
       {/* 隐形扩展区 */}
@@ -1876,7 +1954,7 @@ const BlockComponent: React.FC<BlockProps> = ({
       
       {/* 优化后的悬浮控制菜单 */}
       <div 
-        className={`absolute bottom-[calc(100%+20px)] left-1/2 -translate-x-1/2 flex items-center gap-3 p-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-black/5 dark:border-white/10 rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3),0_10px_30px_-5px_rgba(0,0,0,0.2)] transition-all duration-250 ease-out z-[9999]
+        className={`absolute bottom-[calc(100%+20px)] left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-2 border-violet-500 rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3),0_10px_30px_-5px_rgba(0,0,0,0.2)] transition-all duration-250 ease-out z-[9999]
           ${isHovered || isEditing ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' : 'opacity-0 translate-y-8 scale-95 pointer-events-none'}
           ${block.status === 'processing' ? 'bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20' : ''}
         `}
@@ -2107,8 +2185,8 @@ const BlockComponent: React.FC<BlockProps> = ({
                     handleSmearEdit();
                     break;
                   case 'image-remove-area':
-                    console.log('Smear removal feature clicked - Feature temporarily disabled');
-                    alert(lang === 'zh' ? '此功能暂时不可用' : 'This feature is temporarily unavailable');
+                    console.log('Smear removal feature clicked', block.id);
+                    handleSmearRemoval();
                     break;
                   
                   // Video character replacement
@@ -2223,15 +2301,41 @@ const BlockComponent: React.FC<BlockProps> = ({
               <div className="flex items-center gap-2">
                 {/* 比例 */}
                 <div className="relative group/btn">
-                  <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 transition-all duration-200">
-                    <AspectRatioButton 
-                      selectedRatio={currentAspectRatio}
-                      onRatioChange={handleRatioChange}
-                      theme="light"
-                      lang={lang}
-                    />
-                  </div>
-                  <Tooltip label={t.tips.aspectRatio || '比例'} />
+                  <button 
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      // 循环切换比例: 1:1 -> 4:3 -> 16:9 -> 3:2 -> 9:16 -> 1:1
+                      const currentRatio = currentAspectRatio.value;
+                      let nextRatio;
+                      switch (currentRatio) {
+                        case '1:1':
+                          nextRatio = { label: '4:3', value: '4:3', width: 1024, height: 768 };
+                          break;
+                        case '4:3':
+                          nextRatio = { label: '16:9', value: '16:9', width: 1920, height: 1080 };
+                          break;
+                        case '16:9':
+                          nextRatio = { label: '3:2', value: '3:2', width: 1200, height: 800 };
+                          break;
+                        case '3:2':
+                          nextRatio = { label: '9:16', value: '9:16', width: 1080, height: 1920 };
+                          break;
+                        default:
+                          nextRatio = { label: '1:1', value: '1:1', width: 1024, height: 1024 };
+                      }
+                      handleRatioChange(nextRatio);
+                    }}
+                    className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 hover:bg-black/5 dark:hover:bg-white/10 text-slate-700 dark:text-white relative ${
+                      currentAspectRatio.value !== '1:1' ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                    }`}
+                  >
+                    <ImageIcon size={24} />
+                    {/* 显示当前比例 */}
+                    <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white text-[8px] font-bold px-1 py-0.5 rounded-full min-w-[16px] text-center">
+                      {currentAspectRatio.label}
+                    </div>
+                  </button>
+                  <Tooltip label={`比例: ${currentAspectRatio.label}`} />
                 </div>
 
                 {/* 上传附件 */}
@@ -2284,11 +2388,17 @@ const BlockComponent: React.FC<BlockProps> = ({
                       const nextDuration = currentDuration === '10' ? '15' : currentDuration === '15' ? '25' : '10';
                       onUpdate(block.id, { duration: nextDuration });
                     }}
-                    className="w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 hover:bg-black/5 dark:hover:bg-white/10 text-slate-700 dark:text-white"
+                    className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 hover:bg-black/5 dark:hover:bg-white/10 text-slate-700 dark:text-white relative ${
+                      block.duration ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                    }`}
                   >
                     <Clock size={24} />
+                    {/* 显示当前时长 */}
+                    <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white text-[8px] font-bold px-1 py-0.5 rounded-full min-w-[16px] text-center">
+                      {block.duration || '10'}s
+                    </div>
                   </button>
-                  <Tooltip label="时长" />
+                  <Tooltip label={`时长: ${block.duration || '10'}秒`} />
                 </div>
                 
                 {/* 切换比例 */}
@@ -2303,7 +2413,7 @@ const BlockComponent: React.FC<BlockProps> = ({
                   >
                     {block.aspectRatio === '16:9' ? <Monitor size={24} /> : <Smartphone size={24} />}
                   </button>
-                  <Tooltip label="切换比例" />
+                  <Tooltip label={`比例: ${block.aspectRatio || '16:9'}`} />
                 </div>
                 
                 {/* 上传附件 */}
@@ -2333,11 +2443,11 @@ const BlockComponent: React.FC<BlockProps> = ({
             <div className="w-px h-8 bg-black/10 dark:bg-white/10 mx-1" />
             
             <div className="relative group/btn">
-              <button onClick={(e) => { e.stopPropagation(); onGenerate(block.id, block.originalPrompt || ''); }} className="p-6 hover:bg-black/5 dark:hover:bg-white/10 text-slate-700 dark:text-white rounded-[1.2rem] transition-all"><RefreshCw size={40} className={block.status === 'processing' ? 'animate-spin' : ''} /></button>
+              <button onClick={(e) => { e.stopPropagation(); onGenerate(block.id, block.originalPrompt || ''); }} className="w-12 h-12 rounded-full border-2 border-violet-500 flex items-center justify-center transition-all duration-200 hover:bg-violet-500/10 dark:hover:bg-violet-500/20 text-slate-700 dark:text-white"><RefreshCw size={24} className={block.status === 'processing' ? 'animate-spin' : ''} /></button>
               <Tooltip label={t.tips.regenerate} />
             </div>
             <div className="relative group/btn">
-              <button onClick={(e) => { e.stopPropagation(); onDelete(block.id); }} className="p-6 hover:bg-red-500 hover:text-white text-slate-700 dark:text-white rounded-[1.2rem] transition-all"><Trash2 size={40} /></button>
+              <button onClick={(e) => { e.stopPropagation(); onDelete(block.id); }} className="w-12 h-12 rounded-full border-2 border-violet-500 flex items-center justify-center transition-all duration-200 hover:bg-red-500 hover:text-white hover:border-red-500 text-slate-700 dark:text-white"><Trash2 size={24} /></button>
               <Tooltip label={t.tips.delete} />
             </div>
           </div>
@@ -2351,14 +2461,14 @@ const BlockComponent: React.FC<BlockProps> = ({
         `}
         style={{ 
           backgroundColor: theme?.bg || 'rgba(254, 242, 242, 0.9)',
-          borderColor: (isSelected || isHovered) ? '#F59E0B' : (theme?.border || '#DC2626'), // 鼠标悬停或选中时使用橙黄色边框
-          boxShadow: (isSelected || isHovered) ? `0 0 0 4px #F59E0B, 0 60px 140px -20px rgba(0,0,0,0.3), 0 0 60px rgba(245, 158, 11, 0.2)` : '' // 鼠标悬停或选中时使用橙黄色阴影
+          borderColor: (isSelected || isHovered) ? '#8b5cf6' : (theme?.border || '#8b5cf6'), // 鼠标悬停或选中时使用紫色边框
+          boxShadow: (isSelected || isHovered) ? `0 0 0 4px #8b5cf6, 0 60px 140px -20px rgba(0,0,0,0.3), 0 0 60px rgba(139, 92, 246, 0.2)` : '' // 鼠标悬停或选中时使用紫色阴影
         }}
       >
         <div className="absolute top-4 left-4 z-20 pointer-events-auto">
           <button 
             onClick={copyIdToClipboard}
-            className="group/id bg-white/90 dark:bg-black/60 backdrop-blur-xl px-6 py-3 rounded-2xl border-2 border-black/5 dark:border-white/10 shadow-lg flex items-center gap-3 active:scale-95 transition-all"
+            className="group/id bg-white/90 dark:bg-black/60 backdrop-blur-xl px-6 py-3 rounded-2xl border-2 border-violet-500 shadow-lg flex items-center gap-3 active:scale-95 transition-all"
           >
              <span className="text-lg font-black tracking-[0.2em] text-slate-900 dark:text-white uppercase">
                {showCopied ? (lang === 'zh' ? '已复制' : 'COPIED') : block.number}
@@ -2448,22 +2558,89 @@ const BlockComponent: React.FC<BlockProps> = ({
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/60 dark:bg-black/60 backdrop-blur-3xl z-50">
               <div className="w-24 h-24 border-[6px] border-slate-200 border-t-slate-800 rounded-full animate-spin mb-6" style={{ borderTopColor: theme?.border || '#DC2626' }} />
             </div>
-          ) : block.type === 'image' && block.content ? (
-            <>
-              <img src={block.content} className={`w-full h-full object-cover transition-transform duration-1000 ${block.isCropped ? 'scale-150' : 'scale-100'}`} alt="AI Output" />
+          ) : block.type === 'image' && (block.content || block.attachmentContent) ? (
+            <div className="w-full h-full relative">
+              {/* 生成的图片内容 */}
+              {block.content && (
+                <>
+                  {/* 图片加载缓冲状态 */}
+                  {isImageLoading && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/60 dark:bg-black/60 backdrop-blur-3xl z-20">
+                      <div className="w-16 h-16 border-[4px] border-slate-200 border-t-slate-800 rounded-full animate-spin mb-4" style={{ borderTopColor: theme?.border || '#DC2626' }} />
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        图片加载中...
+                      </p>
+                    </div>
+                  )}
+                  <img 
+                    src={block.content} 
+                    className={`w-full h-full object-cover transition-transform duration-1000 ${block.isCropped ? 'scale-150' : 'scale-100'}`} 
+                    alt="Generated Image"
+                    onLoad={(e) => {
+                      setIsImageLoading(false);
+                    }}
+                    onError={(e) => {
+                      console.error('Generated image failed to load:', block.content);
+                      setIsImageLoading(false);
+                    }}
+                    onLoadStart={(e) => {
+                      setIsImageLoading(true);
+                      setImageLoadingProgress(0);
+                    }}
+                  />
+                </>
+              )}
+              
+              {/* 附件图片（参考图片）- 当没有生成内容时显示 */}
+              {!block.content && block.attachmentContent && (
+                <div className="w-full h-full relative">
+                  <img 
+                    src={block.attachmentContent} 
+                    className="w-full h-full object-cover opacity-70" 
+                    alt="Reference Image"
+                  />
+                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                    <div className="bg-white/90 dark:bg-black/90 px-3 py-1 rounded-full text-sm font-medium">
+                      📎 参考图片
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* 指令覆盖层 - 当有指令但没有生成内容时显示 */}
+              {!block.content && block.originalPrompt && (
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                  <p className="text-white text-sm font-medium">
+                    💬 {block.originalPrompt}
+                  </p>
+                </div>
+              )}
+              
               {/* Aspect ratio floating display */}
               {block.aspectRatio && (
                 <div className="absolute bottom-1/4 left-1/2 transform -translate-x-1/2 bg-black/80 text-white text-base px-4 py-2 rounded-full backdrop-blur-md shadow-lg">
                   {block.aspectRatio}
                 </div>
               )}
-
-            </>
+            </div>
+          ) : block.type === 'image' && !block.content ? (
+            <div className="w-full h-full flex flex-col items-center justify-center">
+              <ImageIcon size={100} className="text-slate-400 dark:text-slate-500 mb-4" />
+              <p className="text-slate-500 dark:text-slate-400 text-sm text-center">
+                {lang === 'zh' ? '点击上传图片或生成图片' : 'Click to upload or generate image'}
+              </p>
+              {/* 显示参考图片信息 */}
+              {block.imageMetadata?.referenceFileName && (
+                <p className="text-xs text-slate-400 mt-2">
+                  📎 {block.imageMetadata.referenceFileName}
+                </p>
+              )}
+            </div>
           ) : block.type === 'text' ? (
-            <div className="w-full h-full flex items-start justify-start pt-20 px-8 pb-8 text-left overflow-auto scrollbar-hide">
+            <div className="w-full h-full flex flex-col items-start justify-start pt-20 px-8 pb-8 text-left overflow-auto scrollbar-hide">
               {isEditing ? (
                 <textarea
-                  className="w-full h-[calc(100%-12px)] bg-white/50 dark:bg-black/20 backdrop-blur-md rounded-xl p-6 border-2 border-amber-400 dark:border-amber-300 outline-none resize-none font-bold leading-relaxed text-left scrollbar-hide focus:ring-0"
+                  className="w-full h-[calc(100%-12px)] bg-white/50 dark:bg-black/20 backdrop-blur-md rounded-xl p-6 border-2 border-violet-500 outline-none resize-none font-bold leading-relaxed text-left scrollbar-hide focus:ring-0"
                   value={block.content}
                   autoFocus
                   style={{ fontSize: block.fontSize || 18, color: block.textColor || '#334155' }}
@@ -2477,28 +2654,35 @@ const BlockComponent: React.FC<BlockProps> = ({
                     textarea.style.height = `${Math.min(textarea.scrollHeight, textarea.parentElement?.clientHeight || 500)}px`;
                   }}
                 />
-              ) : block.content ? (
-                <p className="font-bold leading-relaxed transition-all whitespace-pre-wrap cursor-text" style={{ fontSize: block.fontSize || 18, color: block.textColor || '#334155' }}>
-                  {block.content}
-                </p>
               ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center opacity-20">
-                  {block.type === 'text' ? <TextIcon size={100} className="text-slate-900 dark:text-white" /> : block.type === 'image' ? <ImageIcon size={100} className="text-slate-900 dark:text-white" /> : <Play size={100} className="text-slate-900 dark:text-white" />}
-                  {(() => {
-                    const inputInfo = generateInputInfoText();
-                    if (inputInfo) {
-                      return (
-                        <div className="mt-8 text-center">
-                          <span className="text-base font-black uppercase tracking-[0.5em]">{t.blockPlaceholder}</span>
-                          <span className="block mt-2 text-sm font-medium text-slate-600 dark:text-slate-300 max-w-[80%] whitespace-normal">
-                            {inputInfo}
-                          </span>
+                <div className="w-full h-full flex flex-col">
+                  {/* 主要内容显示 */}
+                  {block.content && (
+                    <div className="flex-1 min-h-0 overflow-auto">
+                      <p className="font-bold leading-relaxed transition-all whitespace-pre-wrap cursor-text p-3" style={{ fontSize: block.fontSize || 18, color: block.textColor || '#334155' }}>
+                        {block.content}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* 附件内容显示 - 当没有主要内容时显示 */}
+                  {!block.content && block.attachmentContent && (
+                    <div className="flex-1 min-h-0 overflow-auto">
+                      <div className="p-3 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap border-l-4 border-blue-300 bg-blue-50 dark:bg-blue-900/20 rounded-r-lg">
+                        <div className="text-xs text-blue-600 dark:text-blue-400 mb-2 font-medium">
+                          📎 {block.attachmentFileName || '附件内容'}
                         </div>
-                      );
-                    } else {
-                      return <span className="mt-8 text-base font-black uppercase tracking-[0.5em]">{t.blockPlaceholder}</span>;
-                    }
-                  })()}
+                        {block.attachmentContent}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* 空状态提示 */}
+                  {!block.content && !block.attachmentContent && (
+                    <p className="text-gray-400 dark:text-gray-500 italic cursor-text p-3">
+                      {lang === 'zh' ? '点击编辑内容或上传文件...' : 'Click to edit content or upload file...'}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -2707,15 +2891,33 @@ const BlockComponent: React.FC<BlockProps> = ({
           )}
         </div>
 
-        <div className="absolute bottom-0 right-0 w-8 h-8 flex items-center justify-center cursor-nwse-resize text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all z-[30] hover:scale-125" onMouseDown={(e) => { e.stopPropagation(); onResizeStart(e, block.id); }} style={{ transform: 'translate(50%, 50%)' }}>
-          <MoveDiagonal2 size={24} />
+        {/* 调整大小指示器 - 始终可见的紫色短线 */}
+        <div 
+          className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize z-[100] group" 
+          onMouseDown={(e) => { e.stopPropagation(); onResizeStart(e, block.id); }}
+          style={{ transform: 'translate(50%, 50%)' }}
+        >
+          {/* 背景圆圈确保可见性 */}
+          <div className="absolute inset-0 bg-white/80 dark:bg-slate-800/80 rounded-full shadow-sm group-hover:shadow-md transition-shadow"></div>
+          
+          {/* 三条紫色短线 */}
+          <div className="absolute inset-0 flex items-end justify-end p-1">
+            <div className="relative w-4 h-4">
+              {/* 最短的线 */}
+              <div className="absolute bottom-0 right-0 w-1 h-2 bg-purple-500 rounded-full shadow-sm"></div>
+              {/* 中等长度的线 */}
+              <div className="absolute bottom-0 right-1.5 w-1 h-2.5 bg-purple-500 rounded-full shadow-sm"></div>
+              {/* 最长的线 */}
+              <div className="absolute bottom-0 right-3 w-1 h-3 bg-purple-500 rounded-full shadow-sm"></div>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* 指令输入框 */}
       <div 
-        className={`absolute top-[calc(100%+16px)] left-1/2 -translate-x-1/2 w-full max-w-[720px] transition-all duration-300 z-[210]
-          ${isHovered || isSelected || upstreamIds.length > 0 || upstreamData.length > 0 ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-12 pointer-events-none'}
+        className={`absolute top-[calc(100%+12px)] left-1/2 -translate-x-1/2 w-full max-w-[720px] transition-all duration-300 z-[210]
+          ${isHovered || isSelected || upstreamIds.length > 0 || upstreamData.length > 0 ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-8 pointer-events-none'}
         `}
         onMouseDown={e => e.stopPropagation()}
         onMouseEnter={() => setIsHovered(true)}
@@ -2737,7 +2939,7 @@ const BlockComponent: React.FC<BlockProps> = ({
           </div>
         )}
 
-        <form onSubmit={handlePromptSubmit} className="flex flex-col gap-3 px-6 py-4 border-2 border-slate-300 dark:border-slate-600 rounded-3xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+        <form onSubmit={handlePromptSubmit} className="flex flex-col gap-2 px-4 py-3 border-2 border-slate-300 dark:border-slate-600 rounded-3xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
            <div className="flex items-center gap-3 w-full">
              <Sparkles size={24} className="text-amber-500 shrink-0" />
               
@@ -2814,7 +3016,7 @@ const BlockComponent: React.FC<BlockProps> = ({
            </div>
            
            {/* Expanded prompt input area */}
-           <div className="flex-1 relative w-full mt-2">
+           <div className="flex-1 relative w-full mt-1">
              <textarea
               ref={inputRef}
               value={userInput}
@@ -2830,7 +3032,7 @@ const BlockComponent: React.FC<BlockProps> = ({
                   ? (lang === 'zh' ? '输入指令，使用 [A01] 引用上游数据...' : 'Enter command, use [A01] to reference upstream data...')
                   : (lang === 'zh' ? '输入指令，点击编号可混排...' : 'Enter command, click ID to mix...')
               }
-              className={`w-full bg-transparent text-2xl font-semibold focus:outline-none text-slate-900 dark:text-white placeholder-slate-400 py-4 px-6 min-h-[150px] max-h-[300px] overflow-y-auto resize-none border-2 border-amber-500/30 rounded-[2.5rem] focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 transition-all duration-300 ${variableErrors.length > 0 ? 'text-red-600 dark:text-red-400 border-red-500/50' : ''}`}
+              className={`w-full bg-transparent text-2xl font-semibold focus:outline-none text-slate-900 dark:text-white placeholder-slate-400 py-3 px-6 min-h-[60px] max-h-[300px] overflow-y-auto resize-none border-2 border-amber-500/30 rounded-[2.5rem] focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 transition-all duration-300 ${variableErrors.length > 0 ? 'text-red-600 dark:text-red-400 border-red-500/50' : ''}`}
              />
              
              {/* Character count display */}
@@ -2844,7 +3046,7 @@ const BlockComponent: React.FC<BlockProps> = ({
 
         {/* Variable help panel */}
         {showVariableHelp && upstreamData.length > 0 && (
-          <div className="mt-3 p-5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-3xl">
+          <div className="mt-2 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-3xl">
             <div className="text-blue-800 dark:text-blue-200 text-lg font-medium mb-3">
               {lang === 'zh' ? '变量使用说明:' : 'Variable Usage:'}
             </div>
@@ -2869,7 +3071,7 @@ const BlockComponent: React.FC<BlockProps> = ({
 
         {/* Video help panel */}
         {showVideoHelp && block.type === 'video' && (
-          <div className="mt-3 p-5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-3xl">
+          <div className="mt-2 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-3xl">
             <div className="text-amber-800 dark:text-amber-200 text-lg font-medium mb-3">
               {lang === 'zh' ? '视频功能说明:' : 'Video Features:'}
             </div>
@@ -2893,14 +3095,14 @@ const BlockComponent: React.FC<BlockProps> = ({
 
 
       {/* 逻辑锚点 */}
-      <div className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 w-32 h-32 flex items-center justify-center cursor-crosshair z-[60]" onMouseDown={e => { e.stopPropagation(); onAnchorClick(block.id, 'in'); }}>
-        <div className="w-16 h-16 rounded-full border-4 bg-white shadow-3xl flex items-center justify-center transition-all hover:scale-125" style={{ borderColor: theme?.border || '#DC2626' }}>
-          <div className="w-6 h-6 rounded-full animate-pulse" style={{ backgroundColor: theme?.border || '#DC2626' }} />
+      <div className="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 flex items-center justify-center cursor-crosshair z-[60]" onMouseDown={e => { e.stopPropagation(); onAnchorClick(block.id, 'in'); }}>
+        <div className="w-8 h-8 rounded-full border-2 bg-white shadow-lg flex items-center justify-center transition-all hover:scale-110" style={{ borderColor: theme?.border || '#DC2626' }}>
+          <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: theme?.border || '#DC2626' }} />
         </div>
       </div>
-      <div className="absolute right-0 top-1/2 translate-x-full -translate-y-1/2 w-32 h-32 flex items-center justify-center cursor-crosshair z-[60]" onMouseDown={e => { e.stopPropagation(); onAnchorClick(block.id, 'out'); }}>
-        <div className="w-16 h-16 rounded-full border-4 bg-white shadow-3xl flex items-center justify-center transition-all hover:scale-125" style={{ borderColor: theme?.border || '#DC2626' }}>
-          <div className="w-6 h-6 rounded-full animate-pulse" style={{ backgroundColor: theme?.border || '#DC2626' }} />
+      <div className="absolute right-0 top-1/2 translate-x-1/2 -translate-y-1/2 w-16 h-16 flex items-center justify-center cursor-crosshair z-[60]" onMouseDown={e => { e.stopPropagation(); onAnchorClick(block.id, 'out'); }}>
+        <div className="w-8 h-8 rounded-full border-2 bg-white shadow-lg flex items-center justify-center transition-all hover:scale-110" style={{ borderColor: theme?.border || '#DC2626' }}>
+          <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: theme?.border || '#DC2626' }} />
         </div>
       </div>
 
