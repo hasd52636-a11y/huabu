@@ -992,14 +992,16 @@ const App: React.FC = () => {
           
         case 'copy':
           if (moduleId) {
-            const targetBlock = blocks.find(b => b.number === moduleId);
+            const targetBlock = blocks.find(b => b.number === moduleId || b.number === moduleId.replace('_COPY', ''));
             if (targetBlock) {
               const newBlock = {
                 ...targetBlock,
                 id: crypto.randomUUID(),
                 x: targetBlock.x + 50,
                 y: targetBlock.y + 50,
-                number: getNextBlockNumber(targetBlock.type)
+                number: getNextBlockNumber(targetBlock.type),
+                content: '', // 清空内容，避免重复
+                status: 'idle' // 重置状态
               };
               
               setBlocks(prev => [...prev, newBlock]);

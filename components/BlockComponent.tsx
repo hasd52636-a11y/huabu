@@ -22,8 +22,6 @@ import TextFormatModal from './TextFormatModal';
 import VideoStyleModal from './VideoStyleModal';
 import LanguageSelectionModal from './LanguageSelectionModal';
 import type { AspectRatio } from './AspectRatioButton';
-import type { MultiImageConfig } from '../types';
-
 // Enhanced video components for error handling and fallback UI
 import VideoErrorBoundary from './VideoErrorBoundary';
 import VideoErrorFallback from './VideoErrorFallback';
@@ -511,8 +509,27 @@ const BlockComponent: React.FC<BlockProps> = ({
     return availableCharacters.find(char => char.id === block.characterId);
   };
 
-  // Get available variables from upstream data
-  const availableVariables = upstreamData.map(data => data.blockNumber);
+  // Get available variables from upstream data and all blocks with content
+  let availableVariables = upstreamData.map(data => data.blockNumber);
+  
+  // Also get all existing blocks with content through onResolvePrompt
+  if (onResolvePrompt) {
+    try {
+      const dummyResolve = onResolvePrompt('', block.id);
+      // Extract blocks that have content from the resolution function
+      const testPrompt = '[A01][A02][A03][B01][B02][B03][V01][V02][V03]'; // Test common block numbers
+      const resolveResult = onResolvePrompt(testPrompt, block.id);
+      const blocksWithContent = resolveResult.references
+        .filter(ref => ref.found && ref.content && ref.content.trim())
+        .map(ref => ref.blockNumber);
+      
+      // Combine with upstream data, remove duplicates
+      availableVariables = [...new Set([...availableVariables, ...blocksWithContent])];
+    } catch (error) {
+      // If onResolvePrompt fails, just use upstream data
+      console.log('Could not resolve block references:', error);
+    }
+  }
   
   // Check if current input has variables and validate them
   const hasVariables = variableSystem.hasVariables(userInput);
@@ -3014,27 +3031,50 @@ const BlockComponent: React.FC<BlockProps> = ({
            
            {/* Expanded prompt input area */}
            <div className="flex-1 relative w-full mt-1">
-             <textarea
-              ref={inputRef}
-              value={userInput}
-              onChange={(e) => setUserInput(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handlePromptSubmit(e as any);
+             <div className="relative">
+               {/* 标签覆盖层 */}
+               <div className="absolute inset-0 pointer-events-none z-10 py-3 px-6 text-2xl font-semibold leading-relaxed">
+                 {userInput.split(/(\[[A-Z]\d+\])/).map((part, index) => {
+                   if (part.match(/^\[[A-Z]\d+\]$/)) {
+                     return (
+                       <span
+                         key={index}
+                         className="inline-flex items-center gap-1 px-2 py-1 mx-1 bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 rounded-lg text-sm font-medium border border-blue-300 dark:border-blue-600 shadow-sm"
+                       >
+                         {part}
+                       </span>
+                     );
+                   }
+                   return <span key={index} className="opacity-0">{part}</span>;
+                 })}
+               </div>
+               
+               {/* 实际的输入框 */}
+               <textarea
+                ref={inputRef}
+                value={userInput}
+                onChange={(e) => setUserInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handlePromptSubmit(e as any);
+                  }
+                }}
+                placeholder={
+                  upstreamData.length > 0 
+                    ? (lang === 'zh' ? '输入指令，使用 [A01] 引用上游数据...' : 'Enter command, use [A01] to reference upstream data...')
+                    : (lang === 'zh' ? '输入指令，点击编号可混排...' : 'Enter command, click ID to mix...')
                 }
-              }}
-              placeholder={
-                upstreamData.length > 0 
-                  ? (lang === 'zh' ? '输入指令，使用 [A01] 引用上游数据...' : 'Enter command, use [A01] to reference upstream data...')
-                  : (lang === 'zh' ? '输入指令，点击编号可混排...' : 'Enter command, click ID to mix...')
-              }
-              className={`w-full bg-transparent text-2xl font-semibold focus:outline-none text-slate-900 dark:text-white placeholder-slate-400 py-3 px-6 min-h-[60px] max-h-[300px] overflow-y-auto resize-none border-2 border-amber-500/30 rounded-[2.5rem] focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 transition-all duration-300 ${variableErrors.length > 0 ? 'text-red-600 dark:text-red-400 border-red-500/50' : ''}`}
-             />
+                className={`w-full bg-transparent text-2xl font-semibold focus:outline-none text-slate-900 dark:text-white placeholder-slate-400 py-3 px-6 min-h-[60px] max-h-[300px] overflow-y-auto resize-none border-2 border-amber-500/30 rounded-[2.5rem] focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 transition-all duration-300 relative z-20 ${variableErrors.length > 0 ? 'text-red-600 dark:text-red-400 border-red-500/50' : ''}`}
+                style={{ 
+                  caretColor: '#8b5cf6'
+                }}
+               />
+             </div>
              
              {/* Character count display */}
              {userInput && (
-               <div className="absolute bottom-2 right-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+               <div className="absolute bottom-2 right-2 text-xs font-medium text-slate-500 dark:text-slate-400 z-30">
                  {userInput.length}/3000
                </div>
              )}
