@@ -7,7 +7,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, MicOff, Loader2, MessageCircle, X, Send, ExternalLink } from 'lucide-react';
 
-// 神马API Realtime WebSocket接口
+// 神马API Realtime WebSocket接口 - 基于完整文档规范
 interface RealtimeSession {
   ws: WebSocket | null;
   sessionId: string;
@@ -17,11 +17,96 @@ interface RealtimeSession {
 interface RealtimeEvent {
   type: string;
   event_id?: string;
-  session?: any;
-  response?: any;
-  item?: any;
+  // Session events
+  session?: {
+    id?: string;
+    object?: string;
+    model?: string;
+    modalities?: string[];
+    instructions?: string;
+    voice?: string;
+    input_audio_format?: string;
+    output_audio_format?: string;
+    input_audio_transcription?: {
+      enabled?: boolean;
+      model?: string;
+    };
+    turn_detection?: {
+      type?: string;
+      threshold?: number;
+      prefix_padding_ms?: number;
+      silence_duration_ms?: number;
+    };
+    tools?: any[];
+    tool_choice?: string;
+    temperature?: number;
+    max_output_tokens?: number | string;
+  };
+  // Response events
+  response?: {
+    id?: string;
+    object?: string;
+    status?: string;
+    status_details?: any;
+    output?: any[];
+    usage?: any;
+  };
+  response_id?: string;
+  output_index?: number;
+  // Item events
+  item?: {
+    id?: string;
+    object?: string;
+    type?: string;
+    status?: string;
+    role?: string;
+    content?: any[];
+    call_id?: string;
+    name?: string;
+    arguments?: string;
+    output?: string;
+  };
+  item_id?: string;
+  content_index?: number;
+  // Audio events
   audio?: string;
+  audio_start_ms?: number;
+  audio_end_ms?: number;
+  // Text events
   transcript?: string;
+  text?: string;
+  delta?: string;
+  // Function call events
+  call_id?: string;
+  arguments?: string;
+  // Error events
+  error?: {
+    type?: string;
+    code?: string;
+    message?: string;
+    param?: string;
+    event_id?: string;
+  };
+  // Content part events
+  part?: {
+    type?: string;
+    text?: string;
+    audio?: string;
+    transcript?: string;
+  };
+  // Conversation events
+  conversation?: {
+    id?: string;
+    object?: string;
+  };
+  previous_item_id?: string;
+  // Rate limits
+  rate_limits?: Array<{
+    name?: string;
+    limit?: number;
+    remaining?: number;
+    reset_seconds?: number;
+  }>;
 }
 
 // TypeScript declarations for Web Speech API (备用方案)
@@ -232,7 +317,7 @@ const CanvasVoiceController: React.FC<CanvasVoiceControllerProps> = ({
           isConnected: true
         });
         
-        // 发送session.update事件配置会话
+        // 发送session.update事件配置会话 - 使用完整的神马API规范
         const sessionUpdateEvent = {
           event_id: `event_${Date.now()}`,
           type: 'session.update',
@@ -337,77 +422,163 @@ const CanvasVoiceController: React.FC<CanvasVoiceControllerProps> = ({
     }
   };
 
-  // 处理Realtime事件
+  // 处理Realtime事件 - 基于完整的神马API文档
   const handleRealtimeEvent = (event: RealtimeEvent) => {
     console.log('[CanvasVoiceController] 收到Realtime事件:', event.type, event);
     
     switch (event.type) {
+      // Session events
       case 'session.created':
-        console.log('[CanvasVoiceController] 会话已创建');
+        console.log('[CanvasVoiceController] 会话已创建:', event.session?.id);
         break;
         
       case 'session.updated':
         console.log('[CanvasVoiceController] 会话配置已更新');
         break;
         
-      case 'input_audio_buffer.speech_started':
-        console.log('[CanvasVoiceController] 检测到语音开始');
-        addChatMessage('user', '🎤 正在说话...', false, 'voice');
+      // Conversation events
+      case 'conversation.created':
+        console.log('[CanvasVoiceController] 对话已创建:', event.conversation?.id);
         break;
         
-      case 'input_audio_buffer.speech_stopped':
-        console.log('[CanvasVoiceController] 语音结束');
+      case 'conversation.item.created':
+        console.log('[CanvasVoiceController] 对话项已创建:', event.item?.id);
         break;
         
       case 'conversation.item.input_audio_transcription.completed':
         if (event.transcript) {
           console.log('[CanvasVoiceController] 语音转录完成:', event.transcript);
-          // 更新用户消息显示转录文本
           updateLastUserMessage(event.transcript);
         }
         break;
         
+      case 'conversation.item.input_audio_transcription.failed':
+        console.error('[CanvasVoiceController] 语音转录失败:', event.error);
+        addChatMessage('assistant', '❌ 语音转录失败，请重试');
+        break;
+        
+      case 'conversation.item.truncated':
+        console.log('[CanvasVoiceController] 对话项已截断:', event.item_id);
+        break;
+        
+      case 'conversation.item.deleted':
+        console.log('[CanvasVoiceController] 对话项已删除:', event.item_id);
+        break;
+        
+      // Input audio buffer events
+      case 'input_audio_buffer.committed':
+        console.log('[CanvasVoiceController] 音频缓冲区已提交:', event.item_id);
+        break;
+        
+      case 'input_audio_buffer.cleared':
+        console.log('[CanvasVoiceController] 音频缓冲区已清空');
+        break;
+        
+      case 'input_audio_buffer.speech_started':
+        console.log('[CanvasVoiceController] 检测到语音开始:', event.audio_start_ms);
+        addChatMessage('user', '🎤 正在说话...', false);
+        break;
+        
+      case 'input_audio_buffer.speech_stopped':
+        console.log('[CanvasVoiceController] 语音结束:', event.audio_start_ms);
+        break;
+        
+      // Response events
       case 'response.created':
-        console.log('[CanvasVoiceController] AI开始响应');
+        console.log('[CanvasVoiceController] AI开始响应:', event.response?.id);
         addChatMessage('assistant', '🤔 正在思考...', true);
         break;
         
-      case 'response.output_item.added':
-        if (event.item?.type === 'message') {
-          console.log('[CanvasVoiceController] AI消息响应');
-        }
+      case 'response.done':
+        console.log('[CanvasVoiceController] AI响应完成:', event.response?.status);
         break;
         
+      // Output item events
+      case 'response.output_item.added':
+        console.log('[CanvasVoiceController] 输出项已添加:', event.item?.type);
+        break;
+        
+      case 'response.output_item.done':
+        console.log('[CanvasVoiceController] 输出项完成:', event.item?.status);
+        break;
+        
+      // Content part events
       case 'response.content_part.added':
-        if (event.item?.type === 'text') {
-          console.log('[CanvasVoiceController] AI文本内容');
-        }
+        console.log('[CanvasVoiceController] 内容部分已添加:', event.part?.type);
         break;
         
       case 'response.content_part.done':
-        if (event.item?.type === 'text' && event.item.text) {
-          console.log('[CanvasVoiceController] AI文本响应完成:', event.item.text);
-          updateLastAssistantMessage(event.item.text);
-          
-          // 解析AI响应中的指令
-          parseAndExecuteCommand(event.item.text);
+        if (event.part?.type === 'text' && event.part.text) {
+          console.log('[CanvasVoiceController] 文本内容完成:', event.part.text);
+          updateLastAssistantMessage(event.part.text);
+          parseAndExecuteCommand(event.part.text);
         }
         break;
         
+      // Text streaming events
+      case 'response.text.delta':
+        if (event.delta) {
+          console.log('[CanvasVoiceController] 文本增量:', event.delta);
+          // 可以实现实时文本流显示
+        }
+        break;
+        
+      case 'response.text.done':
+        if (event.delta) {
+          console.log('[CanvasVoiceController] 文本完成:', event.delta);
+          updateLastAssistantMessage(event.delta);
+          parseAndExecuteCommand(event.delta);
+        }
+        break;
+        
+      // Audio streaming events
       case 'response.audio.delta':
-        if (event.audio) {
-          // 播放音频片段
-          playAudioDelta(event.audio);
+        if (event.delta) {
+          console.log('[CanvasVoiceController] 音频增量接收');
+          playAudioDelta(event.delta);
         }
         break;
         
-      case 'response.done':
-        console.log('[CanvasVoiceController] AI响应完成');
+      case 'response.audio.done':
+        console.log('[CanvasVoiceController] 音频播放完成');
         break;
         
+      // Audio transcript events
+      case 'response.audio_transcript.delta':
+        if (event.delta) {
+          console.log('[CanvasVoiceController] 音频转录增量:', event.delta);
+        }
+        break;
+        
+      case 'response.audio_transcript.done':
+        if (event.transcript) {
+          console.log('[CanvasVoiceController] 音频转录完成:', event.transcript);
+        }
+        break;
+        
+      // Function call events
+      case 'response.function_call_arguments.delta':
+        if (event.delta) {
+          console.log('[CanvasVoiceController] 函数调用参数增量:', event.delta);
+        }
+        break;
+        
+      case 'response.function_call_arguments.done':
+        if (event.arguments) {
+          console.log('[CanvasVoiceController] 函数调用参数完成:', event.arguments);
+        }
+        break;
+        
+      // Rate limits
+      case 'rate_limits.updated':
+        console.log('[CanvasVoiceController] 速率限制已更新:', event.rate_limits);
+        break;
+        
+      // Error handling
       case 'error':
-        console.error('[CanvasVoiceController] Realtime API错误:', event);
-        addChatMessage('assistant', `❌ 发生错误：${JSON.stringify(event)}`);
+        console.error('[CanvasVoiceController] Realtime API错误:', event.error);
+        const errorMsg = event.error?.message || 'Unknown error';
+        addChatMessage('assistant', `❌ 发生错误：${errorMsg}`);
         break;
         
       default:
@@ -471,13 +642,14 @@ const CanvasVoiceController: React.FC<CanvasVoiceControllerProps> = ({
     }
   }, [chatMessages]);
 
-  const addChatMessage = (role: 'user' | 'assistant', content: string, isProcessing = false) => {
+  const addChatMessage = (role: 'user' | 'assistant', content: string, isProcessing = false, contentType?: 'text' | 'image' | 'video') => {
     const message: ChatMessage = {
       id: `voice-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       role,
       content,
       timestamp: Date.now(),
-      isProcessing
+      isProcessing,
+      contentType: contentType || 'text'
     };
     setChatMessages((prev: ChatMessage[]) => [...prev, message]);
     return message.id;

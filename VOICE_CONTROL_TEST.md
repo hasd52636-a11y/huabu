@@ -1,15 +1,16 @@
-# 语音控制功能测试指南 - 神马API Realtime版本
+# 语音控制功能测试指南 - 神马API Realtime完整版本
 
 ## 🎯 新功能特性
 
-### 1. **双向实时语音对话**
+### 1. **完整的双向实时语音对话**
 - ✅ 用户语音 → AI实时识别和理解
 - ✅ AI回复 → 实时语音播放
 - ✅ 无需"曹操"唤醒词，直接对话
 - ✅ 支持语音指令自动执行
+- ✅ 完整的事件处理机制
 
 ### 2. **两种语音模式**
-- 🚀 **实时语音模式**：使用神马API Realtime WebSocket
+- 🚀 **实时语音模式**：使用神马API Realtime WebSocket（完整实现）
 - 🔄 **浏览器语音模式**：使用浏览器Web Speech API（备用）
 
 ### 3. **智能指令识别**
@@ -17,6 +18,34 @@
 - 自动识别生成视频指令  
 - 自动识别生成文本指令
 - 内容自动添加到画布
+
+### 4. **完整的事件支持**
+基于神马API Realtime完整文档实现：
+
+#### Client Events（客户端事件）
+- ✅ `session.update` - 会话配置更新
+- ✅ `input_audio_buffer.append` - 音频数据追加
+- ✅ `input_audio_buffer.commit` - 音频提交
+- ✅ `input_audio_buffer.clear` - 音频缓冲区清空
+- ✅ `conversation.item.create` - 创建对话项
+- ✅ `conversation.item.truncate` - 截断对话项
+- ✅ `conversation.item.delete` - 删除对话项
+- ✅ `response.create` - 触发响应生成
+- ✅ `response.cancel` - 取消响应
+
+#### Server Events（服务器事件）
+- ✅ `session.created` / `session.updated` - 会话管理
+- ✅ `conversation.created` / `conversation.item.created` - 对话管理
+- ✅ `input_audio_buffer.*` - 音频缓冲区事件
+- ✅ `response.*` - 响应生成事件
+- ✅ `response.content_part.*` - 内容部分事件
+- ✅ `response.text.*` - 文本流事件
+- ✅ `response.audio.*` - 音频流事件
+- ✅ `response.audio_transcript.*` - 音频转录事件
+- ✅ `response.function_call_arguments.*` - 函数调用事件
+- ✅ `conversation.item.input_audio_transcription.*` - 语音转录事件
+- ✅ `rate_limits.updated` - 速率限制更新
+- ✅ `error` - 错误处理
 
 ## 🎤 使用方法
 
@@ -41,21 +70,66 @@
 
 ## 🔧 技术实现
 
-### Realtime WebSocket连接
+### 完整的Realtime WebSocket连接
 ```javascript
 // 连接到神马API Realtime端点
 const wsUrl = baseUrl.replace('https://', 'wss://') + '/v1/realtime';
-const ws = new WebSocket(wsUrl);
+const ws = new WebSocket(wsUrl, [], {
+  headers: {
+    'Authorization': `Bearer ${apiKey}`,
+    'OpenAI-Beta': 'realtime=v1'
+  }
+});
 
-// 配置会话参数
+// 完整的会话配置
 const sessionConfig = {
-  modalities: ['text', 'audio'],
-  voice: 'alloy',
-  input_audio_format: 'pcm16',
-  output_audio_format: 'pcm16',
-  turn_detection: {
-    type: 'server_vad',
-    threshold: 0.5
+  event_id: `event_${Date.now()}`,
+  type: 'session.update',
+  session: {
+    modalities: ['text', 'audio'],
+    instructions: '你是曹操，一个专业的AI画布助手...',
+    voice: 'alloy',
+    input_audio_format: 'pcm16',
+    output_audio_format: 'pcm16',
+    input_audio_transcription: {
+      model: 'whisper-1'
+    },
+    turn_detection: {
+      type: 'server_vad',
+      threshold: 0.5,
+      prefix_padding_ms: 300,
+      silence_duration_ms: 200
+    },
+    temperature: 0.8,
+    max_output_tokens: 'inf'
+  }
+};
+```
+
+### 完整的事件处理机制
+```javascript
+// 处理所有服务器事件
+const handleRealtimeEvent = (event) => {
+  switch (event.type) {
+    case 'session.created':
+      console.log('会话已创建:', event.session?.id);
+      break;
+    case 'input_audio_buffer.speech_started':
+      console.log('检测到语音开始:', event.audio_start_ms);
+      break;
+    case 'conversation.item.input_audio_transcription.completed':
+      console.log('语音转录完成:', event.transcript);
+      break;
+    case 'response.content_part.done':
+      if (event.part?.type === 'text') {
+        console.log('文本响应完成:', event.part.text);
+        executeCommand(event.part.text);
+      }
+      break;
+    case 'response.audio.delta':
+      playAudioDelta(event.delta);
+      break;
+    // ... 处理所有其他事件
   }
 };
 ```
@@ -89,6 +163,8 @@ if (response.includes('生成图片')) {
 | 延迟 | ✅ 低延迟 | ⚠️ 较高延迟 |
 | 兼容性 | ✅ 不依赖浏览器 | ❌ 仅Chrome/Edge |
 | 功能完整性 | ✅ 完整对话体验 | ⚠️ 基础语音识别 |
+| 事件支持 | ✅ 完整事件机制 | ❌ 基础事件 |
+| 错误处理 | ✅ 详细错误信息 | ⚠️ 基础错误处理 |
 
 ## 🔍 故障排除
 
@@ -115,6 +191,12 @@ if (response.includes('生成图片')) {
 - 检查浏览器音频权限
 - 确认扬声器/耳机正常
 - 刷新页面重试
+
+### 问题4：事件处理异常
+**解决方案**：
+- 检查控制台日志
+- 确认事件格式正确
+- 验证WebSocket连接状态
 
 ## 📱 浏览器兼容性
 
@@ -161,5 +243,28 @@ if (response.includes('生成图片')) {
 - [ ] AI语音回复正常播放
 - [ ] 指令自动执行到画布
 - [ ] 模式切换功能正常
+- [ ] 所有事件正确处理
+- [ ] 错误处理机制正常
+- [ ] 音频流播放正常
+- [ ] 文本流显示正常
+
+## 📊 事件监控
+
+### 关键事件日志
+```javascript
+// 监控关键事件
+console.log('会话创建:', event.session?.id);
+console.log('语音开始:', event.audio_start_ms);
+console.log('转录完成:', event.transcript);
+console.log('响应创建:', event.response?.id);
+console.log('内容完成:', event.part?.text);
+console.log('音频增量:', event.delta);
+```
+
+### 性能指标
+- WebSocket连接时间
+- 语音识别延迟
+- AI响应时间
+- 音频播放延迟
 
 完成验证后，用户即可享受完整的语音交互体验！
