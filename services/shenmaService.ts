@@ -588,8 +588,13 @@ export class ShenmaService {
         return data.data?.output || data.data?.outputs?.[0];
       }
       
-      // 否则返回模拟的视频URL作为 fallback
-      return `https://example.com/video-${data.task_id || 'mock'}.mp4`;
+      // 如果有video_url字段，直接返回
+      if (data.video_url) {
+        return data.video_url;
+      }
+      
+      // 如果没有找到视频URL，抛出错误而不是返回模拟URL
+      throw new Error('Video generation completed but no video URL found in response');
     } catch (error) {
       console.error('[ShenmaService] Video generation failed:', error);
       throw error;
