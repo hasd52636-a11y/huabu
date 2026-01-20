@@ -5,7 +5,7 @@ import {
   MessageSquare, LayoutGrid, X, Key, Upload, Cpu, HelpCircle, Save, FilePlus, Paperclip, Eraser, Copy, Check,
   Trash2, Layers, Languages, Globe, RotateCcw, MonitorX, Send, Play, Download, Hand, Brain,
   Type as TextIcon, BrainCircuit, Sparkles, ChevronLeft, ChevronRight, ImagePlus, FileText, Info, Loader2, ArrowUpRight,
-  ChevronDown, Database, Sliders, ExternalLink, ShieldCheck, ListOrdered, FolderOpen, User, PanelLeft, PanelRight, Hand
+  ChevronDown, Database, Sliders, ExternalLink, ShieldCheck, ListOrdered, FolderOpen, User, PanelLeft, PanelRight
 } from 'lucide-react';
 import { Block, Connection, BlockType, ModelConfig, ProviderType, ProviderSettings, BatchConfig, BatchGenerationState, ExportLayout, FrameData, PresetPrompt, CanvasState, BatchInputSource, Character, NewModelConfig, getProviderSettings, convertLegacyToNewConfig, convertNewToLegacyConfig, MenuConfig } from './types';
 import Canvas from './components/Canvas';
@@ -599,25 +599,6 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('执行语音指令失败:', error);
     }
-  };
-
-  // 创建并生成模块的辅助函数
-  const createAndGenerateBlock = async (type: BlockType, content: string, params?: any) => {
-    const newBlock: Block = {
-      id: crypto.randomUUID(),
-      type,
-      x: Math.random() * 400 + 100,
-      y: Math.random() * 300 + 100,
-      content: '',
-      originalPrompt: content,
-      aspectRatio: params?.aspectRatio || (type === 'image' ? '1:1' : '16:9'),
-      isGenerating: true
-    };
-
-    setBlocks(prev => [...prev, newBlock]);
-    
-    // 自动生成内容
-    await handleGenerate(newBlock.id, content, params);
   };
   
   // Voice Recording Functions
