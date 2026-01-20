@@ -1,9 +1,0 @@
-
-{
-  "name": "AI Director's Canvas",
-  "description": "An infinite storyboard canvas tool for directors to transform scripts, stories, and images into professional visual sequences using AI.",
-  "requestFramePermissions": [
-    "camera",
-    "microphone"
-  ]
-}

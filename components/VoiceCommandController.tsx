@@ -6,6 +6,39 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, MicOff, Loader2 } from 'lucide-react';
 
+// 简单音效播放函数
+const playCommandSound = () => {
+  try {
+    // 创建音频上下文
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    
+    // 确保音频上下文处于运行状态
+    if (audioContext.state === 'suspended') {
+      audioContext.resume();
+    }
+
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    // 类似微信发送消息的音效 - 双音调
+    oscillator.frequency.setValueAtTime(1000, audioContext.currentTime);
+    oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.1);
+    oscillator.type = 'sine';
+    
+    gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.1, audioContext.currentTime + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.2);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.2);
+  } catch (error) {
+    console.warn('音效播放失败:', error);
+  }
+};
+
 // TypeScript declarations for Web Speech API
 declare global {
   interface Window {
@@ -144,6 +177,9 @@ const VoiceCommandController: React.FC<VoiceCommandControllerProps> = ({
             console.log(`检测到唤醒词: ${wakeWord}`);
             setLastCommand(`${wakeWord} (唤醒)`);
             
+            // 播放指令提交音效
+            playCommandSound();
+            
             // 提取唤醒词后的内容
             const commandText = transcript.split(wakeWord)[1]?.trim();
             if (commandText && commandText.length > 0) {
@@ -185,6 +221,10 @@ const VoiceCommandController: React.FC<VoiceCommandControllerProps> = ({
           setLastCommand(transcript);
           setIsListening(false);
           setIsProcessing(true);
+          
+          // 播放指令提交音效
+          playCommandSound();
+          
           parseVoiceCommand(transcript);
           
           // 如果是临时的直接模式（从唤醒词切换过来的），处理完后恢复唤醒词模式
@@ -304,6 +344,18 @@ Return only JSON.`;
       onCommand(fallbackCommand);
     } finally {
       setIsProcessing(false);
+      
+      // 指令处理完成后，自动重启语音识别以支持连续对话
+      setTimeout(() => {
+        if (recognitionRef.current && !isListening && !error) {
+          try {
+            recognitionRef.current.start();
+            console.log('语音识别自动重启 - 等待下一个指令');
+          } catch (e) {
+            console.log('自动重启语音识别失败:', e);
+          }
+        }
+      }, 1500); // 给用户1.5秒的缓冲时间
     }
   };
 
@@ -479,7 +531,7 @@ Return only JSON.`;
         
         <span className="text-sm font-medium">
           {isProcessing ? t[lang].processing :
-           isListening ? (isWakeWordMode ? t[lang].waitingWakeWord : t[lang].listening) :
+           isListening ? (isWakeWordMode ? '连续监听中...' : t[lang].listening) :
            (isWakeWordMode ? `${wakeWord}唤醒` : t[lang].startListening)}
         </span>
       </button>

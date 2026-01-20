@@ -8,6 +8,39 @@ import {
   ChevronDown, Database, Sliders, ExternalLink, ShieldCheck, ListOrdered, FolderOpen, User, PanelLeft, PanelRight
 } from 'lucide-react';
 import { Block, Connection, BlockType, ModelConfig, ProviderType, ProviderSettings, BatchConfig, BatchGenerationState, ExportLayout, FrameData, PresetPrompt, CanvasState, BatchInputSource, Character, NewModelConfig, getProviderSettings, convertLegacyToNewConfig, convertNewToLegacyConfig, MenuConfig } from './types';
+
+// 简单音效播放函数
+const playCommandSound = () => {
+  try {
+    // 创建音频上下文
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    
+    // 确保音频上下文处于运行状态
+    if (audioContext.state === 'suspended') {
+      audioContext.resume();
+    }
+
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    // 类似微信发送消息的音效 - 双音调
+    oscillator.frequency.setValueAtTime(1000, audioContext.currentTime);
+    oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.1);
+    oscillator.type = 'sine';
+    
+    gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.1, audioContext.currentTime + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.2);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.2);
+  } catch (error) {
+    console.warn('音效播放失败:', error);
+  }
+};
 import Canvas from './components/Canvas';
 import BatchVideoModal from './components/BatchVideoModal';
 import MinimizedProgressWindow from './components/MinimizedProgressWindow';
@@ -34,6 +67,8 @@ import VoiceCommandController from './components/VoiceCommandController';
 import GestureController from './components/GestureController';
 import GestureHelp from './components/GestureHelp';
 import AIGestureDemo from './components/AIGestureDemo';
+import CanvasVoiceController from './components/CanvasVoiceController';
+import CanvasGestureController from './components/CanvasGestureController';
 import { gestureRecognizer } from './services/GestureRecognizer';
 import { connectionEngine } from './services/ConnectionEngine';
 import { COLORS, I18N, MIN_ZOOM, MAX_ZOOM } from './constants.tsx';
@@ -435,6 +470,8 @@ const App: React.FC = () => {
 
   // 执行语音指令
   const executeVoiceCommand = async (command: any) => {
+    // 播放指令提交音效
+    playCommandSound();
     
     // 保存指令信息用于反馈
     setLastVoiceCommand({
@@ -461,7 +498,7 @@ const App: React.FC = () => {
         break;
       case 'reset_view':
         // 重置视角
-        handleResetView();
+        handleCanvasReset();
         break;
       case 'auto_layout':
         // 自动布局
@@ -558,7 +595,7 @@ const App: React.FC = () => {
         setPan(prev => ({ ...prev, x: prev.x - 50 }));
         break;
       case 'reset_view':
-        handleResetView();
+        handleCanvasReset();
         break;
       case 'clear_canvas':
         handleCanvasClear();
@@ -572,6 +609,19 @@ const App: React.FC = () => {
       default:
         console.log('未知手势:', gesture);
     }
+  };
+
+  // 投射语音生成内容到画布
+  const handleProjectVoiceContentToCanvas = (content: string, type: 'text' | 'image' | 'video') => {
+    console.log('投射语音内容到画布:', { content, type });
+    
+    // 在画布中心创建新块
+    const centerX = -pan.x / zoom + (window.innerWidth * 0.7) / (2 * zoom); // 考虑侧边栏宽度
+    const centerY = -pan.y / zoom + window.innerHeight / (2 * zoom);
+
+    const newBlock = addBlock(type, content, centerX, centerY);
+    
+    console.log('语音内容已投射到画布:', newBlock);
   };
 
   // 画布语音指令处理函数
@@ -3082,11 +3132,17 @@ ${block.content}
 
            {/* Gesture Control Button */}
            <button 
-            onClick={() => setShowGestureController(true)} 
-            className={`p-5 rounded-2xl border-2 transition-all flex items-center gap-3 ${theme === 'dark' ? 'bg-white/5 border-white/5 hover:bg-purple-500/20 text-purple-500' : 'bg-white border-black/5 hover:shadow-xl text-purple-600'}`}
+            onClick={() => setIsGestureActive(!isGestureActive)} 
+            className={`p-5 rounded-2xl border-2 transition-all flex items-center gap-3 ${
+              isGestureActive 
+                ? (theme === 'dark' ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' : 'bg-purple-100 border-purple-300 text-purple-600')
+                : (theme === 'dark' ? 'bg-white/5 border-white/5 hover:bg-purple-500/20 text-purple-500' : 'bg-white border-black/5 hover:shadow-xl text-purple-600')
+            }`}
            >
              <Hand size={24} strokeWidth={3} />
-             <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">{lang === 'zh' ? '手势' : 'Gesture'}</span>
+             <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">
+               {isGestureActive ? (lang === 'zh' ? '手势开启' : 'Gesture On') : (lang === 'zh' ? '手势' : 'Gesture')}
+             </span>
            </button>
 
            {/* AI Gesture Demo Button */}
@@ -3259,28 +3315,6 @@ ${block.content}
             <Hand size={20} />
           </button>
           
-          {/* 语音控制按钮 */}
-          <div className="relative">
-            <VoiceCommandController
-              onCommand={handleCanvasVoiceCommand}
-              lang={lang}
-              wakeWord="曹操"
-              className="flex"
-            />
-          </div>
-          
-          {isGestureActive && (
-            <div className={`p-2 rounded-lg text-xs ${
-              theme === 'dark' ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-600'
-            } shadow-lg`}>
-              <div className="text-center">
-                <div className="text-green-500 font-medium">🤖 手势识别中</div>
-                <div className="mt-1">👐 张开放大</div>
-                <div>🤏 合拢缩小</div>
-                <div>☝️ 指向移动</div>
-              </div>
-            </div>
-          )}
         </div>
         
         <Canvas 
@@ -3666,31 +3700,20 @@ ${block.content}
                  <button onClick={() => setMessages([])} className="p-3 text-slate-400 hover:text-red-500 transition-colors" title={t.ctxClear}><Eraser size={22} /></button>
                  <button onClick={() => chatImageInputRef.current?.click()} className="p-3 text-slate-400 hover:text-emerald-500 transition-colors" title={t.tips.upload}><ImagePlus size={22} /></button>
                  <button onClick={() => chatTextInputRef.current?.click()} className="p-3 text-slate-400 hover:text-blue-500 transition-colors" title={chatMode === 'text' && modelCapabilityDetector.isVideoUploadEnabled(chatMode, modelConfig) ? (lang === 'zh' ? '上传文件或视频' : 'Upload File or Video') : (lang === 'zh' ? '上传文件' : 'Upload File')}><Paperclip size={22} /></button>
-                 {/* Voice Input Button */}
+                 {/* Voice Input Button - Now handled by Canvas Voice Controller */}
                  <button 
-                   onClick={toggleVoiceRecording} 
-                   disabled={isVoiceProcessing}
-                   className={`p-3 transition-colors ${
-                     isVoiceProcessing ? 'text-yellow-500 animate-spin' :
-                     isVoiceRecording ? 'text-red-500 animate-pulse' : 
-                     'text-slate-400 hover:text-rose-500'
-                   } ${isVoiceProcessing ? 'cursor-not-allowed' : ''}`} 
-                   title={
-                     isVoiceProcessing ? (lang === 'zh' ? '正在处理指令...' : 'Processing Command...') :
-                     isVoiceRecording ? (lang === 'zh' ? '停止录音' : 'Stop Recording') : 
-                     (lang === 'zh' ? `语音输入 (说"${wakeWord}"唤醒)` : `Voice Input (Say "${wakeWord}" to wake)`)
-                   }
+                   onClick={() => alert(lang === 'zh' ? '语音控制已移至画布左上角，说"曹操"唤醒' : 'Voice control moved to canvas top-left, say "曹操" to wake up')}
+                   className="p-3 text-slate-400 hover:text-rose-500 transition-colors" 
+                   title={lang === 'zh' ? '语音控制已移至画布左上角' : 'Voice control moved to canvas'}
                  >
-                   {isVoiceProcessing ? <span className="text-xl">⚙️</span> :
-                    isVoiceRecording ? <span className="text-xl">🔴</span> : 
-                    <span className="text-xl">🎤</span>}
+                   <span className="text-xl">🎤</span>
                  </button>
                  
                  {/* Voice Help Button */}
                  <button 
-                   onClick={() => setShowVoiceHelp(true)}
+                   onClick={() => alert(lang === 'zh' ? '语音控制已移至画布左上角，说"曹操"唤醒开始对话' : 'Voice control moved to canvas top-left, say "曹操" to start conversation')}
                    className="p-3 text-slate-400 hover:text-blue-500 transition-colors"
-                   title={lang === 'zh' ? '语音指令帮助' : 'Voice Command Help'}
+                   title={lang === 'zh' ? '语音控制帮助' : 'Voice Control Help'}
                  >
                    <span className="text-xl">❓</span>
                  </button>
@@ -3838,6 +3861,26 @@ ${block.content}
         shenmaService={aiServiceAdapter.getShenmaService()}
       />
 
+      {/* Canvas Voice Controller - 画布左上角语音控制 */}
+      <CanvasVoiceController
+        onCommand={handleCanvasVoiceCommand}
+        onProjectToCanvas={handleProjectVoiceContentToCanvas}
+        lang={lang}
+        wakeWord={wakeWord}
+        position={{ x: 20, y: 20 }}
+        theme={theme}
+      />
+
+      {/* Canvas Gesture Controller - 画布右侧中间手势控制 */}
+      <CanvasGestureController
+        isActive={isGestureActive}
+        onToggle={setIsGestureActive}
+        onGestureCommand={handleGestureCommand}
+        position="right-center"
+        theme={theme}
+        lang={lang}
+      />
+
       {/* Voice Command Feedback */}
       {showVoiceFeedback && lastVoiceCommand && (
         <VoiceCommandFeedback
@@ -3857,15 +3900,6 @@ ${block.content}
       <VoiceCommandHelp
         isOpen={showVoiceHelp}
         onClose={() => setShowVoiceHelp(false)}
-        lang={lang}
-      />
-
-      {/* Gesture Controller */}
-      <GestureController
-        isOpen={showGestureController}
-        onClose={() => setShowGestureController(false)}
-        onGestureCommand={handleGestureCommand}
-        theme={theme}
         lang={lang}
       />
 
