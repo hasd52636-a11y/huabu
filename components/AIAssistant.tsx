@@ -148,7 +148,8 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
 
       // 如果是助手模式，添加系统提示和对话历史
       if (isAssistantMode) {
-        const guideContent = getAssistantGuideContent();
+        // 根据用户问题选择相关的指南模块，降低token消耗
+        const guideContent = getAssistantGuideContent(userMessage.content);
         const systemPrompt = createAssistantSystemPrompt(guideContent);
         
         // 构建完整的对话上下文
