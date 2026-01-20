@@ -3,6 +3,8 @@
  * Provides comprehensive type definitions for the tag chip enhancement system
  */
 
+import React from 'react';
+
 // Core tag data structure
 export interface TagData {
   id: string;
