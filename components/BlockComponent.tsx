@@ -31,6 +31,10 @@ import EnhancedVideoPlayer from './EnhancedVideoPlayer';
 // Priority Features Components
 import VideoCharacterModal from './VideoCharacterModal';
 
+// Enhanced Tag Components
+import TaggedInput from './TaggedInput';
+import TagHoverPreview from './TagHoverPreview';
+
 // Priority Features Services
 import PriorityFeatureManager, { 
   VoiceConfig, 
@@ -144,6 +148,9 @@ const BlockComponent: React.FC<BlockProps> = ({
   const [showTextFormatModal, setShowTextFormatModal] = useState(false);
   const [showVideoStyleModal, setShowVideoStyleModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
+
+  // Tag hover preview state
+  const [tagHoverData, setTagHoverData] = useState<{ id: string; content?: string } | null>(null);
 
   // Error handling
   const [errorHandler] = useState(() => new ErrorHandler());
@@ -509,27 +516,8 @@ const BlockComponent: React.FC<BlockProps> = ({
     return availableCharacters.find(char => char.id === block.characterId);
   };
 
-  // Get available variables from upstream data and all blocks with content
-  let availableVariables = upstreamData.map(data => data.blockNumber);
-  
-  // Also get all existing blocks with content through onResolvePrompt
-  if (onResolvePrompt) {
-    try {
-      const dummyResolve = onResolvePrompt('', block.id);
-      // Extract blocks that have content from the resolution function
-      const testPrompt = '[A01][A02][A03][B01][B02][B03][V01][V02][V03]'; // Test common block numbers
-      const resolveResult = onResolvePrompt(testPrompt, block.id);
-      const blocksWithContent = resolveResult.references
-        .filter(ref => ref.found && ref.content && ref.content.trim())
-        .map(ref => ref.blockNumber);
-      
-      // Combine with upstream data, remove duplicates
-      availableVariables = [...new Set([...availableVariables, ...blocksWithContent])];
-    } catch (error) {
-      // If onResolvePrompt fails, just use upstream data
-      console.log('Could not resolve block references:', error);
-    }
-  }
+  // Get available variables from upstream data
+  const availableVariables = upstreamData.map(data => data.blockNumber);
   
   // Check if current input has variables and validate them
   const hasVariables = variableSystem.hasVariables(userInput);
@@ -568,26 +556,48 @@ const BlockComponent: React.FC<BlockProps> = ({
   };
 
   const insertVariable = (blockNumber: string) => {
-    // Insert variable text directly into textarea
-    const variable = `[${blockNumber}]`;
-    const textarea = inputRef.current as HTMLTextAreaElement;
+    // 检查引用的模块内容状态，但不阻止插入
+    const referencedBlock = upstreamData.find(data => data.blockNumber === blockNumber);
+    const hasContent = referencedBlock && referencedBlock.content && referencedBlock.content.trim();
     
-    if (textarea) {
-      const cursorPos = textarea.selectionStart || userInput.length;
-      const newValue = userInput.slice(0, cursorPos) + variable + ' ' + userInput.slice(cursorPos);
-      setUserInput(newValue);
-      
-      // Focus and set cursor position after the inserted variable
-      setTimeout(() => {
-        if (textarea) {
-          textarea.focus();
-          const newPos = cursorPos + variable.length + 1;
-          textarea.setSelectionRange(newPos, newPos);
-        }
-      }, 0);
+    // Use enhanced TaggedInput if available, otherwise fallback to textarea
+    if (inputRef.current && typeof (inputRef.current as any).insertTag === 'function') {
+      // Enhanced TaggedInput with improved cursor handling
+      (inputRef.current as any).insertTag(blockNumber);
     } else {
-      // Fallback: append to end
-      setUserInput(prev => prev + variable + ' ');
+      // Fallback for regular textarea
+      const variable = `[${blockNumber}]`;
+      const textarea = inputRef.current as HTMLTextAreaElement;
+      
+      if (textarea) {
+        const cursorPos = textarea.selectionStart || userInput.length;
+        const newValue = userInput.slice(0, cursorPos) + variable + ' ' + userInput.slice(cursorPos);
+        setUserInput(newValue);
+        
+        // Focus and set cursor position after the inserted variable
+        setTimeout(() => {
+          if (textarea) {
+            textarea.focus();
+            const newPos = cursorPos + variable.length + 1;
+            textarea.setSelectionRange(newPos, newPos);
+          }
+        }, 0);
+      } else {
+        // Final fallback: append to end
+        setUserInput(prev => prev + variable + ' ');
+      }
+    }
+    
+    // 如果内容为空，显示温和提示（不阻止操作）
+    if (!hasContent) {
+      setTimeout(() => {
+        const message = lang === 'zh' 
+          ? `💡 提示：模块 [${blockNumber}] 暂无内容，建议先生成内容以获得更好的自动化效果。`
+          : `💡 Tip: Module [${blockNumber}] has no content yet. Consider generating content first for better automation results.`;
+        
+        console.warn(message);
+        // 可以在这里添加toast通知而不是alert
+      }, 100);
     }
   };
 
@@ -2961,18 +2971,32 @@ const BlockComponent: React.FC<BlockProps> = ({
                {/* Available variables from upstream data */}
                {upstreamData.length > 0 && (
                  <div className="flex gap-2 shrink-0">
-                   {upstreamData.map(data => (
-                     <button 
-                      key={data.blockId} 
-                      type="button"
-                      onClick={() => insertVariable(data.blockNumber)}
-                      title={lang === 'zh' ? `点击插入变量 [${data.blockNumber}]` : `Click to insert variable [${data.blockNumber}]`}
-                      className={`flex items-center gap-2 px-5 py-3 rounded-3xl border font-black text-base uppercase tracking-wider select-none shadow-sm transition-all active:scale-90 ${getChipColor(data.blockNumber)}`}
-                     >
-                       <span>[{data.blockNumber}]</span>
-                       <div className="w-3 h-3 rounded-full bg-green-500" title={lang === 'zh' ? '有数据' : 'Has data'} />
-                     </button>
-                   ))}
+                   {upstreamData.map(data => {
+                     const hasContent = data.content && data.content.trim().length > 0;
+                     return (
+                       <button 
+                        key={data.blockId} 
+                        type="button"
+                        onClick={() => insertVariable(data.blockNumber)}
+                        disabled={!hasContent}
+                        title={lang === 'zh' 
+                          ? (hasContent ? `点击插入变量 [${data.blockNumber}] - 有内容` : `模块 [${data.blockNumber}] 内容为空，无法引用`) 
+                          : (hasContent ? `Click to insert variable [${data.blockNumber}] - Has content` : `Module [${data.blockNumber}] is empty, cannot reference`)
+                        }
+                        className={`flex items-center gap-2 px-5 py-3 rounded-3xl border font-black text-base uppercase tracking-wider select-none shadow-sm transition-all ${
+                          hasContent 
+                            ? `active:scale-90 ${getChipColor(data.blockNumber)}` 
+                            : 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-700 text-gray-400 border-gray-300 dark:border-gray-600'
+                        }`}
+                       >
+                         <span>[{data.blockNumber}]</span>
+                         <div 
+                           className={`w-3 h-3 rounded-full ${hasContent ? 'bg-green-500' : 'bg-red-500'}`} 
+                           title={lang === 'zh' ? (hasContent ? '有内容' : '内容为空') : (hasContent ? 'Has content' : 'Empty content')} 
+                         />
+                       </button>
+                     );
+                   })}
                    
                    {/* Variable help button */}
                    <button
@@ -3009,7 +3033,7 @@ const BlockComponent: React.FC<BlockProps> = ({
                       title={lang === 'zh' ? '点击插入编号' : 'Click to insert ID'}
                       className={`flex items-center gap-2 px-5 py-3 rounded-3xl border font-black text-base uppercase tracking-wider select-none shadow-sm transition-all active:scale-90 ${getChipColor(id)}`}
                      >
-                       <span>{id}</span>
+                       <span>[{id}]</span>
                      </button>
                    ))}
                  </div>
@@ -3049,11 +3073,11 @@ const BlockComponent: React.FC<BlockProps> = ({
                  })}
                </div>
                
-               {/* 实际的输入框 */}
-               <textarea
+               {/* 实际的输入框 - 使用增强的 TaggedInput */}
+               <TaggedInput
                 ref={inputRef}
                 value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
+                onChange={setUserInput}
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -3066,9 +3090,9 @@ const BlockComponent: React.FC<BlockProps> = ({
                     : (lang === 'zh' ? '输入指令，点击编号可混排...' : 'Enter command, click ID to mix...')
                 }
                 className={`w-full bg-transparent text-2xl font-semibold focus:outline-none text-slate-900 dark:text-white placeholder-slate-400 py-3 px-6 min-h-[60px] max-h-[300px] overflow-y-auto resize-none border-2 border-amber-500/30 rounded-[2.5rem] focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 transition-all duration-300 relative z-20 ${variableErrors.length > 0 ? 'text-red-600 dark:text-red-400 border-red-500/50' : ''}`}
-                style={{ 
-                  caretColor: '#8b5cf6'
-                }}
+                lang={lang}
+                onTagHover={setTagHoverData}
+                upstreamData={upstreamData}
                />
              </div>
              
@@ -3184,6 +3208,12 @@ const BlockComponent: React.FC<BlockProps> = ({
         onClose={() => setShowLanguageModal(false)}
         onTranslate={handleTextTranslate}
         currentText={block.content || ''}
+      />
+
+      {/* Tag Hover Preview */}
+      <TagHoverPreview 
+        tagData={tagHoverData}
+        className="top-4 left-4"
       />
     </div>
   );

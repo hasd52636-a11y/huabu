@@ -1966,9 +1966,9 @@ const App: React.FC = () => {
         }
         
         if (!refBlock.content || !refBlock.content.trim()) {
-          // 引用的模块内容为空
+          // 引用的模块内容为空 - 这是一个严重问题，应该阻止生成
           missingReferences.push(num);
-          console.warn(`[handleGenerate] Reference [${num}] has empty content`);
+          console.warn(`[handleGenerate] Reference [${num}] has empty content - this will cause automation issues`);
           return;
         }
         
@@ -2008,17 +2008,15 @@ const App: React.FC = () => {
       console.log(`  - Missing/empty references: ${missingReferences.length}`);
       console.log(`[handleGenerate] Resolved prompt:`, resolvedPrompt);
       
-      // 如果有缺失的引用，警告用户
+      // 如果有缺失的引用，警告用户并阻止生成
       if (missingReferences.length > 0) {
         const warningMessage = lang === 'zh' 
-          ? `警告：以下引用未找到或内容为空：${missingReferences.map(r => `[${r}]`).join(', ')}\n\n将使用原始引用标记继续生成。`
-          : `Warning: The following references are missing or empty: ${missingReferences.map(r => `[${r}]`).join(', ')}\n\nWill continue with original reference markers.`;
+          ? `❌ 错误：以下引用的模块不存在或内容为空：${missingReferences.map(r => `[${r}]`).join(', ')}\n\n⚠️ 空内容的模块引用会导致自动化流程出现问题！\n\n💡 解决方案：\n1. 先为被引用的模块生成内容\n2. 或者移除对空模块的引用\n3. 确保所有引用的模块都有实际内容`
+          : `❌ Error: The following referenced modules are missing or have empty content: ${missingReferences.map(r => `[${r}]`).join(', ')}\n\n⚠️ Empty module references will cause automation workflow issues!\n\n💡 Solutions:\n1. Generate content for referenced modules first\n2. Remove references to empty modules\n3. Ensure all referenced modules have actual content`;
         
-        const shouldContinue = confirm(warningMessage + '\n\n' + (lang === 'zh' ? '是否继续？' : 'Continue?'));
-        if (!shouldContinue) {
-          setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, status: 'idle' } : b));
-          return;
-        }
+        alert(warningMessage);
+        setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, status: 'idle' } : b));
+        return;
       }
       
       // 合并所有文本内容用于token计算
