@@ -78,8 +78,8 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
             ? { 
                 ...msg, 
                 content: lang === 'zh' 
-                  ? '🧚‍♀️ 说曹操，曹操到，欢迎来到曹操画布工作站，这里是轻量级自动化多媒体工作站！我是您的AI助手曹冲，有任何使用问题冲我来。💫 偷偷告诉你！文案，脚本，课件，图片，修图，分镜，动画视频，自动化工作流……我都可以悄悄帮你搞定！💖 微信：wirelesscharger' 
-                  : '🧚‍♀️ Welcome to Cao Cao Canvas! I\'m your AI assistant Cao Chong, ready to help with any platform questions.\n\n💫 Feel free to ask about module creation, AI generation, workflow configuration, and more!',
+                  ? '你好，我是您的智能助手，我的名字叫曹冲，我是一个轻量级多媒体工作站，可以基于我聪明的家族遗传大脑为您实现文本，文字，图片，视频创作，也可以以工作流的形式搭建多媒体融合的创作，更可以将您创建的工作流实现自动批量化生产。为了帮助更多的残疾人士，我还加装了语音，手势识别的三头六臂，我内置了72种能力可以模块化调用，更为重要的是我是个爱学习的人，如果您持续使用我一个月后您将看到我令你惊艳的贴心懂你。' 
+                  : 'Hello! I\'m your intelligent assistant named Cao Chong, a lightweight multimedia workstation. I can create text, images, and videos using my smart "family heritage brain". I can also build multimedia fusion creations through workflows and achieve automatic batch production. To help more people with disabilities, I\'ve added voice and gesture recognition capabilities. I have 72 built-in modular abilities, and most importantly, I\'m a fast learner. Continue using me for a month, and you\'ll be amazed by how贴心 I become!',
                 isGenerating: false 
               } 
             : msg
