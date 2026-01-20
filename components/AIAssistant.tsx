@@ -78,8 +78,8 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
             ? { 
                 ...msg, 
                 content: lang === 'zh' 
-                  ? '🧚‍♀️ 欢迎使用Canvas智能创作平台！我是您的AI助手，可以帮助您解答平台使用问题。\n\n💫 您可以询问关于模块创建、AI生成、工作流配置等任何问题！' 
-                  : '🧚‍♀️ Welcome to Canvas! I\'m your AI assistant, ready to help with any platform questions.\n\n💫 Feel free to ask about module creation, AI generation, workflow configuration, and more!',
+                  ? '🧚‍♀️ 说曹操，曹操到，欢迎来到曹操画布工作站，这里是轻量级自动化多媒体工作站！我是您的AI助手曹冲，有任何使用问题冲我来。💫 偷偷告诉你！文案，脚本，课件，图片，修图，分镜，动画视频，自动化工作流……我都可以悄悄帮你搞定！💖 微信：wirelesscharger' 
+                  : '🧚‍♀️ Welcome to Cao Cao Canvas! I\'m your AI assistant Cao Chong, ready to help with any platform questions.\n\n💫 Feel free to ask about module creation, AI generation, workflow configuration, and more!',
                 isGenerating: false 
               } 
             : msg
