@@ -646,10 +646,6 @@ class ZhipuService {
    */
   async testConnection(): Promise<boolean> {
     try {
-      console.log('[ZhipuService] Testing API connection...');
-      console.log(`[ZhipuService] API Key configured:`, !!this.config.apiKey);
-      console.log(`[ZhipuService] Base URL:`, this.baseUrl);
-
       // 使用一个简单的文本生成请求来测试连接（比图片分析更可靠）
       const testPrompt = 'Say "test successful" in one word.';
 
@@ -657,7 +653,6 @@ class ZhipuService {
         maxTokens: 10
       });
 
-      console.log('[ZhipuService] ✅ Connection test successful');
       return !!result;
     } catch (error) {
       console.error('[ZhipuService] ❌ Connection test failed:', error);

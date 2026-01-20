@@ -724,12 +724,9 @@ export class ShenmaService {
    * 连接测试
    */
   async testConnection(): Promise<boolean> {
-    console.log('[ShenmaService] Testing connection...');
-    
     try {
       // 测试文本生成接口
       const result = await this.generateText('test', { maxTokens: 10 });
-      console.log('[ShenmaService] ✓ Connection test successful');
       return !!result;
     } catch (error) {
       console.error('[ShenmaService] ❌ Connection test failed:', error);

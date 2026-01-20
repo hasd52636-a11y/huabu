@@ -41,6 +41,13 @@ const playCommandSound = () => {
     console.warn('音效播放失败:', error);
   }
 };
+
+// 临时存储最后创建的块，用于解决异步状态更新问题
+declare global {
+  interface Window {
+    lastCreatedBlock?: Block;
+  }
+}
 import Canvas from './components/Canvas';
 import BatchVideoModal from './components/BatchVideoModal';
 import MinimizedProgressWindow from './components/MinimizedProgressWindow';
@@ -61,17 +68,15 @@ import { BatchProcessor } from './services/BatchProcessor';
 import { ExportService } from './services/ExportService';
 import { MultiImageGenerator } from './services/MultiImageGenerator';
 import { loadPresetPrompts, savePresetPrompts } from './services/PresetPromptStorage';
-import VoiceCommandFeedback from './components/VoiceCommandFeedback';
 import VoiceCommandHelp from './components/VoiceCommandHelp';
-import VoiceCommandController from './components/VoiceCommandController';
 import GestureController from './components/GestureController';
 import GestureHelp from './components/GestureHelp';
-import AIGestureDemo from './components/AIGestureDemo';
 import CanvasVoiceController from './components/CanvasVoiceController';
 import CanvasGestureController from './components/CanvasGestureController';
 import CaocaoAIChat from './components/CaocaoAIChat';
 import { simpleGestureRecognizer } from './services/SimpleGestureRecognizer';
 import { connectionEngine } from './services/ConnectionEngine';
+import { voiceCanvasReporter } from './services/VoiceCanvasReporter';
 import { COLORS, I18N, MIN_ZOOM, MAX_ZOOM } from './constants.tsx';
 import { getAssistantGuideContent, createAssistantSystemPrompt } from './config/assistant-guide';
 import { TokenContextProvider, useTokenContext } from './contexts/TokenContext';
@@ -85,7 +90,6 @@ import { menuConfigManager } from './utils/MenuConfigManager';
 import CanvasToast from './components/CanvasToast';
 import CanvasConfirmDialog from './components/CanvasConfirmDialog';
 import { useToast } from './hooks/useToast';
-import AdminMonitoringDashboard from './components/AdminMonitoringDashboard';
 import { useSystemMonitoring, useFeatureTracking } from './hooks/useSystemMonitoring';
 
 interface ChatMessage {
@@ -126,22 +130,31 @@ const App: React.FC = () => {
   // Voice Input State
   const [isVoiceRecording, setIsVoiceRecording] = useState<boolean>(false);
   const [isVoiceProcessing, setIsVoiceProcessing] = useState<boolean>(false);
+  const [wasVoiceInput, setWasVoiceInput] = useState<boolean>(false); // 跟踪是否是语音输入
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
+  const [voiceTimeout, setVoiceTimeout] = useState<NodeJS.Timeout | null>(null); // 语音超时定时器
   const [wakeWord] = useState<string>('曹操'); // 唤醒词
-  const [showVoiceFeedback, setShowVoiceFeedback] = useState<boolean>(false);
   const [showVoiceHelp, setShowVoiceHelp] = useState<boolean>(false);
   const [lastVoiceCommand, setLastVoiceCommand] = useState<{text: string, command: string} | null>(null);
 
   // Gesture Control State
   const [showGestureController, setShowGestureController] = useState<boolean>(false);
   const [showGestureHelp, setShowGestureHelp] = useState<boolean>(false);
-  const [showAIGestureDemo, setShowAIGestureDemo] = useState<boolean>(false);
   const [isGestureActive, setIsGestureActive] = useState<boolean>(false);
   
   // Canvas Voice & Gesture Control State
   const [isCanvasVoiceActive, setIsCanvasVoiceActive] = useState<boolean>(false);
   const [isCanvasGestureActive, setIsCanvasGestureActive] = useState<boolean>(false);
   const [showCaocaoChat, setShowCaocaoChat] = useState<boolean>(false);
+  
+  // 语音消息传递状态
+  const [voiceMessages, setVoiceMessages] = useState<Array<{
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
+    type: 'voice' | 'system';
+    timestamp: number;
+  }>>([]);
 
   // 手势激活状态变化时的处理
   useEffect(() => {
@@ -158,10 +171,14 @@ const App: React.FC = () => {
             panPosition: pan
           });
           
-          // 设置手势回调
-          simpleGestureRecognizer.setOnGestureCallback(handleGestureCommand);
+          // 清除之前的回调，避免重复设置
+          simpleGestureRecognizer.setOnGestureCallback(null);
           
-          console.log('[App] 手势控制已激活');
+          // 延迟设置手势回调，确保组件状态稳定
+          setTimeout(() => {
+            simpleGestureRecognizer.setOnGestureCallback(handleGestureCommand);
+            console.log('[App] 手势控制已激活，回调已设置');
+          }, 200);
           
           // 自动切换到曹操AI标签页
           setSidebarTab('caocao');
@@ -174,6 +191,7 @@ const App: React.FC = () => {
       startGestureRecognition();
     } else {
       // 停止手势识别
+      simpleGestureRecognizer.setOnGestureCallback(null);
       simpleGestureRecognizer.stop();
       console.log('[App] 手势控制已停止');
     }
@@ -259,7 +277,6 @@ const App: React.FC = () => {
 
   // Feature tracking for analytics (backend data collection continues)
   const { trackFeatureUsage, trackFeatureError, trackPerformance } = useFeatureTracking();
-  const [showAdminMonitoring, setShowAdminMonitoring] = useState(false);
 
   // Enhanced text formatting function with more features
   const formatText = (text: string): JSX.Element[] => {
@@ -407,6 +424,17 @@ const App: React.FC = () => {
     if (theme === 'dark') root.classList.add('dark');
     else root.classList.remove('dark');
   }, [theme]);
+
+  // 监听语音控制状态变化，关闭时停止所有语音合成
+  useEffect(() => {
+    if (!isCanvasVoiceActive) {
+      // 语音控制关闭时，立即停止所有语音合成播放
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        console.log('[App] 语音控制关闭，已停止所有语音合成');
+      }
+    }
+  }, [isCanvasVoiceActive]);
   
   // Initialize Speech Recognition
   useEffect(() => {
@@ -414,42 +442,93 @@ const App: React.FC = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
+      recognition.continuous = true; // 启用连续监听
+      recognition.interimResults = true; // 启用中间结果
       recognition.lang = lang === 'zh' ? 'zh-CN' : 'en-US';
       
       recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
+        let finalTranscript = '';
+        let interimTranscript = '';
         
-        // 检查是否包含唤醒词
-        if (transcript.includes(wakeWord)) {
-          
-          // 提取唤醒词后的内容
-          const commandText = transcript.split(wakeWord)[1]?.trim();
-          if (commandText && commandText.length > 0) {
-            // 有指令内容，处理语音指令
-            setIsVoiceRecording(false);
-            setIsVoiceProcessing(true);
-            handleVoiceCommand(commandText);
+        // 处理所有识别结果
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
           } else {
-            // 只有唤醒词，显示在输入框中等待用户继续
-            setSidebarInput(prev => prev + `${wakeWord} - 请继续说出指令`);
-            setIsVoiceRecording(false);
+            interimTranscript += transcript;
           }
-        } else {
-          // 没有唤醒词，按原来的方式处理（直接添加到输入框）
-          setSidebarInput(prev => prev + transcript);
-          setIsVoiceRecording(false);
+        }
+        
+        // 如果有最终结果，添加到输入框
+        if (finalTranscript) {
+          setSidebarInput(prev => {
+            const newValue = prev + (prev ? ' ' : '') + finalTranscript;
+            return newValue;
+          });
+          setWasVoiceInput(true);
+          
+          // 清除之前的定时器
+          if (voiceTimeout) {
+            clearTimeout(voiceTimeout);
+          }
+          
+          // 设置3秒后自动提交
+          const timeout = setTimeout(() => {
+            console.log('[语音识别] 3秒无语音，自动提交');
+            handleSidebarSend();
+            setIsVoiceRecording(false);
+            if (recognition) {
+              recognition.stop();
+            }
+          }, 3000);
+          
+          setVoiceTimeout(timeout);
         }
       };
       
       recognition.onerror = (event: any) => {
         console.error('Speech recognition error:', event.error);
-        setIsVoiceRecording(false);
+        
+        // 如果是网络错误或其他可恢复错误，尝试重启
+        if (event.error === 'network' || event.error === 'audio-capture') {
+          console.log('[语音识别] 检测到网络错误，尝试重启...');
+          setTimeout(() => {
+            if (isVoiceRecording && recognition) {
+              try {
+                recognition.start();
+              } catch (error) {
+                console.error('[语音识别] 重启失败:', error);
+                setIsVoiceRecording(false);
+              }
+            }
+          }, 1000);
+        } else {
+          setIsVoiceRecording(false);
+        }
       };
       
       recognition.onend = () => {
-        setIsVoiceRecording(false);
+        console.log('[语音识别] 识别结束');
+        
+        // 如果仍在录音状态且没有错误，自动重启
+        if (isVoiceRecording) {
+          console.log('[语音识别] 自动重启连续监听...');
+          setTimeout(() => {
+            if (isVoiceRecording && recognition) {
+              try {
+                recognition.start();
+              } catch (error) {
+                console.error('[语音识别] 自动重启失败:', error);
+                setIsVoiceRecording(false);
+              }
+            }
+          }, 100);
+        }
+      };
+      
+      recognition.onstart = () => {
+        console.log('[语音识别] 开始监听');
       };
       
       setRecognition(recognition);
@@ -479,17 +558,54 @@ const App: React.FC = () => {
   };
 
   const parseVoiceCommand = (text: string) => {
-    // 使用智能指令库进行匹配
-    const { voiceCommandLibrary } = require('./services/VoiceCommandLibrary');
-    const matchResult = voiceCommandLibrary.matchCommand(text);
+    // 简化的语音指令解析，避免动态导入问题
+    const lowerText = text.toLowerCase();
     
-    if (matchResult.command !== 'unknown') {
+    // 文本生成指令
+    if (lowerText.includes('写') || lowerText.includes('文字') || lowerText.includes('文本')) {
       return {
-        command: matchResult.command,
-        content: text.replace(/帮我|请|生成|制作/g, '').trim(),
-        confidence: matchResult.confidence,
-        matched_pattern: matchResult.matched_pattern
+        command: 'generate_text',
+        content: text.replace(/帮我|请|生成|制作|写|文字|文本/g, '').trim(),
+        confidence: 0.9,
+        matched_pattern: '文本生成'
       };
+    }
+    
+    // 图片生成指令
+    if (lowerText.includes('画') || lowerText.includes('图片') || lowerText.includes('图像')) {
+      return {
+        command: 'generate_image',
+        content: text.replace(/帮我|请|生成|制作|画|图片|图像/g, '').trim(),
+        confidence: 0.9,
+        matched_pattern: '图片生成'
+      };
+    }
+    
+    // 视频生成指令
+    if (lowerText.includes('视频') || lowerText.includes('录像') || lowerText.includes('影片')) {
+      return {
+        command: 'generate_video',
+        content: text.replace(/帮我|请|生成|制作|视频|录像|影片/g, '').trim(),
+        confidence: 0.9,
+        matched_pattern: '视频生成'
+      };
+    }
+    
+    // 画布操作指令
+    if (lowerText.includes('清空') || lowerText.includes('清除')) {
+      return { command: 'clear_canvas', content: text, confidence: 0.95, matched_pattern: '清空画布' };
+    }
+    
+    if (lowerText.includes('重置') || lowerText.includes('居中')) {
+      return { command: 'reset_view', content: text, confidence: 0.95, matched_pattern: '重置视角' };
+    }
+    
+    if (lowerText.includes('布局') || lowerText.includes('排列')) {
+      return { command: 'auto_layout', content: text, confidence: 0.95, matched_pattern: '自动布局' };
+    }
+    
+    if (lowerText.includes('全选') || lowerText.includes('选择全部')) {
+      return { command: 'select_all', content: text, confidence: 0.95, matched_pattern: '全选' };
     }
 
     return { command: 'unknown', content: text, confidence: 0 };
@@ -563,24 +679,49 @@ const App: React.FC = () => {
 
     // 如果置信度较低，显示反馈界面
     if (command.confidence && command.confidence < 0.8) {
-      setTimeout(() => {
-        setShowVoiceFeedback(true);
-      }, 2000); // 2秒后显示反馈
+      // 语音识别置信度较低，但不再显示反馈界面
+      console.log('语音识别置信度较低:', command.confidence);
     }
   };
 
   // 创建块并生成内容
   const createAndGenerateBlock = async (type: 'text' | 'image' | 'video', content: string, params?: any) => {
+    console.log('[createAndGenerateBlock] 开始创建块:', { type, content, params });
+    
     // 在画布中心创建新块
     const centerX = -pan.x / zoom + (window.innerWidth * 0.7) / (2 * zoom); // 考虑侧边栏宽度
     const centerY = -pan.y / zoom + window.innerHeight / (2 * zoom);
 
     const newBlock = addBlock(type, '', centerX, centerY);
+    console.log('[createAndGenerateBlock] 块已创建:', newBlock);
+    
+    // 播报实际创建的模块编号
+    if (newBlock) {
+      const moduleTypeText = lang === 'zh' 
+        ? (type === 'text' ? '文本' : type === 'image' ? '图片' : '视频')
+        : (type === 'text' ? 'text' : type === 'image' ? 'image' : 'video');
+      
+      const numberAnnouncement = lang === 'zh'
+        ? `已创建${moduleTypeText}模块${newBlock.number}`
+        : `Created ${moduleTypeText} module ${newBlock.number}`;
+      
+      // 通过语音消息更新播报编号
+      setVoiceMessages(prev => [...prev, {
+        id: `module-created-${Date.now()}`,
+        role: 'assistant',
+        content: numberAnnouncement,
+        type: 'system',
+        timestamp: Date.now()
+      }]);
+    }
     
     // 等待块创建完成后生成内容
     setTimeout(async () => {
       if (newBlock) {
+        console.log('[createAndGenerateBlock] 开始生成内容:', { blockId: newBlock.id, content });
         await handleGenerate(newBlock.id, content);
+      } else {
+        console.error('[createAndGenerateBlock] 新块创建失败');
       }
     }, 100);
   };
@@ -598,6 +739,13 @@ const App: React.FC = () => {
     
     console.log('[App] 收到手势命令:', gesture);
     
+    // 验证手势类型
+    const validGestures = ['zoom_in', 'zoom_out', 'move_up', 'move_down', 'move_left', 'move_right', 'reset_view', 'clear_canvas', 'auto_layout', 'select_all'];
+    if (!validGestures.includes(gesture)) {
+      console.warn('[App] 无效的手势类型:', gesture);
+      return;
+    }
+    
     // 更新手势识别器的画布状态
     simpleGestureRecognizer.updateCanvasState({
       blockCount: blocks.length,
@@ -609,52 +757,56 @@ const App: React.FC = () => {
 
     console.log('[App] 开始执行手势命令:', gesture);
 
-    switch (gesture) {
-      case 'zoom_in':
-        console.log('[App] 执行放大操作');
-        setZoom(prev => Math.min(prev * 1.2, MAX_ZOOM));
-        break;
-      case 'zoom_out':
-        console.log('[App] 执行缩小操作');
-        setZoom(prev => Math.max(prev / 1.2, MIN_ZOOM));
-        break;
-      case 'move_up':
-        console.log('[App] 执行上移操作');
-        setPan(prev => ({ ...prev, y: prev.y + 50 }));
-        break;
-      case 'move_down':
-        console.log('[App] 执行下移操作');
-        setPan(prev => ({ ...prev, y: prev.y - 50 }));
-        break;
-      case 'move_left':
-        console.log('[App] 执行左移操作');
-        setPan(prev => ({ ...prev, x: prev.x + 50 }));
-        break;
-      case 'move_right':
-        console.log('[App] 执行右移操作');
-        setPan(prev => ({ ...prev, x: prev.x - 50 }));
-        break;
-      case 'reset_view':
-        console.log('[App] 执行重置视角操作');
-        handleCanvasReset();
-        break;
-      case 'clear_canvas':
-        console.log('[App] 执行清空画布操作');
-        handleCanvasClear();
-        break;
-      case 'auto_layout':
-        console.log('[App] 执行自动布局操作');
-        handleAutoLayout();
-        break;
-      case 'select_all':
-        console.log('[App] 执行全选操作');
-        handleSelectAll();
-        break;
-      default:
-        console.log('[App] 未知手势:', gesture);
+    try {
+      switch (gesture) {
+        case 'zoom_in':
+          console.log('[App] 执行放大操作');
+          setZoom(prev => Math.min(prev * 1.2, MAX_ZOOM));
+          break;
+        case 'zoom_out':
+          console.log('[App] 执行缩小操作');
+          setZoom(prev => Math.max(prev / 1.2, MIN_ZOOM));
+          break;
+        case 'move_up':
+          console.log('[App] 执行上移操作');
+          setPan(prev => ({ ...prev, y: prev.y + 50 }));
+          break;
+        case 'move_down':
+          console.log('[App] 执行下移操作');
+          setPan(prev => ({ ...prev, y: prev.y - 50 }));
+          break;
+        case 'move_left':
+          console.log('[App] 执行左移操作');
+          setPan(prev => ({ ...prev, x: prev.x + 50 }));
+          break;
+        case 'move_right':
+          console.log('[App] 执行右移操作');
+          setPan(prev => ({ ...prev, x: prev.x - 50 }));
+          break;
+        case 'reset_view':
+          console.log('[App] 执行重置视角操作');
+          handleCanvasReset();
+          break;
+        case 'clear_canvas':
+          console.log('[App] 执行清空画布操作');
+          handleCanvasClear();
+          break;
+        case 'auto_layout':
+          console.log('[App] 执行自动布局操作');
+          handleAutoLayout();
+          break;
+        case 'select_all':
+          console.log('[App] 执行全选操作');
+          handleSelectAll();
+          break;
+        default:
+          console.log('[App] 未知手势:', gesture);
+      }
+      
+      console.log('[App] 手势命令执行完成:', gesture);
+    } catch (error) {
+      console.error('[App] 手势命令执行失败:', gesture, error);
     }
-    
-    console.log('[App] 手势命令执行完成:', gesture);
   };
 
   // 投射语音生成内容到画布
@@ -696,20 +848,294 @@ const App: React.FC = () => {
       console.error('执行语音指令失败:', error);
     }
   };
+
+  // 模块操作处理函数
+  const handleModuleAction = async (action: string, moduleId?: string, params?: any) => {
+    console.log('[App] 执行模块操作:', { action, moduleId, params });
+    
+    try {
+      switch (action) {
+        case 'select':
+          if (moduleId) {
+            const targetBlock = blocks.find(b => b.number === moduleId);
+            if (targetBlock) {
+              setSelectedIds([targetBlock.id]);
+              showSuccess('模块已选择', `已选择模块 ${moduleId}`);
+            }
+          }
+          break;
+          
+        case 'delete':
+          if (moduleId) {
+            const targetBlock = blocks.find(b => b.number === moduleId);
+            if (targetBlock) {
+              setBlocks(prev => prev.filter(b => b.id !== targetBlock.id));
+              setSelectedIds(prev => prev.filter(id => id !== targetBlock.id));
+              showSuccess('模块已删除', `已删除模块 ${moduleId}`);
+            }
+          }
+          break;
+          
+        case 'generate':
+          if (moduleId && params?.content) {
+            const targetBlock = blocks.find(b => b.number === moduleId);
+            if (targetBlock) {
+              await handleGenerate(targetBlock.id, params.content);
+              showSuccess('开始生成', `正在为模块 ${moduleId} 生成内容`);
+            }
+          }
+          break;
+
+        case 'edit':
+          if (moduleId && params?.content) {
+            const targetBlock = blocks.find(b => b.number === moduleId);
+            if (targetBlock) {
+              // 直接设置模块内容，不调用AI生成
+              setBlocks(prev => prev.map(b => 
+                b.id === targetBlock.id 
+                  ? { ...b, content: params.content, status: 'idle' }
+                  : b
+              ));
+              showSuccess('内容已输入', `已为模块 ${moduleId} 输入内容："${params.content}"`);
+            }
+          }
+          break;
+
+        case 'regenerate':
+          if (moduleId) {
+            const targetBlock = blocks.find(b => b.number === moduleId);
+            if (targetBlock && targetBlock.originalPrompt) {
+              await handleGenerate(targetBlock.id, targetBlock.originalPrompt);
+              showSuccess('开始重新生成', `正在重新生成模块 ${moduleId}`);
+            } else if (targetBlock) {
+              showError('无法重新生成', `模块 ${moduleId} 没有原始提示词`);
+            }
+          }
+          break;
+
+        case 'modify_prompt':
+          if (moduleId && params?.promptModification) {
+            const targetBlock = blocks.find(b => b.number === moduleId);
+            if (targetBlock) {
+              // 构建新的提示词
+              const originalPrompt = targetBlock.originalPrompt || '';
+              const newPrompt = originalPrompt 
+                ? `${originalPrompt}，${params.promptModification}`
+                : params.promptModification;
+              
+              // 更新块的原始提示词
+              setBlocks(prev => prev.map(b => 
+                b.id === targetBlock.id 
+                  ? { ...b, originalPrompt: newPrompt }
+                  : b
+              ));
+              
+              // 使用新提示词重新生成
+              await handleGenerate(targetBlock.id, newPrompt);
+              showSuccess('提示词已修改', `已为模块 ${moduleId} 添加："${params.promptModification}"`);
+            }
+          }
+          break;
+          
+        case 'move':
+          if (moduleId && params?.direction) {
+            const targetBlock = blocks.find(b => b.number === moduleId);
+            if (targetBlock) {
+              const moveDistance = 100; // 移动距离
+              let newX = targetBlock.x;
+              let newY = targetBlock.y;
+              
+              switch (params.direction) {
+                case 'up':
+                  newY -= moveDistance;
+                  break;
+                case 'down':
+                  newY += moveDistance;
+                  break;
+                case 'left':
+                  newX -= moveDistance;
+                  break;
+                case 'right':
+                  newX += moveDistance;
+                  break;
+              }
+              
+              setBlocks(prev => prev.map(b => 
+                b.id === targetBlock.id 
+                  ? { ...b, x: newX, y: newY }
+                  : b
+              ));
+              
+              showSuccess('模块已移动', `模块 ${moduleId} 已向${params.direction}移动`);
+            }
+          }
+          break;
+          
+        case 'connect':
+          if (moduleId && params?.connectTo) {
+            const fromBlock = blocks.find(b => b.number === moduleId);
+            const toBlock = blocks.find(b => b.number === params.connectTo);
+            
+            if (fromBlock && toBlock) {
+              const newConnection = {
+                id: crypto.randomUUID(),
+                fromId: fromBlock.id,
+                toId: toBlock.id,
+                instruction: ''
+              };
+              
+              setConnections(prev => [...prev, newConnection]);
+              showSuccess('模块已连接', `已将模块 ${moduleId} 连接到 ${params.connectTo}`);
+            }
+          }
+          break;
+          
+        case 'copy':
+          if (moduleId) {
+            const targetBlock = blocks.find(b => b.number === moduleId);
+            if (targetBlock) {
+              const newBlock = {
+                ...targetBlock,
+                id: crypto.randomUUID(),
+                x: targetBlock.x + 50,
+                y: targetBlock.y + 50,
+                number: getNextBlockNumber(targetBlock.type)
+              };
+              
+              setBlocks(prev => [...prev, newBlock]);
+              showSuccess('模块已复制', `已复制模块 ${moduleId} 为 ${newBlock.number}`);
+            }
+          }
+          break;
+          
+        default:
+          console.log('未支持的模块操作:', action);
+      }
+    } catch (error) {
+      console.error('模块操作失败:', error);
+      showError('操作失败', `执行模块操作时出现错误: ${error instanceof Error ? error.message : '未知错误'}`);
+    }
+  };
+
+  // 获取下一个块编号的辅助函数
+  const getNextBlockNumber = (type: 'text' | 'image' | 'video'): string => {
+    const prefix = type === 'text' ? 'A' : type === 'image' ? 'B' : 'V';
+    
+    // 使用更可靠的编号生成方法，避免重复
+    const sameTypeBlocks = blocks.filter(b => b.type === type);
+    const existingNumbers = sameTypeBlocks.map(b => {
+      const match = b.number.match(/\d+/);
+      return match ? parseInt(match[0]) : 0;
+    });
+    
+    // 找到下一个可用的编号
+    let nextNumber = 1;
+    while (existingNumbers.includes(nextNumber)) {
+      nextNumber++;
+    }
+    
+    return `${prefix}${String(nextNumber).padStart(2, '0')}`;
+  };
   
-  // Voice Recording Functions
+  // Voice Recording Functions - 常驻语音转文字功能
   const toggleVoiceRecording = () => {
+    // 检查当前是否在聊天标签页
+    if (sidebarTab !== 'chat') {
+      const message = lang === 'zh' 
+        ? '请先切换到"聊天"标签页才能使用语音转文字功能' 
+        : 'Please switch to "Chat" tab to use voice-to-text feature';
+      alert(message);
+      return;
+    }
+
+    // 检查曹操语音控制是否激活
+    if (isCanvasVoiceActive) {
+      const message = lang === 'zh' 
+        ? '曹操语音控制正在使用中，请先关闭曹操语音控制' 
+        : 'Caocao voice control is active, please disable it first';
+      alert(message);
+      return;
+    }
+
     if (!recognition) {
-      alert(lang === 'zh' ? '您的浏览器不支持语音输入功能' : 'Your browser does not support voice input');
+      const message = lang === 'zh' 
+        ? '您的浏览器不支持语音输入功能，建议使用Chrome或Edge浏览器' 
+        : 'Your browser does not support voice input. Please use Chrome or Edge browser';
+      alert(message);
       return;
     }
     
     if (isVoiceRecording) {
+      // 手动停止录音
+      console.log('[语音识别] 用户手动停止录音');
+      
+      // 清除定时器
+      if (voiceTimeout) {
+        clearTimeout(voiceTimeout);
+        setVoiceTimeout(null);
+      }
+      
       recognition.stop();
       setIsVoiceRecording(false);
+      
+      // 如果有输入内容，立即提交
+      if (sidebarInput.trim() && wasVoiceInput) {
+        setTimeout(() => {
+          handleSidebarSend();
+        }, 100);
+      }
     } else {
-      recognition.start();
-      setIsVoiceRecording(true);
+      // 开始录音
+      try {
+        console.log('[语音识别] 开始常驻语音监听');
+        recognition.start();
+        setIsVoiceRecording(true);
+      } catch (error) {
+        console.error('语音识别启动失败:', error);
+        const message = lang === 'zh' 
+          ? '语音识别启动失败，请检查麦克风权限' 
+          : 'Failed to start voice recognition. Please check microphone permissions';
+        alert(message);
+      }
+    }
+  };
+
+  // 播放文本转语音功能
+  const playTextToSpeech = (text: string) => {
+    if ('speechSynthesis' in window) {
+      // 停止当前播放的语音
+      window.speechSynthesis.cancel();
+      
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = lang === 'zh' ? 'zh-CN' : 'en-US';
+      utterance.rate = 0.9;
+      utterance.pitch = 1.0;
+      utterance.volume = 0.8;
+      
+      utterance.onstart = () => {
+        console.log('[TTS] 开始播放语音:', text.substring(0, 50));
+      };
+      
+      utterance.onend = () => {
+        console.log('[TTS] 语音播放完成');
+        setWasVoiceInput(false); // 播放完成后重置状态
+      };
+      
+      utterance.onerror = (event) => {
+        console.error('[TTS] 语音播放失败:', event.error);
+        setWasVoiceInput(false); // 出错时也重置状态
+      };
+      
+      // 确保语音合成器处于正确状态
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+      
+      window.speechSynthesis.speak(utterance);
+      console.log('[TTS] 语音已加入播放队列');
+    } else {
+      console.warn('[TTS] 浏览器不支持语音合成');
+      setWasVoiceInput(false); // 不支持时重置状态
     }
   };
 
@@ -1731,7 +2157,7 @@ const App: React.FC = () => {
           }
         });
         
-        // 添加角色客串参数
+        // 添加角色客串参数和视频参数
         const videoContents: any = { parts: videoParts };
         if (block.characterUrl) {
           videoContents.characterUrl = block.characterUrl;
@@ -1739,6 +2165,34 @@ const App: React.FC = () => {
         if (block.characterTimestamps) {
           videoContents.characterTimestamps = block.characterTimestamps;
         }
+        
+        // 重要：传递视频比例参数 - 确保从block中正确提取
+        if (block.aspectRatio) {
+          videoContents.aspectRatio = block.aspectRatio;
+          console.log('[handleGenerate] Setting video aspectRatio from block:', block.aspectRatio);
+        } else {
+          // 如果block没有aspectRatio，使用默认值
+          videoContents.aspectRatio = '16:9';
+          console.log('[handleGenerate] Using default aspectRatio: 16:9');
+        }
+        
+        // 传递视频时长参数
+        if (block.duration) {
+          videoContents.duration = typeof block.duration === 'string' ? parseInt(block.duration) : block.duration;
+          console.log('[handleGenerate] Setting video duration from block:', videoContents.duration);
+        } else {
+          // 如果block没有duration，使用默认值
+          videoContents.duration = 10;
+          console.log('[handleGenerate] Using default duration: 10');
+        }
+        
+        console.log('[handleGenerate] Final videoContents being passed to AIServiceAdapter:', {
+          aspectRatio: videoContents.aspectRatio,
+          duration: videoContents.duration,
+          partsCount: videoContents.parts?.length || 0,
+          hasCharacterUrl: !!videoContents.characterUrl,
+          hasCharacterTimestamps: !!videoContents.characterTimestamps
+        });
         
         result = await aiServiceAdapter.generateVideo(videoContents, legacyConfig.video);
       }
@@ -1769,6 +2223,9 @@ const App: React.FC = () => {
       showTokenLimitModal();
       return;
     }
+
+    // 保存语音输入状态，用于后续判断是否需要播放语音
+    const shouldPlayVoice = wasVoiceInput;
 
     // 将新配置转换为旧格式以兼容现有代码
     const legacyConfig = convertNewToLegacyConfig(modelConfig);
@@ -1838,6 +2295,23 @@ ${inputText || "Generate from attachment"}
     
     const assistantMsgId = crypto.randomUUID();
     setMessages(prev => [...prev, { id: assistantMsgId, role: 'assistant', type: currentMode, content: '', timestamp: new Date().toLocaleTimeString(), isGenerating: true }]);
+    
+    // 语音播报生成开始状态（仅在语音输入时播放）
+    if (shouldPlayVoice) {
+      let startMessage = '';
+      
+      if (currentMode === 'text') {
+        startMessage = lang === 'zh' ? '正在生成文本回复...' : 'Generating text response...';
+      } else if (currentMode === 'image') {
+        startMessage = lang === 'zh' ? '正在生成图片，请稍候...' : 'Generating image, please wait...';
+      } else if (currentMode === 'video') {
+        startMessage = lang === 'zh' ? '正在生成视频，请稍候...' : 'Generating video, please wait...';
+      }
+      
+      if (startMessage) {
+        playTextToSpeech(startMessage);
+      }
+    }
     
     try {
       const settings = currentMode === 'text' ? legacyConfig.text : currentMode === 'image' ? legacyConfig.image : legacyConfig.video;
@@ -1919,6 +2393,30 @@ ${inputText || "Generate from attachment"}
       }
       
       setMessages(prev => prev.map(msg => msg.id === assistantMsgId ? { ...msg, content: result, isGenerating: false } : msg));
+      
+      // 语音播放AI回复内容或状态播报（仅在语音输入时播放）
+      if (shouldPlayVoice) {
+        let voiceContent = '';
+        
+        if (currentMode === 'text') {
+          // 文本模式：播放AI回复内容
+          voiceContent = result;
+        } else if (currentMode === 'image') {
+          // 图片模式：播放生成状态
+          voiceContent = lang === 'zh' 
+            ? '图片生成成功！已添加到聊天记录中。' 
+            : 'Image generated successfully! Added to chat history.';
+        } else if (currentMode === 'video') {
+          // 视频模式：播放生成状态
+          voiceContent = lang === 'zh' 
+            ? '视频生成成功！已添加到聊天记录中。' 
+            : 'Video generated successfully! Added to chat history.';
+        }
+        
+        if (voiceContent) {
+          playTextToSpeech(voiceContent);
+        }
+      }
     } catch (error) {
       console.error(error);
       
@@ -1951,55 +2449,93 @@ ${inputText || "Generate from attachment"}
     };
   }, [resize, stopResizing]);
 
+  // 清理语音定时器
+  useEffect(() => {
+    return () => {
+      if (voiceTimeout) {
+        clearTimeout(voiceTimeout);
+      }
+    };
+  }, [voiceTimeout]);
+
   const addBlock = (type: BlockType, initialContent: string = '', x?: number, y?: number) => {
     const prefix = type === 'text' ? 'A' : type === 'image' ? 'B' : 'V';
-    const idNum = String(blocks.filter(b => b.type === type).length + 1).padStart(2, '0');
     
-    // Calculate default position with offset based on existing blocks of the same type
-    let defaultX = 300;
-    let defaultY = 200;
-    
-    // For different types, use different starting positions to avoid overlap
-    const typeOffsets = {
-      text: { startX: 300, startY: 200 },
-      image: { startX: 1000, startY: 200 },
-      video: { startX: 1700, startY: 200 }
-    };
-    
-    // Get the type-specific starting position
-    const offset = typeOffsets[type];
-    defaultX = offset.startX;
-    defaultY = offset.startY;
-    
-    // If there are existing blocks of the same type, place new block in a grid pattern
-    const sameTypeBlocks = blocks.filter(b => b.type === type);
-    if (sameTypeBlocks.length > 0) {
-      // Calculate grid position based on block index of the same type
-      const COLS = 3; // 每行放置 3 个模块，与 autoLayout 函数保持一致
-      const row = Math.floor((sameTypeBlocks.length) / COLS);
-      const col = (sameTypeBlocks.length) % COLS;
+    // 简化编号生成：只找最大编号+1，不填补空缺
+    setBlocks(currentBlocks => {
+      const sameTypeBlocks = currentBlocks.filter(b => b.type === type);
       
-      // Calculate position with grid spacing
-      defaultX = offset.startX + (col * 600); // 600px spacing between columns
-      defaultY = offset.startY + (row * 450); // 450px spacing between rows
-    }
+      // 找到当前最大的编号
+      let maxNumber = 0;
+      sameTypeBlocks.forEach(b => {
+        const match = b.number.match(/\d+/);
+        if (match) {
+          const num = parseInt(match[0]);
+          if (num > maxNumber) {
+            maxNumber = num;
+          }
+        }
+      });
+      
+      // 下一个编号就是最大编号+1
+      const nextNumber = maxNumber + 1;
+      const idNum = String(nextNumber).padStart(2, '0');
+      
+      // Calculate default position with offset based on existing blocks of the same type
+      let defaultX = 300;
+      let defaultY = 200;
+      
+      // For different types, use different starting positions to avoid overlap
+      const typeOffsets = {
+        text: { startX: 300, startY: 200 },
+        image: { startX: 1000, startY: 200 },
+        video: { startX: 1700, startY: 200 }
+      };
+      
+      // Get the type-specific starting position
+      const offset = typeOffsets[type];
+      defaultX = offset.startX;
+      defaultY = offset.startY;
+      
+      // If there are existing blocks of the same type, place new block in a grid pattern
+      if (sameTypeBlocks.length > 0) {
+        // Calculate grid position based on block index of the same type
+        const COLS = 3; // 每行放置 3 个模块，与 autoLayout 函数保持一致
+        const row = Math.floor((sameTypeBlocks.length) / COLS);
+        const col = (sameTypeBlocks.length) % COLS;
+        
+        // Calculate position with grid spacing
+        defaultX = offset.startX + (col * 600); // 600px spacing between columns
+        defaultY = offset.startY + (row * 450); // 450px spacing between rows
+      }
+      
+      const newBlock: Block = {
+        id: crypto.randomUUID(), type, x: x || defaultX, y: y || defaultY, width: 500, height: 350,
+        content: initialContent, status: 'idle', number: `${prefix}${idNum}`,
+        fontSize: type === 'text' ? 24 : undefined,
+        // Set default aspectRatio for video blocks
+        aspectRatio: type === 'video' ? '16:9' : undefined,
+        // Set default duration for video blocks
+        duration: type === 'video' ? '10' : undefined
+      };
+      
+      // Propagate initial data to connection engine for new blocks
+      // This ensures blocks from projection can be referenced immediately
+      if (initialContent) {
+        // Use setTimeout to ensure the block is fully added to the state first
+        setTimeout(() => {
+          connectionEngine.propagateData(newBlock.id, initialContent, newBlock.type, newBlock.number);
+        }, 100);
+      }
+      
+      // 存储新创建的块到临时变量，用于返回
+      window.lastCreatedBlock = newBlock;
+      
+      return [...currentBlocks, newBlock];
+    });
     
-    const newBlock: Block = {
-      id: crypto.randomUUID(), type, x: x || defaultX, y: y || defaultY, width: 500, height: 350,
-      content: initialContent, status: 'idle', number: `${prefix}${idNum}`,
-      fontSize: type === 'text' ? 24 : undefined
-    };
-    
-    setBlocks(prev => [...prev, newBlock]);
-    
-    // Propagate initial data to connection engine for new blocks
-    // This ensures blocks from projection can be referenced immediately
-    if (initialContent) {
-      // Use setTimeout to ensure the block is fully added to the state first
-      setTimeout(() => {
-        connectionEngine.propagateData(newBlock.id, initialContent, newBlock.type, newBlock.number);
-      }, 100);
-    }
+    // 返回新创建的块（从临时存储获取）
+    return window.lastCreatedBlock;
   };
 
   const handleLoadOperationGuide = async () => {
@@ -3182,27 +3718,13 @@ ${block.content}
              <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">{t.api}</span>
            </button>
 
-           {/* AI Gesture Demo Button */}
-           <button 
-            onClick={() => setShowAIGestureDemo(true)} 
-            className={`p-5 rounded-2xl border-2 transition-all flex items-center gap-3 ${theme === 'dark' ? 'bg-white/5 border-white/5 hover:bg-blue-500/20 text-blue-500' : 'bg-white border-black/5 hover:shadow-xl text-blue-600'}`}
-            title={lang === 'zh' ? 'AI手势控制演示' : 'AI Gesture Control Demo'}
-           >
-             <Brain size={24} strokeWidth={3} />
-             <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">{lang === 'zh' ? 'AI演示' : 'AI Demo'}</span>
-           </button>
-           
            {/* Admin Monitoring Button - Hidden by default, shown with Ctrl+Shift+A */}
            <button 
             onClick={(e) => {
-              if (e.ctrlKey && e.shiftKey) {
-                trackFeatureUsage('admin_monitoring_open');
-                setShowAdminMonitoring(true);
-              }
+              // 移除管理监控功能
             }}
             onDoubleClick={() => {
-              trackFeatureUsage('admin_monitoring_open');
-              setShowAdminMonitoring(true);
+              // 移除管理监控功能
             }}
             className={`p-5 rounded-2xl border-2 transition-all flex items-center gap-3 opacity-30 hover:opacity-100 ${
               theme === 'dark' ? 'bg-white/5 border-white/5 hover:bg-purple-500/20 text-purple-500' : 'bg-white border-black/5 hover:shadow-xl text-purple-600'
@@ -3339,19 +3861,19 @@ ${block.content}
         {isCanvasGestureActive && (
           <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
             <button
-              onClick={() => simpleGestureRecognizer.manualTrigger('zoom_in')}
+              onClick={() => simpleGestureRecognizer.triggerGesture('zoom_in')}
               className="px-3 py-2 bg-green-500 text-white rounded text-sm"
             >
               测试放大
             </button>
             <button
-              onClick={() => simpleGestureRecognizer.manualTrigger('zoom_out')}
+              onClick={() => simpleGestureRecognizer.triggerGesture('zoom_out')}
               className="px-3 py-2 bg-blue-500 text-white rounded text-sm"
             >
               测试缩小
             </button>
             <button
-              onClick={() => simpleGestureRecognizer.manualTrigger('reset_view')}
+              onClick={() => simpleGestureRecognizer.triggerGesture('reset_view')}
               className="px-3 py-2 bg-purple-500 text-white rounded text-sm"
             >
               测试重置
@@ -3688,6 +4210,9 @@ ${block.content}
                 }}
                 theme={theme}
                 lang={lang}
+                externalMessages={voiceMessages}
+                isChatVoiceActive={isVoiceRecording}
+                currentSidebarTab={sidebarTab}
               />
             </div>
           )}
@@ -3767,22 +4292,34 @@ ${block.content}
                  <button onClick={() => setMessages([])} className="p-3 text-slate-400 hover:text-red-500 transition-colors" title={t.ctxClear}><Eraser size={22} /></button>
                  <button onClick={() => chatImageInputRef.current?.click()} className="p-3 text-slate-400 hover:text-emerald-500 transition-colors" title={t.tips.upload}><ImagePlus size={22} /></button>
                  <button onClick={() => chatTextInputRef.current?.click()} className="p-3 text-slate-400 hover:text-blue-500 transition-colors" title={chatMode === 'text' && modelCapabilityDetector.isVideoUploadEnabled(chatMode, modelConfig) ? (lang === 'zh' ? '上传文件或视频' : 'Upload File or Video') : (lang === 'zh' ? '上传文件' : 'Upload File')}><Paperclip size={22} /></button>
-                 {/* Voice Input Button - Now handled by Canvas Voice Controller */}
+                 {/* Voice Input Button - Voice to Text Input */}
                  <button 
-                   onClick={() => alert(lang === 'zh' ? '语音控制已移至画布左上角，说"曹操"唤醒' : 'Voice control moved to canvas top-left, say "曹操" to wake up')}
-                   className="p-3 text-slate-400 hover:text-rose-500 transition-colors" 
-                   title={lang === 'zh' ? '语音控制已移至画布左上角' : 'Voice control moved to canvas'}
+                   onClick={toggleVoiceRecording}
+                   disabled={!recognition || sidebarTab !== 'chat' || isCanvasVoiceActive}
+                   className={`p-3 transition-colors ${
+                     isVoiceRecording 
+                       ? 'text-red-500 animate-pulse' 
+                       : (sidebarTab !== 'chat' || isCanvasVoiceActive)
+                         ? 'text-gray-300 cursor-not-allowed'
+                         : 'text-purple-500 hover:text-purple-600'
+                   } ${!recognition ? 'opacity-50 cursor-not-allowed' : ''}`}
+                   title={
+                     !recognition 
+                       ? (lang === 'zh' ? '浏览器不支持语音输入' : 'Browser does not support voice input')
+                       : sidebarTab !== 'chat'
+                         ? (lang === 'zh' ? '请切换到聊天标签页使用语音转文字' : 'Switch to Chat tab to use voice-to-text')
+                         : isCanvasVoiceActive
+                           ? (lang === 'zh' ? '曹操语音控制正在使用中' : 'Caocao voice control is active')
+                           : isVoiceRecording 
+                             ? (lang === 'zh' ? '常驻监听中，点击停止或停止说话3秒自动提交' : 'Continuous listening, click to stop or auto-submit after 3s silence')
+                             : (lang === 'zh' ? '语音转文字（常驻模式）' : 'Voice to text (continuous mode)')
+                   }
                  >
-                   <span className="text-xl">🎤</span>
-                 </button>
-                 
-                 {/* Voice Help Button */}
-                 <button 
-                   onClick={() => alert(lang === 'zh' ? '语音控制已移至画布左上角，说"曹操"唤醒开始对话' : 'Voice control moved to canvas top-left, say "曹操" to start conversation')}
-                   className="p-3 text-slate-400 hover:text-blue-500 transition-colors"
-                   title={lang === 'zh' ? '语音控制帮助' : 'Voice Control Help'}
-                 >
-                   <span className="text-xl">❓</span>
+                   {isVoiceRecording ? (
+                     <span className="text-xl">🔴</span>
+                   ) : (
+                     <span className="text-xl">🎤</span>
+                   )}
                  </button>
                  <button onClick={handleSidebarSend} className="p-4 bg-slate-900 text-amber-400 rounded-2xl hover:scale-110 active:scale-95 transition-all shadow-lg"><Send size={24} fill="currentColor" /></button>
               </div>
@@ -3838,17 +4375,6 @@ ${block.content}
           currentCanvas={getCurrentCanvasState()}
           onLoadTemplate={handleLoadTemplate}
           lang={lang}
-        />
-      )}
-      
-      {/* Admin Monitoring Dashboard - For website administrators */}
-      {showAdminMonitoring && (
-        <AdminMonitoringDashboard
-          theme={theme}
-          onClose={() => {
-            trackFeatureUsage('admin_monitoring_close');
-            setShowAdminMonitoring(false);
-          }}
         />
       )}
       
@@ -3936,10 +4462,40 @@ ${block.content}
         position={{ x: 20, y: 20 }}
         theme={theme}
         isActive={isCanvasVoiceActive}
+        blocks={blocks}
+        onModuleAction={handleModuleAction}
         apiSettings={{
           provider: modelConfig.text.provider,
           apiKey: modelConfig.providers[modelConfig.text.provider]?.apiKey || '',
           baseUrl: modelConfig.providers[modelConfig.text.provider]?.baseUrl || ''
+        }}
+        onMessage={(role, content, type) => {
+          // 通过CaocaoAIChat显示语音消息
+          console.log('[App] 收到语音消息:', { role, content, type });
+          
+          const newMessage = {
+            id: `voice-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            role: role as 'user' | 'assistant',
+            content,
+            type: type || 'voice',
+            timestamp: Date.now()
+          };
+          
+          setVoiceMessages(prev => [...prev, newMessage]);
+          
+          // 自动切换到曹操AI标签页显示消息
+          if (sidebarTab !== 'caocao') {
+            setSidebarTab('caocao');
+          }
+        }}
+        onStatusChange={(status, message) => {
+          // 处理语音控制状态变化
+          console.log('[App] 语音控制状态变化:', { status, message });
+        }}
+        onDisplayMessageUpdate={(addMessage) => {
+          // 将addMessage函数保存，以便外部可以调用
+          // 这里可以通过ref或其他方式保存
+          console.log('[App] 收到显示消息更新函数');
         }}
       />
 
@@ -3957,21 +4513,6 @@ ${block.content}
         />
       )}
 
-      {/* Voice Command Feedback */}
-      {showVoiceFeedback && lastVoiceCommand && (
-        <VoiceCommandFeedback
-          originalText={lastVoiceCommand.text}
-          recognizedCommand={lastVoiceCommand.command}
-          isVisible={showVoiceFeedback}
-          onClose={() => setShowVoiceFeedback(false)}
-          onFeedbackSubmitted={() => {
-            console.log('用户反馈已提交');
-            setShowVoiceFeedback(false);
-          }}
-          lang={lang}
-        />
-      )}
-
       {/* Voice Command Help */}
       <VoiceCommandHelp
         isOpen={showVoiceHelp}
@@ -3983,14 +4524,6 @@ ${block.content}
       <GestureHelp
         isOpen={showGestureHelp}
         onClose={() => setShowGestureHelp(false)}
-        lang={lang}
-      />
-
-      {/* AI Gesture Demo */}
-      <AIGestureDemo
-        isOpen={showAIGestureDemo}
-        onClose={() => setShowAIGestureDemo(false)}
-        theme={theme}
         lang={lang}
       />
 

@@ -102,7 +102,7 @@ export class TemplateManager {
 
     console.log('[TemplateManager] Initializing default automation templates...');
     
-    // Define default templates
+    // Define default templates - 保留最有用的3个模板
     const defaultTemplates = [
       {
         "name": "文本转单图（画布显示）",
@@ -143,196 +143,6 @@ export class TemplateManager {
               "fromId": "text_prompt_block",
               "toId": "image_output_block",
               "instruction": "根据文本提示生成图片",
-              "dataFlow": {
-                "enabled": true,
-                "lastUpdate": 0,
-                "dataType": "text",
-                "lastData": ""
-              }
-            }
-          ],
-          "settings": {
-            "zoom": 1,
-            "pan": { "x": 0, "y": 0 }
-          }
-        },
-        "isAutomation": true
-      },
-      {
-        "name": "文本转多图（网格布局）",
-        "description": "从文本提示生成多张图片，结果以网格布局显示在画布上。适合需要生成多个变体的场景。",
-        "canvasState": {
-          "blocks": [
-            {
-              "id": "text_prompt_multi",
-              "type": "text",
-              "x": 100,
-              "y": 100,
-              "width": 300,
-              "height": 150,
-              "content": "不同风格的城市夜景，高清细节，4K分辨率",
-              "status": "idle",
-              "number": "A01",
-              "fontSize": 14,
-              "textColor": "#333333",
-              "originalPrompt": "生成不同风格的城市夜景"
-            },
-            {
-              "id": "image_output_multi",
-              "type": "image",
-              "x": 500,
-              "y": 100,
-              "width": 300,
-              "height": 300,
-              "content": "",
-              "status": "idle",
-              "number": "B01",
-              "aspectRatio": "16:9",
-              "originalPrompt": "",
-              "multiImageGroupId": "multi_images_1",
-              "multiImageIndex": 0,
-              "isMultiImageSource": true
-            }
-          ],
-          "connections": [
-            {
-              "id": "multi_image_conn",
-              "fromId": "text_prompt_multi",
-              "toId": "image_output_multi",
-              "instruction": "根据文本提示生成4张不同风格的图片",
-              "dataFlow": {
-                "enabled": true,
-                "lastUpdate": 0,
-                "dataType": "text",
-                "lastData": ""
-              }
-            }
-          ],
-          "settings": {
-            "zoom": 1,
-            "pan": { "x": 0, "y": 0 }
-          }
-        },
-        "isAutomation": true
-      },
-      {
-        "name": "文本转图像（自动下载）",
-        "description": "从文本提示生成图片，并自动下载到指定路径。适合批量生成图片的场景。",
-        "canvasState": {
-          "blocks": [
-            {
-              "id": "text_prompt_download",
-              "type": "text",
-              "x": 100,
-              "y": 100,
-              "width": 350,
-              "height": 200,
-              "content": "未来科技感城市，飞行汽车，霓虹灯光，高清4K",
-              "status": "idle",
-              "number": "A01",
-              "fontSize": 14,
-              "textColor": "#333333",
-              "originalPrompt": "生成未来科技感城市图片"
-            },
-            {
-              "id": "image_output_download",
-              "type": "image",
-              "x": 550,
-              "y": 100,
-              "width": 450,
-              "height": 250,
-              "content": "",
-              "status": "idle",
-              "number": "B01",
-              "aspectRatio": "16:9",
-              "originalPrompt": ""
-            }
-          ],
-          "connections": [
-            {
-              "id": "download_conn",
-              "fromId": "text_prompt_download",
-              "toId": "image_output_download",
-              "instruction": "根据文本提示生成高清图片",
-              "dataFlow": {
-                "enabled": true,
-                "lastUpdate": 0,
-                "dataType": "text",
-                "lastData": ""
-              }
-            }
-          ],
-          "settings": {
-            "zoom": 1,
-            "pan": { "x": 0, "y": 0 }
-          }
-        },
-        "isAutomation": true
-      },
-      {
-        "name": "图像编辑（带提示词）",
-        "description": "上传图片，然后使用提示词进行编辑，结果显示在画布上。适合图像增强和修改任务。",
-        "canvasState": {
-          "blocks": [
-            {
-              "id": "input_image_block",
-              "type": "image",
-              "x": 100,
-              "y": 100,
-              "width": 400,
-              "height": 300,
-              "content": "",
-              "status": "idle",
-              "number": "A01",
-              "aspectRatio": "4:3",
-              "originalPrompt": "上传需要编辑的图片"
-            },
-            {
-              "id": "edit_prompt_block",
-              "type": "text",
-              "x": 100,
-              "y": 500,
-              "width": 300,
-              "height": 120,
-              "content": "将图片转换为水彩画风格，增加艺术感",
-              "status": "idle",
-              "number": "B01",
-              "fontSize": 14,
-              "textColor": "#333333",
-              "originalPrompt": "图片编辑提示词"
-            },
-            {
-              "id": "edited_output_block",
-              "type": "image",
-              "x": 600,
-              "y": 100,
-              "width": 400,
-              "height": 300,
-              "content": "",
-              "status": "idle",
-              "number": "C01",
-              "aspectRatio": "4:3",
-              "originalPrompt": ""
-            }
-          ],
-          "connections": [
-            {
-              "id": "image_to_edit_conn",
-              "fromId": "input_image_block",
-              "toId": "edited_output_block",
-              "instruction": "使用上传的图片作为编辑源",
-              "dataFlow": {
-                "enabled": true,
-                "lastUpdate": 0,
-                "dataType": "image",
-                "lastData": ""
-              }
-            },
-            {
-              "id": "edit_prompt_to_image_conn",
-              "fromId": "edit_prompt_block",
-              "toId": "edited_output_block",
-              "instruction": "应用编辑提示词",
               "dataFlow": {
                 "enabled": true,
                 "lastUpdate": 0,
@@ -430,7 +240,7 @@ export class TemplateManager {
       },
       {
         "name": "多模块拼接（含视频）",
-        "description": "文本生成故事大纲，图像生成封面图，最终生成视频。这是唯一包含视频的模板。",
+        "description": "文本生成故事大纲，图像生成封面图，最终生成视频。完整的多媒体内容生成流程。",
         "canvasState": {
           "blocks": [
             {

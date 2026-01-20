@@ -5,7 +5,6 @@ import { COLORS, I18N } from '../constants.tsx';
 import { variableSystem } from '../services/VariableSystem';
 import { characterService } from '../services/CharacterService';
 import { ErrorHandler } from '../services/ErrorHandler';
-// import TaggedInput from './TaggedInput'; // Moved to UnusedComponents.tsx
 import {
   Trash2, RefreshCw, Scissors, Type as TextIcon, 
   Image as ImageIcon, Play, MoveDiagonal2, Type, 
@@ -16,7 +15,6 @@ import {
 } from 'lucide-react';
 import AspectRatioButton from './AspectRatioButton';
 import PromptPreviewPopover from './PromptPreviewPopover';
-// import DownloadButton from './DownloadButton'; // Moved to UnusedComponents.tsx
 import MultiImageConfigModal from './MultiImageConfigModal';
 import ImageEditModal from './ImageEditModal';
 import DynamicMenu from './DynamicMenu';
@@ -33,7 +31,6 @@ import VideoPreviewFallback from './VideoPreviewFallback';
 import EnhancedVideoPlayer from './EnhancedVideoPlayer';
 
 // Priority Features Components
-import VoiceSessionModal from './VoiceSessionModal';
 import VideoCharacterModal from './VideoCharacterModal';
 
 // Priority Features Services

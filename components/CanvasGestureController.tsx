@@ -247,15 +247,28 @@ const CanvasGestureController: React.FC<CanvasGestureControllerProps> = ({
 
   useEffect(() => {
     if (isActive) {
-      // 只有在激活时才设置回调
+      // 只有在激活时才设置回调，并确保不重复设置
       console.log('[CanvasGestureController] 设置手势识别回调');
-      simpleGestureRecognizer.setOnGestureCallback(handleGestureResult);
+      
+      // 清除之前的回调，避免重复设置
+      simpleGestureRecognizer.setOnGestureCallback(null);
+      
+      // 设置新的回调
+      setTimeout(() => {
+        simpleGestureRecognizer.setOnGestureCallback(handleGestureResult);
+        console.log('[CanvasGestureController] 手势回调设置完成');
+      }, 100);
+    } else {
+      // 停用时清除回调
+      console.log('[CanvasGestureController] 清理手势识别回调');
+      simpleGestureRecognizer.setOnGestureCallback(null);
     }
     
     return () => {
       if (isActive) {
-        // 只有在当前组件激活时才清理回调
-        console.log('[CanvasGestureController] 清理手势识别回调');
+        // 组件卸载时清理回调
+        console.log('[CanvasGestureController] 组件卸载，清理手势识别回调');
+        simpleGestureRecognizer.setOnGestureCallback(null);
       }
     };
   }, [isActive]); // 依赖isActive状态
@@ -279,9 +292,20 @@ const CanvasGestureController: React.FC<CanvasGestureControllerProps> = ({
     setIsExecuting(true);
     setExecutionFeedback(`正在执行: ${currentLang.gestures[result.gesture as keyof typeof currentLang.gestures] || result.gesture}`);
     
-    // 触发手势命令 - 修复：只传递手势字符串，不是整个对象
+    // 触发手势命令 - 确保只传递手势字符串
     console.log('[CanvasGestureController] 触发手势命令:', result.gesture);
-    onGestureCommand(result.gesture as SimpleGestureType);
+    try {
+      onGestureCommand(result.gesture as SimpleGestureType);
+      console.log('[CanvasGestureController] 手势命令执行成功');
+    } catch (error) {
+      console.error('[CanvasGestureController] 手势命令执行失败:', error);
+      setExecutionFeedback('❌ 执行失败');
+      setTimeout(() => {
+        setExecutionFeedback('');
+        setIsExecuting(false);
+      }, 1500);
+      return;
+    }
     
     // 简化反馈显示，避免复杂的setTimeout链
     setTimeout(() => {

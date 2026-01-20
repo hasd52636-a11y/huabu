@@ -63,9 +63,9 @@ export class SimpleGestureRecognizer {
   /**
    * 设置手势识别回调
    */
-  setOnGestureCallback(callback: (result: SimpleGestureResult) => void): void {
+  setOnGestureCallback(callback: ((result: SimpleGestureResult) => void) | null): void {
     console.log('[SimpleGestureRecognizer] 设置手势回调:', !!callback);
-    this.onGestureCallback = callback;
+    this.onGestureCallback = callback || undefined;
   }
 
   /**
@@ -144,8 +144,6 @@ export class SimpleGestureRecognizer {
       callbackType: typeof this.onGestureCallback,
       timestamp: Date.now()
     };
-    
-    console.log('[SimpleGestureRecognizer] triggerGesture called:', debugInfo);
     
     if (!this.isActive) {
       console.warn('[SimpleGestureRecognizer] 手势识别器未激活');

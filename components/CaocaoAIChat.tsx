@@ -28,6 +28,17 @@ interface CaocaoAIChatProps {
   onCommand: (command: string) => void;
   theme?: 'light' | 'dark';
   lang?: 'zh' | 'en';
+  // 新增：接收外部消息
+  externalMessages?: Array<{
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
+    type: 'voice' | 'system';
+    timestamp: number;
+  }>;
+  // 新增：检查聊天语音状态
+  isChatVoiceActive?: boolean;
+  currentSidebarTab?: string;
 }
 
 const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
@@ -37,7 +48,10 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
   onGestureToggle,
   onCommand,
   theme = 'dark',
-  lang = 'zh'
+  lang = 'zh',
+  externalMessages = [],
+  isChatVoiceActive = false,
+  currentSidebarTab = 'chat'
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -106,6 +120,28 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
 
   const currentLang = t[lang];
 
+  // 处理外部消息
+  useEffect(() => {
+    if (externalMessages.length === 0) return;
+    
+    externalMessages.forEach(extMsg => {
+      // 检查消息是否已经存在
+      const exists = messages.some(msg => msg.id === extMsg.id);
+      if (!exists) {
+        const newMessage: ChatMessage = {
+          id: extMsg.id,
+          role: extMsg.role === 'user' ? 'user' : 'caocao',
+          content: extMsg.content,
+          timestamp: new Date(extMsg.timestamp),
+          type: extMsg.type === 'voice' ? 'voice' : 'system'
+        };
+        
+        console.log('[CaocaoAIChat] 添加外部消息:', newMessage);
+        setMessages(prev => [...prev, newMessage]);
+      }
+    });
+  }, [externalMessages]);
+
   // 滚动到底部
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -171,6 +207,24 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
     const newState = !isVoiceActive;
     
     if (newState) {
+      // 检查当前是否在曹操标签页
+      if (currentSidebarTab !== 'caocao') {
+        const message = lang === 'zh' 
+          ? '请先切换到"曹操"标签页才能使用语音控制功能' 
+          : 'Please switch to "Caocao" tab to use voice control feature';
+        addCaocaoMessage(`❌ ${message}`, 'system');
+        return;
+      }
+
+      // 检查聊天语音是否激活
+      if (isChatVoiceActive) {
+        const message = lang === 'zh' 
+          ? '聊天语音转文字功能正在使用中，请先关闭聊天语音功能' 
+          : 'Chat voice-to-text is active, please disable it first';
+        addCaocaoMessage(`❌ ${message}`, 'system');
+        return;
+      }
+
       // 激活语音控制时，直接开始监听
       try {
         // 请求麦克风权限
@@ -181,11 +235,18 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
         stream.getTracks().forEach(track => track.stop());
         console.log('[CaocaoAIChat] ✅ 麦克风权限已获得');
         
-        // 激活语音控制
+        // 激活语音控制 - 一键激活并自动开始监听
         onVoiceToggle(newState);
         
         // 添加成功消息
-        addCaocaoMessage('语音控制已激活！现在可以说"曹操"唤醒我，然后说出您的指令。麦克风权限已获得，开始连续监听中...', 'system');
+        addCaocaoMessage(`✅ 语音控制已激活！正在连续监听中...
+
+🎤 现在可以直接说话：
+• "曹操，生成一张猫的图片"
+• "曹操，写一段关于春天的文字"
+• "曹操，制作一个海洋视频"
+
+💡 无需再次点击，直接开口即可！`, 'system');
         
       } catch (error) {
         console.error('[CaocaoAIChat] 麦克风权限获取失败:', error);
@@ -204,7 +265,16 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
       }
     } else {
       // 关闭语音控制
+      console.log('[CaocaoAIChat] 关闭语音控制');
+      
+      // 立即停止所有语音合成播放
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        console.log('[CaocaoAIChat] 语音合成已停止');
+      }
+      
       onVoiceToggle(newState);
+      addCaocaoMessage('语音控制已关闭。', 'system');
     }
   };
 

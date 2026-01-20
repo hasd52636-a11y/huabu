@@ -12,7 +12,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Play, Users, Image as ImageIcon, Sparkles, Upload, Settings } from 'lucide-react';
 import { VideoInput, ShenmaVideoOptions, Character } from '../types';
-// import MultiImageUploader from './MultiImageUploader'; // Moved to UnusedComponents.tsx
 
 interface VideoAdvancedEditModalProps {
   isOpen: boolean;

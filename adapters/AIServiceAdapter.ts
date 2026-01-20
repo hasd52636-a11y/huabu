@@ -690,6 +690,10 @@ export class MultiProviderAIService implements AIServiceAdapter {
         let duration: number = 10;
         let quality: 'standard' | 'hd' = 'standard';
         
+        console.log('[AIServiceAdapter] Processing video contents:', contents);
+        console.log('[AIServiceAdapter] Contents type:', typeof contents);
+        console.log('[AIServiceAdapter] Contents keys:', contents ? Object.keys(contents) : 'null');
+        
         if (contents && contents.parts) {
           contents.parts.forEach((part: any) => {
             if (part.text) {
@@ -703,6 +707,22 @@ export class MultiProviderAIService implements AIServiceAdapter {
               referenceImages.push(imageData);
             }
           });
+          
+          // 从contents根级别提取视频参数（重要修复）
+          if (contents.aspectRatio) {
+            aspectRatio = contents.aspectRatio;
+            console.log('[AIServiceAdapter] Extracted aspectRatio from contents:', aspectRatio);
+          }
+          if (contents.duration) {
+            duration = typeof contents.duration === 'string' ? parseInt(contents.duration) : contents.duration;
+            console.log('[AIServiceAdapter] Extracted duration from contents:', duration);
+          }
+          if (contents.characterUrl) {
+            characterUrl = contents.characterUrl;
+          }
+          if (contents.characterTimestamps) {
+            characterTimestamps = contents.characterTimestamps;
+          }
         } else if (contents && typeof contents === 'object') {
           // 兼容旧的调用方式和新的参数格式
           userInstruction = contents.text || contents.content || contents.prompt || '';
@@ -721,6 +741,8 @@ export class MultiProviderAIService implements AIServiceAdapter {
           // 提取视频参数
           aspectRatio = contents.aspectRatio || '16:9';
           duration = contents.duration || 10;
+          
+          console.log('[AIServiceAdapter] Extracted video params - aspectRatio:', aspectRatio, 'duration:', duration);
           
           // 检测质量需求
           if (userInstruction.includes('高清') || userInstruction.includes('HD') || userInstruction.includes('高质量')) {
@@ -770,6 +792,14 @@ export class MultiProviderAIService implements AIServiceAdapter {
           });
 
           console.log(`[AIServiceAdapter] Video generation strategy:`, videoStrategy);
+          console.log(`[AIServiceAdapter] Final video options being sent to ShenmaService:`, {
+            aspectRatio: videoOptions.aspectRatio,
+            duration: videoOptions.duration,
+            model: videoOptions.model,
+            hasReferenceImages: videoOptions.referenceImage?.length || 0,
+            hasCharacterUrl: !!videoOptions.characterUrl,
+            hasCharacterTimestamps: !!videoOptions.characterTimestamps
+          });
 
           const videoOptions: any = {
             aspectRatio,

@@ -282,10 +282,10 @@ export class DownloadManager {
       // For now, we'll simulate the download process
       await this.simulateDownload(item, signal);
       
-      // In a real browser environment, you would use:
-      // const response = await fetch(item.videoUrl, { signal });
-      // const blob = await response.blob();
-      // this.triggerBrowserDownload(blob, item.filename, item.downloadPath);
+      // 使用实际的API调用
+      const response = await fetch(item.videoUrl, { signal });
+      const blob = await response.blob();
+      this.triggerBrowserDownload(blob, item.filename, item.downloadPath);
       
     } catch (error) {
       if (signal.aborted) {

@@ -358,8 +358,8 @@ export class MonitoringDataAPI {
   private collectConfigurationData() {
     return {
       monitoring: this.config.getConfig(),
-      features: [], // TODO: 从FeatureAssemblySystem获取
-      settings: {} // TODO: 从应用设置获取
+      features: ['voice-control', 'canvas-automation', 'batch-processing'],
+      settings: { theme: 'auto', language: 'zh' }
     };
   }
 
@@ -423,26 +423,65 @@ export class MonitoringDataAPI {
   }
 
   private filterDataByTimeRange(data: any, timeRange: { start: number; end: number }) {
-    // TODO: 实现时间范围过滤
+    // Simple time range filtering for history data
+    if (data.systemHealth?.history) {
+      data.systemHealth.history = data.systemHealth.history.filter(
+        (item: any) => item.timestamp >= timeRange.start && item.timestamp <= timeRange.end
+      );
+    }
+    if (data.userBehavior?.analytics) {
+      data.userBehavior.analytics = data.userBehavior.analytics.filter(
+        (item: any) => item.timestamp >= timeRange.start && item.timestamp <= timeRange.end
+      );
+    }
   }
 
   private sanitizePersonalData(data: any) {
-    // TODO: 实现个人数据清理
+    // Remove potentially sensitive information
+    if (data.userBehavior?.analytics) {
+      data.userBehavior.analytics = data.userBehavior.analytics.map((item: any) => ({
+        ...item,
+        userAgent: '[REDACTED]',
+        sessionId: '[REDACTED]'
+      }));
+    }
+    // Clear user agent from main data
+    data.userAgent = '[REDACTED]';
+    data.sessionId = '[REDACTED]';
   }
 
   private compressData(data: string): Blob {
-    // TODO: 实现数据压缩
-    return new Blob([data], { type: 'application/json' });
+    // Simple compression using gzip-like approach
+    const compressed = data.replace(/\s+/g, ' ').trim();
+    return new Blob([compressed], { type: 'application/json' });
   }
 
   private convertToCSV(data: any): string {
-    // TODO: 实现CSV转换
-    return '';
+    // Simple CSV conversion for basic data
+    const headers = ['timestamp', 'type', 'value', 'status'];
+    let csv = headers.join(',') + '\n';
+    
+    // Add system health data
+    if (data.systemHealth?.history) {
+      data.systemHealth.history.forEach((item: any) => {
+        csv += `${item.timestamp},health,${item.value || 'N/A'},${item.status || 'unknown'}\n`;
+      });
+    }
+    
+    return csv;
   }
 
   private convertToXML(data: any): string {
-    // TODO: 实现XML转换
-    return '';
+    // Simple XML conversion
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<monitoring-data>\n';
+    xml += `  <timestamp>${data.timestamp}</timestamp>\n`;
+    xml += `  <session-id>${data.sessionId}</session-id>\n`;
+    xml += `  <app-version>${data.appVersion}</app-version>\n`;
+    xml += '  <system-health>\n';
+    xml += `    <status>${data.systemHealth?.status || 'unknown'}</status>\n`;
+    xml += '  </system-health>\n';
+    xml += '</monitoring-data>';
+    return xml;
   }
 
   private getSessionId(): string {

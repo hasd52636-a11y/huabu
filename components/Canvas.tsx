@@ -3,7 +3,7 @@ import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { Block, Connection, EnhancedConnection, Character, MultiImageConfig, ImageInput, ShenmaImageEditOptions, NewModelConfig, convertNewToLegacyConfig, MenuConfig } from '../types';
 import BlockComponent from './BlockComponent';
 import VirtualizedCanvas from './VirtualizedCanvas';
-import VoiceCommandController from './VoiceCommandController';
+
 import { COLORS, SNAP_SIZE, I18N } from '../constants.tsx';
 import { connectionEngine } from '../services/ConnectionEngine';
 import { AutoExecutor } from '../services/AutoExecutor';
@@ -15,7 +15,6 @@ import { ScheduleManager } from './ScheduleManager';
 import PromptPreviewPopover from './PromptPreviewPopover';
 import MultiImageConfigModal from './MultiImageConfigModal';
 import ImageEditModal from './ImageEditModal';
-import PerformanceMonitoringDashboard from './PerformanceMonitoringDashboard';
 import { X, UserX, Users, UserPlus, Eye, Grid3X3, Zap, ZapOff } from 'lucide-react';
 
 interface CanvasProps {
@@ -513,140 +512,7 @@ const Canvas: React.FC<CanvasProps> = ({
     setUseVirtualization(!useVirtualization);
   }, [useVirtualization]);
 
-  // 语音指令处理函数
-  const handleVoiceCommand = async (voiceCommand: any) => {
-    console.log('收到语音指令:', voiceCommand);
-    
-    try {
-      switch (voiceCommand.command) {
-        case 'generate_text':
-          await handleGenerateText(voiceCommand);
-          break;
-        case 'generate_image':
-          await handleGenerateImage(voiceCommand);
-          break;
-        case 'generate_video':
-          await handleGenerateVideo(voiceCommand);
-          break;
-        case 'add_to_canvas':
-          await handleAddToCanvas(voiceCommand);
-          break;
-        default:
-          console.log('未识别的指令:', voiceCommand.command);
-          // 可以显示提示信息给用户
-          break;
-      }
-    } catch (error) {
-      console.error('执行语音指令失败:', error);
-    }
-  };
 
-  // 生成文字内容
-  const handleGenerateText = async (voiceCommand: any) => {
-    if (!onCreateBlock) return;
-    
-    // 在画布中心创建新的文字块
-    const centerX = -pan.x / zoom + containerDimensions.width / (2 * zoom);
-    const centerY = -pan.y / zoom + containerDimensions.height / (2 * zoom);
-    
-    // 创建文字块
-    const newBlock = {
-      type: 'text' as const,
-      content: '', // 初始为空，等待AI生成
-      originalPrompt: voiceCommand.content,
-      status: 'generating' as const,
-      width: 300,
-      height: 200
-    };
-    
-    onCreateBlock(newBlock, centerX, centerY);
-    
-    // 等待块创建后再生成内容
-    setTimeout(() => {
-      // 找到最新创建的块（通常是最后一个）
-      const latestBlock = blocks[blocks.length - 1];
-      if (latestBlock) {
-        onGenerate(latestBlock.id, voiceCommand.content);
-      }
-    }, 100);
-  };
-
-  // 生成图片内容
-  const handleGenerateImage = async (voiceCommand: any) => {
-    if (!onCreateBlock) return;
-    
-    const centerX = -pan.x / zoom + containerDimensions.width / (2 * zoom);
-    const centerY = -pan.y / zoom + containerDimensions.height / (2 * zoom);
-    
-    // 创建图片块
-    const newBlock = {
-      type: 'image' as const,
-      content: '',
-      originalPrompt: voiceCommand.content,
-      status: 'generating' as const,
-      width: voiceCommand.params?.aspectRatio === '9:16' ? 300 : 
-             voiceCommand.params?.aspectRatio === '16:9' ? 400 : 350,
-      height: voiceCommand.params?.aspectRatio === '9:16' ? 533 : 
-              voiceCommand.params?.aspectRatio === '16:9' ? 225 : 350,
-      imageMetadata: {
-        aspectRatio: voiceCommand.params?.aspectRatio || '1:1',
-        style: voiceCommand.params?.style || ''
-      }
-    };
-    
-    onCreateBlock(newBlock, centerX, centerY);
-    
-    // 生成图片内容
-    setTimeout(() => {
-      const latestBlock = blocks[blocks.length - 1];
-      if (latestBlock) {
-        // 构建包含风格的提示词
-        let fullPrompt = voiceCommand.content;
-        if (voiceCommand.params?.style) {
-          fullPrompt += `, ${voiceCommand.params.style}风格`;
-        }
-        onGenerate(latestBlock.id, fullPrompt);
-      }
-    }, 100);
-  };
-
-  // 生成视频内容
-  const handleGenerateVideo = async (voiceCommand: any) => {
-    if (!onCreateBlock) return;
-    
-    const centerX = -pan.x / zoom + containerDimensions.width / (2 * zoom);
-    const centerY = -pan.y / zoom + containerDimensions.height / (2 * zoom);
-    
-    // 创建视频块
-    const newBlock = {
-      type: 'video' as const,
-      content: '',
-      originalPrompt: voiceCommand.content,
-      status: 'generating' as const,
-      width: 400,
-      height: 300,
-      videoMetadata: {
-        duration: voiceCommand.params?.duration || 30,
-        aspectRatio: '16:9'
-      }
-    };
-    
-    onCreateBlock(newBlock, centerX, centerY);
-    
-    // 生成视频内容
-    setTimeout(() => {
-      const latestBlock = blocks[blocks.length - 1];
-      if (latestBlock) {
-        onGenerate(latestBlock.id, voiceCommand.content);
-      }
-    }, 100);
-  };
-
-  // 添加到画布（这个功能可能需要根据具体需求调整）
-  const handleAddToCanvas = async (voiceCommand: any) => {
-    console.log('添加到画布功能暂未实现，指令:', voiceCommand.text);
-    // 这里可以实现将最近生成的内容添加到画布的逻辑
-  };
 
   const renderConnections = () => {
     // Update connection engine with current connections
@@ -883,13 +749,6 @@ const Canvas: React.FC<CanvasProps> = ({
 
       {/* Performance Controls */}
       <div className="absolute top-4 left-4 z-50 flex flex-col gap-2">
-        {/* Voice Command Controller */}
-        <VoiceCommandController
-          onCommand={handleVoiceCommand}
-          lang={lang}
-          wakeWord="曹操"
-          className="mb-2"
-        />
         
         {/* Performance Toggle */}
         {/* Performance Mode Button - Hidden from regular users */}
@@ -908,18 +767,6 @@ const Canvas: React.FC<CanvasProps> = ({
             {useVirtualization ? <Zap size={16} /> : <ZapOff size={16} />}
             <span>{lang === 'zh' ? '性能模式' : 'Perf Mode'}</span>
           </button>
-        )}
-
-        {/* Enhanced Performance Dashboard - Hidden from regular users */}
-        {false && (
-          <PerformanceMonitoringDashboard 
-            theme={theme}
-            lang={lang}
-            blocks={blocks}
-            useVirtualization={useVirtualization}
-            zoom={zoom}
-            performanceOptimizationSystem={performanceOptimizationSystem}
-          />
         )}
       </div>
       {/* Automation Controls - Disabled to avoid duplicate with AutomationControlPanel */}
