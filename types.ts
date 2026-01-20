@@ -396,7 +396,7 @@ export function convertNewToLegacyConfig(newConfig: NewModelConfig): ModelConfig
       provider: 'shenma',
       apiKey: newConfig.providers.shenma.apiKey,
       baseUrl: newConfig.providers.shenma.baseUrl,
-      llmModel: newConfig.text.provider === 'shenma' ? newConfig.text.modelId : 'gpt-4o',
+      llmModel: newConfig.text.provider === 'shenma' ? newConfig.text.modelId : 'gemini-2.0-flash-exp',
       imageModel: newConfig.image.provider === 'shenma' ? newConfig.image.modelId : 'nano-banana-hd',
       videoModel: newConfig.video.provider === 'shenma' ? newConfig.video.modelId : 'sora_video2'
     } : undefined

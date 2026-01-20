@@ -137,25 +137,59 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
     scrollToBottom();
 
     try {
+      // 构建对话历史
+      const conversationHistory = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+
       // 构建消息内容
       const parts = [{ text: userMessage.content }];
 
-      // 如果是助手模式，添加系统提示
+      // 如果是助手模式，添加系统提示和对话历史
       if (isAssistantMode) {
         const guideContent = getAssistantGuideContent();
         const systemPrompt = createAssistantSystemPrompt(guideContent);
-        parts.unshift({ text: systemPrompt });
+        
+        // 构建完整的对话上下文
+        const fullContext = {
+          parts,
+          conversationHistory: [
+            { role: 'system', content: systemPrompt },
+            ...conversationHistory,
+            { role: 'user', content: userMessage.content }
+          ]
+        };
+        
+        // 调用AI服务，传递对话历史
+        const result = await aiServiceAdapter.generateText(fullContext, {});
+        
+        // 更新助手消息
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantMessage.id 
+            ? { ...msg, content: result, isGenerating: false } 
+            : msg
+        ));
+      } else {
+        // 非助手模式，也传递对话历史以保持上下文
+        const contextWithHistory = {
+          parts,
+          conversationHistory: [
+            ...conversationHistory,
+            { role: 'user', content: userMessage.content }
+          ]
+        };
+        
+        // 调用AI服务
+        const result = await aiServiceAdapter.generateText(contextWithHistory, {});
+
+        // 更新助手消息
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantMessage.id 
+            ? { ...msg, content: result, isGenerating: false } 
+            : msg
+        ));
       }
-
-      // 调用AI服务
-      const result = await aiServiceAdapter.generateText({ parts }, {});
-
-      // 更新助手消息
-      setMessages(prev => prev.map(msg => 
-        msg.id === assistantMessage.id 
-          ? { ...msg, content: result, isGenerating: false } 
-          : msg
-      ));
 
     } catch (error) {
       console.error('Error generating response:', error);

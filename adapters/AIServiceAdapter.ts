@@ -721,9 +721,16 @@ export class MultiProviderAIService implements AIServiceAdapter {
 
         // 按照视频端口要求组织信息：只包含指令和图片引用
         let formattedPrompt = '';
-        if (userInstruction) {
-          formattedPrompt = userInstruction;
+        if (userInstruction && userInstruction.trim()) {
+          formattedPrompt = userInstruction.trim();
         }
+        
+        // 如果没有有效的prompt，使用默认提示
+        if (!formattedPrompt) {
+          formattedPrompt = '生成一个创意视频';
+        }
+        
+        console.log('[AIServiceAdapter] Final video prompt:', formattedPrompt);
         // 图片将单独传递，不合并到prompt中
 
         if (settings.provider === 'shenma' && this.shenmaService) {

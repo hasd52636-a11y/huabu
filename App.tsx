@@ -5,7 +5,7 @@ import {
   MessageSquare, LayoutGrid, X, Key, Upload, Cpu, HelpCircle, Save, FilePlus, Paperclip, Eraser, Copy, Check,
   Trash2, Layers, Languages, Globe, RotateCcw, MonitorX, Send, Play, Download, Hand, Brain,
   Type as TextIcon, BrainCircuit, Sparkles, ChevronLeft, ChevronRight, ImagePlus, FileText, Info, Loader2, ArrowUpRight,
-  ChevronDown, Database, Sliders, ExternalLink, ShieldCheck, ListOrdered, FolderOpen, User, PanelLeft, PanelRight
+  ChevronDown, Database, Sliders, ExternalLink, ShieldCheck, ListOrdered, FolderOpen, User, PanelLeft, PanelRight, Hand
 } from 'lucide-react';
 import { Block, Connection, BlockType, ModelConfig, ProviderType, ProviderSettings, BatchConfig, BatchGenerationState, ExportLayout, FrameData, PresetPrompt, CanvasState, BatchInputSource, Character, NewModelConfig, getProviderSettings, convertLegacyToNewConfig, convertNewToLegacyConfig, MenuConfig } from './types';
 import Canvas from './components/Canvas';
@@ -30,6 +30,7 @@ import { MultiImageGenerator } from './services/MultiImageGenerator';
 import { loadPresetPrompts, savePresetPrompts } from './services/PresetPromptStorage';
 import VoiceCommandFeedback from './components/VoiceCommandFeedback';
 import VoiceCommandHelp from './components/VoiceCommandHelp';
+import VoiceCommandController from './components/VoiceCommandController';
 import GestureController from './components/GestureController';
 import GestureHelp from './components/GestureHelp';
 import AIGestureDemo from './components/AIGestureDemo';
@@ -97,6 +98,39 @@ const App: React.FC = () => {
   const [showGestureHelp, setShowGestureHelp] = useState<boolean>(false);
   const [showAIGestureDemo, setShowAIGestureDemo] = useState<boolean>(false);
   const [isGestureActive, setIsGestureActive] = useState<boolean>(false);
+
+  // 手势激活状态变化时的处理
+  useEffect(() => {
+    if (isGestureActive) {
+      // 启动手势识别
+      const startGestureRecognition = async () => {
+        try {
+          // 更新手势识别器的画布状态
+          gestureRecognizer.updateCanvasState({
+            blockCount: blocks.length,
+            selectedCount: selectedIds.length,
+            hasContent: blocks.some(b => b.content && b.content.trim()),
+            zoomLevel: zoom,
+            panPosition: pan
+          });
+          
+          // 设置手势回调
+          gestureRecognizer.setOnGestureCallback(handleGestureCommand);
+          
+          console.log('[App] 手势控制已激活');
+        } catch (error) {
+          console.error('[App] 手势控制启动失败:', error);
+          setIsGestureActive(false);
+        }
+      };
+      
+      startGestureRecognition();
+    } else {
+      // 停止手势识别
+      gestureRecognizer.stop();
+      console.log('[App] 手势控制已停止');
+    }
+  }, [isGestureActive, blocks.length, selectedIds.length, zoom, pan]);
 
   // New functionality state
   const [showExportModal, setShowExportModal] = useState(false);
@@ -538,6 +572,52 @@ const App: React.FC = () => {
       default:
         console.log('未知手势:', gesture);
     }
+  };
+
+  // 画布语音指令处理函数
+  const handleCanvasVoiceCommand = async (voiceCommand: any) => {
+    console.log('收到画布语音指令:', voiceCommand);
+    
+    try {
+      switch (voiceCommand.command) {
+        case 'generate_text':
+          await createAndGenerateBlock('text', voiceCommand.content);
+          break;
+        case 'generate_image':
+          await createAndGenerateBlock('image', voiceCommand.content, voiceCommand.params);
+          break;
+        case 'generate_video':
+          await createAndGenerateBlock('video', voiceCommand.content, voiceCommand.params);
+          break;
+        case 'add_to_canvas':
+          // 将内容添加到画布
+          setSidebarInput(voiceCommand.content);
+          break;
+        default:
+          console.log('未识别的语音指令:', voiceCommand.command);
+      }
+    } catch (error) {
+      console.error('执行语音指令失败:', error);
+    }
+  };
+
+  // 创建并生成模块的辅助函数
+  const createAndGenerateBlock = async (type: BlockType, content: string, params?: any) => {
+    const newBlock: Block = {
+      id: crypto.randomUUID(),
+      type,
+      x: Math.random() * 400 + 100,
+      y: Math.random() * 300 + 100,
+      content: '',
+      originalPrompt: content,
+      aspectRatio: params?.aspectRatio || (type === 'image' ? '1:1' : '16:9'),
+      isGenerating: true
+    };
+
+    setBlocks(prev => [...prev, newBlock]);
+    
+    // 自动生成内容
+    await handleGenerate(newBlock.id, content, params);
   };
   
   // Voice Recording Functions
@@ -1709,6 +1789,12 @@ ${inputText || "Generate from attachment"}
         parts.push({ text: `Context from ${inputFile.name}:\n${inputFile.content}\n` });
       }
       
+      // 构建对话历史
+      const conversationHistory = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+
       // Use final message with preset prompt only for text mode
       if (currentMode === 'text' && isAssistantMode) {
         const systemPrompt = createAssistantSystemPrompt(assistantGuideContent);
@@ -1717,6 +1803,15 @@ ${inputText || "Generate from attachment"}
       
       // Add the user's final message
       parts.push({ text: finalMessage });
+
+      // 构建包含对话历史的上下文
+      const contextWithHistory = {
+        parts,
+        conversationHistory: [
+          ...conversationHistory,
+          { role: 'user', content: finalMessage }
+        ]
+      };
 
       if (currentMode === 'text') {
         // 检查是否包含视频链接
@@ -1730,14 +1825,14 @@ ${inputText || "Generate from attachment"}
           const analysisPrompt = '请详细分析这个视频的内容，包括主题、场景、人物、动作、情感等方面';
           result = await aiServiceAdapter.analyzeVideo(videoUrl, analysisPrompt, settings);
         } else {
-          // 正常文本生成
-          result = await aiServiceAdapter.generateText({ parts }, settings);
+          // 正常文本生成，传递对话历史
+          result = await aiServiceAdapter.generateText(contextWithHistory, settings);
         }
       } else if (currentMode === 'image') {
-        result = await aiServiceAdapter.generateImage({ parts }, settings);
+        result = await aiServiceAdapter.generateImage(contextWithHistory, settings);
       } else {
         // 视频生成：只传递用户指令和必要的图片引用
-        result = await aiServiceAdapter.generateVideo({ parts }, settings);
+        result = await aiServiceAdapter.generateVideo(contextWithHistory, settings);
       }
       
       setMessages(prev => prev.map(msg => msg.id === assistantMsgId ? { ...msg, content: result, isGenerating: false } : msg));
@@ -3166,6 +3261,47 @@ ${block.content}
       </aside>
 
       <main className="flex-1 h-full pt-28 pl-40" style={{ marginRight: showSidebar ? `${sidebarWidth}px` : 0 }}>
+        {/* 手势和语音控制浮动按钮 */}
+        <div className="fixed top-32 right-6 z-30 flex flex-col gap-2">
+          {/* 手势控制按钮 */}
+          <button
+            onClick={() => setIsGestureActive(!isGestureActive)}
+            className={`p-3 rounded-full shadow-lg transition-all ${
+              isGestureActive 
+                ? 'bg-purple-500 text-white animate-pulse' 
+                : theme === 'dark' 
+                  ? 'bg-gray-800 text-gray-300 hover:bg-purple-600 hover:text-white' 
+                  : 'bg-white text-gray-600 hover:bg-purple-500 hover:text-white'
+            }`}
+            title={isGestureActive ? '关闭手势控制' : '开启手势控制'}
+          >
+            <Hand size={20} />
+          </button>
+          
+          {/* 语音控制按钮 */}
+          <div className="relative">
+            <VoiceCommandController
+              onCommand={handleCanvasVoiceCommand}
+              lang={lang}
+              wakeWord="曹操"
+              className="flex"
+            />
+          </div>
+          
+          {isGestureActive && (
+            <div className={`p-2 rounded-lg text-xs ${
+              theme === 'dark' ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-600'
+            } shadow-lg`}>
+              <div className="text-center">
+                <div className="text-green-500 font-medium">🤖 手势识别中</div>
+                <div className="mt-1">👐 张开放大</div>
+                <div>🤏 合拢缩小</div>
+                <div>☝️ 指向移动</div>
+              </div>
+            </div>
+          )}
+        </div>
+        
         <Canvas 
           blocks={blocks} connections={connections} zoom={zoom} pan={pan} selectedIds={selectedIds} theme={theme} lang={lang} isPerfMode={false} isAutomationTemplate={isAutomationTemplate} modelConfig={modelConfig}
           menuConfig={currentMenuConfig}

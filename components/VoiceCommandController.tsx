@@ -154,6 +154,8 @@ const VoiceCommandController: React.FC<VoiceCommandControllerProps> = ({
             } else {
               // 只有唤醒词，等待用户继续说指令
               setLastCommand(`${wakeWord} - 请继续说出指令`);
+              // 设置一个标志，表示已经唤醒，下次识别的内容直接作为指令处理
+              setIsWakeWordMode(false); // 临时切换到直接模式
               // 继续监听指令
               setTimeout(() => {
                 if (recognitionRef.current && !isProcessing) {
@@ -184,6 +186,13 @@ const VoiceCommandController: React.FC<VoiceCommandControllerProps> = ({
           setIsListening(false);
           setIsProcessing(true);
           parseVoiceCommand(transcript);
+          
+          // 如果是临时的直接模式（从唤醒词切换过来的），处理完后恢复唤醒词模式
+          setTimeout(() => {
+            if (!isWakeWordMode) {
+              setIsWakeWordMode(true);
+            }
+          }, 2000);
         }
       };
 

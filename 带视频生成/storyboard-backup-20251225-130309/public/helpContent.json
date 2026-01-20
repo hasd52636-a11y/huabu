@@ -1,0 +1,160 @@
+{
+  "zh": {
+    "title": "使用说明",
+    "sections": [
+      {
+        "title": "1. 产品功能及定位",
+        "content": "分镜大师是一个 AI 智能分镜创作平台，帮助创意工作者快速生成专业的视频分镜。\n\n核心功能：\n• 支持多种 AI 模型（Gemini、智谱、通义千问、DeepSeek、OpenAI 等）\n• 两种生成模式：剧本生成 + 创意对话\n• 支持参考主体保持角色一致性\n• 多种画面比例选择\n• 彩色和黑白素描两种风格"
+      },
+      {
+        "title": "2. 快速开始",
+        "content": "第一步：配置 API\n① 点击左侧工具栏的 ⚙️ 设置按钮\n② 选择 AI 服务商（推荐 Gemini）\n③ 输入 API Key\n④ 点击 Test 按钮验证\n⑤ 点击 Save 保存配置\n\n第二步：选择生成模式\n• 剧本生成：有完整脚本时使用\n• 创意对话：逐步构思时使用"
+      },
+      {
+        "title": "3. 左侧工具栏详解",
+        "content": "工具栏从上到下的功能：\n\n✋ 平移工具\n功能：拖动画布移动视图\n操作：选中后，鼠标拖动画布\n\n🎯 选择工具\n功能：选择分镜图片\n操作：\n  单选：直接点击图片\n  多选：Shift + 点击（逐个选择）\n  框选：拖动鼠标框选多张\n  全选：Ctrl + A\n\n📥 上传工具\n功能：导入参考主体或分镜\n操作：点击打开菜单，选择上传类型\n\n⚙️ 设置\n功能：配置 API 接口\n操作：点击打开 API 配置界面\n\n🌸/⚫ 颜色模式\n功能：切换彩色或黑白素描\n操作：点击切换，仅影响新生成的图片\n\n缩放显示\n功能：显示当前画布缩放比例\n操作：Ctrl + 滚轮调整缩放\n\n🌙/☀️ 主题\n功能：切换深色/浅色模式\n操作：点击切换\n\n中/EN 语言\n功能：切换中文/英文\n操作：点击切换"
+      },
+      {
+        "title": "4. 剧本生成模式详解",
+        "content": "适用场景：有完整的视频脚本或故事大纲\n\n操作步骤：\n① 点击右侧面板的「剧本生成」标签\n② 在文本框输入您的剧本内容\n③ 设置生成参数：\n   • 分镜数量：1-16 张（推荐 4-8 张）\n   • 风格：选择视觉风格（电影、科幻、赛博朋克等）\n   • 时长：可选，5-120 秒\n   • 画面比例：选择输出比例\n④ 点击「生成」按钮\n⑤ 等待 AI 生成分镜\n\n画面比例选择指南：\n• 16:9（默认）- 电影、电视、YouTube\n• 9:16 - 短视频、TikTok、手机竖屏\n• 21:9 - 电影级超宽屏效果\n• 1:1 - 社交媒体、Instagram\n• 4:3 - 演讲、教学、传统比例\n• 4:5、3:2 - 其他特殊用途\n\n⚠️ 重要提示：\n• 所有导出的分镜必须是同一比例\n• 如需混合比例，需分别生成和导出"
+      },
+      {
+        "title": "4.1 有参考主体的剧本生成",
+        "content": "场景：您有一个角色形象，想保持角色一致性\n\n操作步骤：\n① 点击左侧 📥 上传工具\n② 选择「参考主体」\n③ 上传 1 张参考角色图片\n④ 系统自动设为参考主体（显示红色边框）\n⑤ 切换到「剧本生成」标签\n⑥ 输入剧本文本\n⑦ 选择参数并生成\n\n效果：\n• 系统会在每张生成的分镜中保持角色外观 100% 一致\n• 确保整个分镜序列的角色连贯性\n• 参考主体会显示在导出的 JPEG 左侧"
+      },
+      {
+        "title": "4.2 无参考主体的剧本生成",
+        "content": "场景：只有剧本，不需要特定角色\n\n操作步骤：\n① 直接切换到「剧本生成」标签（不上传参考主体）\n② 输入剧本文本\n③ 选择参数并生成\n\n效果：\n• AI 根据剧本内容自由创作\n• 每张图片可能有不同的角色和场景\n• 适合概念阶段或多角色故事"
+      },
+      {
+        "title": "5. 创意对话模式详解",
+        "content": "适用场景：没有完整脚本，想通过对话逐步构思\n\n操作步骤：\n① 点击右侧面板的「创意对话」标签\n② 在输入框输入您的创意想法\n   示例：\"一个科幻场景，主角在太空站里\"\n③ 点击 🚀 发送按钮（或按 Enter）\n④ AI 会理解并生成对应的场景描述\n⑤ 继续对话补充细节\n   示例：\"加入更多细节，主角应该是女性宇航员\"\n⑥ 重复对话直到满意\n⑦ 设置生成参数：\n   • 分镜数量\n   • 风格\n   • 时长\n   • 画面比例\n⑧ 点击「生成分镜」按钮\n\n对话技巧：\n• 第一条消息：描述整体场景\n• 后续消息：补充具体细节\n• AI 会记住整个对话上下文\n• 最后的对话内容最重要\n\n清除对话：\n• 点击输入框旁的 🧹 清除按钮\n• 清除后可开始新的对话主题"
+      },
+      {
+        "title": "6. 图片选择与操作",
+        "content": "选择方式详解：\n\n单选图片：\n直接点击图片\n图片会显示紫色边框\n\n多选图片（方式一 - 逐个选择）：\n按住 Shift 键\n逐个点击要选择的图片\n再次 Shift + 点击可取消选择\n\n多选图片（方式二 - 框选）：\n在空白区域按住鼠标左键\n拖动鼠标框选多张图片\n松开鼠标完成选择\n框选顺序会被记录用于导出编号\n\n全选所有图片：\n按 Ctrl + A\n所有图片都会被选中\n\n右键菜单操作：\n右键点击任意图片打开菜单\n选项包括：\n  设为参考主体\n  上传替换图片\n  重绘（编辑提示词）\n  批量重绘（多选时）\n  克隆镜头\n  导出分镜图\n  删除镜头\n\n拖动调整位置：\n点击并拖动图片移动位置\n松开鼠标完成移动\n\n缩放调整大小：\n拖动图片右下角的小三角形\n系统自动保持原有的画面比例"
+      },
+      {
+        "title": "7. 导出分镜图功能",
+        "content": "导出步骤：\n① 选择要导出的分镜图片\n   • 可以单选、多选或全选\n   • 选择顺序会影响编号\n② 点击右侧「导出分镜图（JPEG）」按钮\n   或右键选择「导出分镜图」\n③ 系统生成 JPEG 文件\n④ 自动下载到本地\n\n导出文件包含：\n• 参考主体（如有）：左侧红色虚线框\n• 分镜图片：按选择顺序排列，蓝色实线框\n• 场景编号：SC-01, SC-02, SC-03...\n• 清晰的分镜标注\n\n布局说明：\n• 有参考主体时：最多 2 列\n• 无参考主体时：根据数量自动调整列数\n\n⚠️ 重要限制：\n• 所有导出的分镜必须是同一个比例\n• 如果选中了不同比例的分镜，系统会提示错误\n• 解决方案：分别导出不同比例的分镜"
+      },
+      {
+        "title": "8. 快捷键完整列表",
+        "content": "选择操作：\nCtrl + A：全选所有分镜图片\nShift + 点击：逐个选择/取消选择\n鼠标框选：拖动鼠标框选多张\nDelete：删除选中的分镜图片\n\n视图操作：\nCtrl + 滚轮：缩放画布\n  向上滚轮：放大\n  向下滚轮：缩小\n  在参考主体上滚轮：单独缩放参考主体\n鼠标拖动：平移画布（需先选择平移工具 ✋）\n\n菜单操作：\n右键点击：打开图片操作菜单\n\n对话操作：\nEnter：发送消息（创意对话模式）\nShift + Enter：换行（创意对话模式）"
+      },
+      {
+        "title": "8.1 参考主体独立缩放",
+        "content": "场景：需要单独调整参考主体的大小\n\n操作步骤：\n① 将鼠标放在参考主体图片上\n② 按住 Ctrl 键\n③ 向上滚动鼠标滚轮放大参考主体\n④ 向下滚动鼠标滚轮缩小参考主体\n\n效果：\n• 参考主体会独立缩放\n• 其他分镜图片不受影响\n• 参考主体的缩放比例会被保存\n\n⚠️ 注意：\n• 必须在参考主体上操作才能单独缩放\n• 在其他区域 Ctrl + 滚轮会缩放整个画布"
+      },
+      {
+        "title": "8.2 符号库拖放",
+        "content": "场景：为分镜添加摄像机运动或动作标记\n\n操作步骤：\n① 在右侧「剧本生成」标签中找到「符号库」\n② 选择需要的符号（如 ← 平移、↑ 摇移、⊕ 推近等）\n③ 按住鼠标左键拖动符号\n④ 拖动到目标分镜上\n⑤ 松开鼠标完成放置\n\n可用符号：\n• ▢ 参考主体区域 - 标记参考主体位置\n• ← 镜头向左平移 - 摄像机左移\n• → 镜头向右平移 - 摄像机右移\n• ↑ 镜头向上摇移 - 摄像机上移\n• ↓ 镜头向下摇移 - 摄像机下移\n• ⊕ 镜头推近 - 摄像机推进\n• ⊖ 镜头拉远 - 摄像机拉出\n• ➦ 主体动作执行 - 标记动作点\n\n效果：\n• 符号会显示在分镜上\n• 导出时会包含符号信息\n• 批量重绘时会参考符号信息"
+      },
+      {
+        "title": "9. 提示词预览与编辑",
+        "content": "场景：需要查看或修改导出的提示词\n\n操作步骤：\n① 选择要导出的分镜图片\n② 点击右侧「预览提示词」按钮\n③ 弹出预览窗口\n④ 点击「中文」或「English」切换语言版本\n⑤ 可以在文本框中编辑提示词\n⑥ 点击「复制」按钮复制当前版本到剪贴板\n⑦ 点击「下载」按钮下载为文本文件\n\n功能说明：\n• 中英文切换：预览中文或英文版本的提示词\n• 复制功能：一键复制提示词到剪贴板\n• 下载功能：将提示词保存为 .txt 文件\n• 编辑功能：可以直接在预览窗口修改提示词\n\n提示词包含内容：\n• 全局指令：风格、画幅、限制条件\n• 场景编号：SC-01, SC-02 等\n• 画面描述：每个场景的详细描述\n• 动作与运动：符号库中添加的摄像机运动"
+      },
+      {
+        "title": "9.1 单张图片重绘",
+        "content": "场景：需要修改单张分镜的提示词并重新生成\n\n操作步骤：\n① 右键点击要重绘的分镜图片\n② 选择「重绘（查看脚本）」\n③ 弹出编辑窗口\n④ 修改提示词内容\n⑤ 点击「重绘」按钮\n⑥ 等待新图片生成\n\n使用场景：\n• 调整单张图片的细节\n• 修改摄像机角度或运动\n• 改变场景中的元素\n• 优化画面构图\n\n⚠️ 注意：\n• 重绘只影响该张图片\n• 其他分镜不会改变\n• 新图片会替换原有图片"
+      },
+      {
+        "title": "9.2 批量重绘",
+        "content": "场景：需要同时修改多张分镜的提示词\n\n操作步骤：\n① 多选要重绘的分镜（Shift + 点击或框选）\n② 右键点击任意选中的分镜\n③ 选择「批量重绘」\n④ 弹出批量重绘对话框\n⑤ 为每张分镜输入改进指令\n   • 使用 SC-01、SC-02 等按钮切换分镜\n   • 在文本框中输入该分镜的改进指令\n⑥ 点击「批量重绘」按钮\n⑦ 系统逐个生成新图片\n\n使用场景：\n• 统一调整多张图片的风格\n• 为多张图片添加相同的元素\n• 批量优化画面质量\n• 快速迭代多个版本\n\n效果：\n• 每张图片独立生成\n• 保持原有的符号标记\n• 生成完成后显示成功/失败统计"
+      },
+      {
+        "title": "9.3 克隆镜头",
+        "content": "场景：需要复制一张分镜到新位置\n\n操作步骤：\n① 右键点击要克隆的分镜\n② 选择「克隆镜头」\n③ 新分镜会出现在原分镜右下方\n④ 可以拖动新分镜到其他位置\n\n使用场景：\n• 创建相似的场景变体\n• 快速复制参考主体\n• 建立分镜序列的基础\n• 保存常用的分镜模板\n\n效果：\n• 完全复制原分镜的所有属性\n• 包括提示词、符号、比例等\n• 新分镜获得新的 ID\n• 可以独立编辑和修改"
+      },
+      {
+        "title": "9.4 下载单张图片",
+        "content": "场景：需要单独下载某张分镜\n\n操作步骤：\n① 右键点击要下载的分镜\n② 选择「下载图片」\n③ 图片自动下载到本地\n\n下载文件：\n• 格式：PNG 格式\n• 命名：自动生成时间戳名称\n• 位置：浏览器默认下载文件夹\n\n使用场景：\n• 单独保存某张分镜\n• 用于其他项目或演示\n• 备份重要的分镜\n• 分享给团队成员"
+      },
+      {
+        "title": "9.5 颜色模式切换",
+        "content": "场景：需要在彩色和黑白素描之间切换\n\n操作步骤：\n① 点击左侧工具栏的 🌸（彩色）或 ⚫（黑白）按钮\n② 按钮会高亮显示当前模式\n③ 之后生成的新图片会使用该模式\n\n模式说明：\n• 🌸 彩色模式：生成彩色分镜\n• ⚫ 黑白模式：生成黑白素描风格\n\n⚠️ 重要提示：\n• 模式切换只影响新生成的图片\n• 已生成的图片不会改变\n• 如需转换已有图片，需要重新生成\n• 黑白模式适合概念阶段和快速迭代\n\n使用场景：\n• 概念阶段用黑白素描快速验证\n• 最终版本用彩色分镜展示\n• 混合使用两种模式创建对比"
+      },
+      {
+        "title": "10. 常见问题 Q&A",
+        "content": "Q1：如何保持角色一致性？\n\nA：上传参考主体图片。系统会在生成时保持角色外观 100% 一致。\n\n\nQ2：导出的图片排序不对怎么办？\n\nA：确保按照想要的顺序框选图片。系统会按框选顺序编号（SC-01, SC-02...）。\n\n\nQ3：黑白模式生成的还是彩色？\n\nA：切换颜色模式后生成的新图片才会应用该模式。已生成的图片不会改变。\n\n\nQ4：如何清除创意对话的历史？\n\nA：点击输入框旁的 🧹 清除按钮。清除后可开始新的对话。\n\n\nQ5：创意对话和剧本生成有什么区别？\n\nA：\n剧本生成：适合有完整脚本的情况，一次性生成\n创意对话：适合逐步构思的情况，可多轮对话\n\n\nQ6：为什么导出时提示\"分镜必须是同一个比例\"？\n\nA：系统要求导出的所有分镜使用同一比例。如果混合了不同比例，需要分别导出。\n\n\nQ7：如何生成不同比例的分镜？\n\nA：在生成前选择所需比例。所有生成的分镜都会使用该比例。可以多次生成不同比例的分镜。\n\n\nQ8：画布里可以混合不同比例吗？\n\nA：可以。画布支持混合多个比例的分镜，但导出时必须选择同一比例的分镜。\n\n\nQ9：如何调整已生成分镜的大小？\n\nA：拖动分镜右下角的小三角形可以调整大小。系统会自动保持原有的画面比例。\n\n\nQ10：单选和多选图片的区别是什么？\n\nA：\n单选：只选中一张图片，可进行单个操作\n多选：选中多张图片，可进行批量操作（如批量重绘）\n\n\nQ11：如何使用批量重绘功能？\n\nA：\n① 多选要重绘的图片（Shift + 点击）\n② 右键选择「批量重绘」\n③ 为每张图片输入改进指令\n④ 点击提交\n\n\nQ12：参考主体有什么作用？\n\nA：参考主体用于保持角色一致性。系统会在所有生成的分镜中保持该角色的外观特征。\n\n\nQ13：如何编辑单张分镜的提示词？\n\nA：右键点击分镜，选择「重绘（查看脚本）」，在弹出窗口中编辑提示词，点击「重绘」生成新图片。\n\n\nQ14：提示词预览有什么用？\n\nA：可以查看导出的完整提示词，支持中英文切换，可以复制或下载提示词用于其他工具。\n\n\nQ15：如何快速复制一张分镜？\n\nA：右键点击分镜，选择「克隆镜头」，新分镜会出现在原分镜附近，可以拖动到其他位置。"
+      },
+      {
+        "title": "10. 工作流程示例",
+        "content": "示例 1：有脚本和角色的完整流程\n① 准备一张角色参考图片\n② 点击 📥 上传工具 → 选择「参考主体」→ 上传角色图片\n③ 点击右侧「剧本生成」标签\n④ 输入完整的视频脚本\n⑤ 设置参数（分镜数量、风格、比例）\n⑥ 点击「生成」\n⑦ 等待生成完成\n⑧ 选择满意的分镜\n⑨ 点击「导出分镜图（JPEG）」\n⑩ 下载 JPEG 文件\n\n示例 2：创意对话逐步构思流程\n① 点击右侧「创意对话」标签\n② 输入初步想法：\"一个科幻电影的开场\"\n③ 点击 🚀 发送\n④ 查看 AI 的回复\n⑤ 继续对话补充细节：\"加入女性宇航员角色\"\n⑥ 再次发送\n⑦ 继续对话：\"场景在月球基地\"\n⑧ 重复直到满意\n⑨ 设置生成参数\n⑩ 点击「生成分镜」\n⑪ 等待生成完成\n⑫ 导出结果"
+      }
+    ]
+  },
+  "en": {
+    "title": "User Guide",
+    "sections": [
+      {
+        "title": "1. Product Features & Positioning",
+        "content": "Storyboard Master is an AI-powered storyboarding platform for creative professionals.\n\nCore Features:\n• Multiple AI models (Gemini, Zhipu, Qianwen, DeepSeek, OpenAI, etc.)\n• Two generation modes: Script-to-Viz + Creative Chat\n• Reference subject support for character consistency\n• Multiple aspect ratio options\n• Color and B&W sketch styles"
+      },
+      {
+        "title": "2. Quick Start",
+        "content": "Step 1: Configure API\n① Click ⚙️ Settings in left toolbar\n② Select AI provider (Gemini recommended)\n③ Enter API Key\n④ Click Test button to verify\n⑤ Click Save\n\nStep 2: Choose Generation Mode\n• Script-to-Viz: Use when you have a complete script\n• Creative Chat: Use when brainstorming ideas"
+      },
+      {
+        "title": "3. Left Toolbar Guide",
+        "content": "Toolbar functions from top to bottom:\n\n✋ Pan Tool\nFunction: Move canvas view\nOperation: Select, then drag canvas\n\n🎯 Select Tool\nFunction: Select storyboard frames\nOperations:\n  Single: Click directly\n  Multiple: Shift + Click (one by one)\n  Box select: Drag to select multiple\n  Select all: Ctrl + A\n\n📥 Upload Tool\nFunction: Import reference subject or frames\nOperation: Click to open menu\n\n⚙️ Settings\nFunction: Configure API\nOperation: Click to open API config\n\n🌸/⚫ Color Mode\nFunction: Toggle color or B&W sketch\nOperation: Click to toggle\n\nZoom Display\nFunction: Show current zoom level\nOperation: Ctrl + Scroll to adjust\n\n🌙/☀️ Theme\nFunction: Toggle dark/light mode\nOperation: Click to toggle\n\n中/EN Language\nFunction: Toggle Chinese/English\nOperation: Click to toggle"
+      },
+      {
+        "title": "4. Script-to-Viz Mode",
+        "content": "Use when: You have a complete video script\n\nSteps:\n① Click \"Script-to-Viz\" tab on right panel\n② Enter your script in text box\n③ Set parameters:\n   • Frame count: 1-16 (recommended 4-8)\n   • Style: Choose visual style\n   • Duration: Optional, 5-120 seconds\n   • Aspect ratio: Select output ratio\n④ Click \"Generate\"\n⑤ Wait for generation\n\nAspect Ratio Guide:\n• 16:9 (default) - Movies, TV, YouTube\n• 9:16 - Short videos, TikTok, mobile\n• 21:9 - Cinematic ultra-wide\n• 1:1 - Social media, Instagram\n• 4:3 - Presentations, teaching\n• 4:5, 3:2 - Other purposes\n\n⚠️ Important:\n• All exported frames must be same ratio\n• Export different ratios separately if needed"
+      },
+      {
+        "title": "5. Creative Chat Mode",
+        "content": "Use when: Brainstorming without a complete script\n\nSteps:\n① Click \"Creative Chat\" tab\n② Enter your creative idea\n   Example: \"A sci-fi scene in a space station\"\n③ Click 🚀 Send (or press Enter)\n④ AI responds with scene description\n⑤ Continue conversation to add details\n   Example: \"Add female astronaut character\"\n⑥ Repeat until satisfied\n⑦ Set generation parameters\n⑧ Click \"Generate Storyboard\"\n\nChat Tips:\n• First message: Overall scene description\n• Follow-up messages: Specific details\n• AI remembers conversation context\n• Last message is most important\n\nClear Chat:\n• Click 🧹 Clear button next to input\n• Start new conversation topic"
+      },
+      {
+        "title": "6. Frame Selection & Operations",
+        "content": "Selection Methods:\n\nSingle Select:\nClick directly on frame\nFrame shows purple border\n\nMultiple Select (Method 1 - One by one):\nHold Shift key\nClick each frame to select\nShift + Click again to deselect\n\nMultiple Select (Method 2 - Box select):\nClick and drag on empty area\nDrag to select multiple frames\nRelease to complete\nSelection order is recorded for export numbering\n\nSelect All:\nPress Ctrl + A\nAll frames selected\n\nRight-Click Menu:\nRight-click any frame\nOptions: Set as main, Replace, Redraw, Batch redraw, Clone, Export, Delete\n\nDrag to Move:\nClick and drag frame to new position\n\nResize:\nDrag small triangle at bottom-right corner\nAspect ratio maintained automatically"
+      },
+      {
+        "title": "7. Export Storyboard",
+        "content": "Export Steps:\n① Select frames to export\n② Click \"Export Storyboard (JPEG)\" button\n   or right-click and select \"Export Storyboard\"\n③ System generates JPEG file\n④ Auto-downloads to your device\n\nExport File Contains:\n• Reference subject (if any): Red dashed border on left\n• Storyboard frames: Blue solid border, ordered by selection\n• Scene numbers: SC-01, SC-02, SC-03...\n\nLayout:\n• With reference: Max 2 columns\n• Without reference: Auto-adjusts columns\n\n⚠️ Important:\n• All exported frames must be same aspect ratio\n• If mixed ratios selected, system shows error\n• Solution: Export different ratios separately"
+      },
+      {
+        "title": "8. Keyboard Shortcuts",
+        "content": "Selection:\nCtrl + A: Select all frames\nShift + Click: Select/deselect one by one\nMouse drag: Box select multiple\nDelete: Delete selected frames\n\nView:\nCtrl + Scroll: Zoom canvas\n  Scroll up: Zoom in\n  Scroll down: Zoom out\n  On reference: Zoom reference only\nMouse drag: Pan canvas (with pan tool selected)\n\nMenu:\nRight-click: Open frame menu\n\nChat:\nEnter: Send message\nShift + Enter: New line"
+      },
+      {
+        "title": "8.1 Reference Subject Independent Zoom",
+        "content": "Use when: Need to adjust reference subject size separately\n\nSteps:\n① Move mouse to reference subject image\n② Hold Ctrl key\n③ Scroll mouse wheel up to zoom in\n④ Scroll mouse wheel down to zoom out\n\nEffects:\n• Reference subject zooms independently\n• Other frames unaffected\n• Zoom ratio is saved\n\n⚠️ Note:\n• Must operate on reference subject for independent zoom\n• Ctrl + Scroll elsewhere zooms entire canvas"
+      },
+      {
+        "title": "8.2 Symbol Library Drag & Drop",
+        "content": "Use when: Add camera movements or action markers to frames\n\nSteps:\n① Find \"Symbols\" section in \"Script-to-Viz\" tab on right panel\n② Select desired symbol (e.g., ← Pan, ↑ Tilt, ⊕ Zoom In)\n③ Hold left mouse button and drag symbol\n④ Drag to target frame\n⑤ Release mouse to place\n\nAvailable Symbols:\n• ▢ Reference Subject Area - Mark reference position\n• ← Pan Left - Camera moves left\n• → Pan Right - Camera moves right\n• ↑ Tilt Up - Camera moves up\n• ↓ Tilt Down - Camera moves down\n• ⊕ Zoom In - Camera zooms in\n• ⊖ Zoom Out - Camera zooms out\n• ➦ Action Start - Mark action point\n\nEffects:\n• Symbols display on frame\n• Included in export information\n• Referenced during batch redraw"
+      },
+      {
+        "title": "9. Prompt Preview & Edit",
+        "content": "Use when: Need to view or modify export prompts\n\nSteps:\n① Select frames to export\n② Click \"Preview Prompts\" button on right panel\n③ Preview window opens\n④ Click \"中文\" or \"English\" to switch language\n⑤ Edit prompts in text box if needed\n⑥ Click \"Copy\" to copy current version to clipboard\n⑦ Click \"Download\" to save as text file\n\nFeatures:\n• Language toggle: Preview Chinese or English version\n• Copy function: One-click copy to clipboard\n• Download function: Save prompts as .txt file\n• Edit function: Modify prompts directly in preview\n\nPrompt Contents:\n• Global instructions: Style, aspect ratio, restrictions\n• Scene numbers: SC-01, SC-02, etc.\n• Scene descriptions: Detailed description for each scene\n• Actions & Motion: Camera movements from symbol library"
+      },
+      {
+        "title": "9.1 Single Frame Redraw",
+        "content": "Use when: Need to modify and regenerate single frame\n\nSteps:\n① Right-click frame to redraw\n② Select \"Redraw (View Script)\"\n③ Edit window opens\n④ Modify prompt content\n⑤ Click \"Redraw\" button\n⑥ Wait for new image generation\n\nUse Cases:\n• Adjust details of single frame\n• Modify camera angle or movement\n• Change scene elements\n• Optimize composition\n\n⚠️ Note:\n• Only affects that frame\n• Other frames unchanged\n• New image replaces original"
+      },
+      {
+        "title": "9.2 Batch Redraw",
+        "content": "Use when: Need to modify multiple frames at once\n\nSteps:\n① Multi-select frames to redraw (Shift + Click or box select)\n② Right-click any selected frame\n③ Select \"Batch Redraw\"\n④ Batch redraw dialog opens\n⑤ Enter improvement instructions for each frame\n   • Use SC-01, SC-02 buttons to switch frames\n   • Enter instructions in text box\n⑥ Click \"Batch Redraw\" button\n⑦ System generates new images sequentially\n\nUse Cases:\n• Unify style across multiple frames\n• Add same elements to multiple frames\n• Batch improve image quality\n• Quick iteration of multiple versions\n\nEffects:\n• Each frame generated independently\n• Original symbol marks preserved\n• Success/failure statistics shown after completion"
+      },
+      {
+        "title": "9.3 Clone Frame",
+        "content": "Use when: Need to duplicate a frame to new location\n\nSteps:\n① Right-click frame to clone\n② Select \"Clone\"\n③ New frame appears near original\n④ Drag new frame to desired location\n\nUse Cases:\n• Create similar scene variations\n• Quickly duplicate reference subject\n• Build foundation for frame sequence\n• Save reusable frame templates\n\nEffects:\n• Completely duplicates all frame attributes\n• Includes prompt, symbols, aspect ratio, etc.\n• New frame gets new ID\n• Can be edited independently"
+      },
+      {
+        "title": "9.4 Download Single Frame",
+        "content": "Use when: Need to download individual frame\n\nSteps:\n① Right-click frame to download\n② Select \"Download Image\"\n③ Image auto-downloads to local device\n\nDownload Details:\n• Format: PNG format\n• Naming: Auto-generated timestamp name\n• Location: Browser default download folder\n\nUse Cases:\n• Save individual frame separately\n• Use in other projects or presentations\n• Backup important frames\n• Share with team members"
+      },
+      {
+        "title": "9.5 Color Mode Toggle",
+        "content": "Use when: Need to switch between color and B&W sketch\n\nSteps:\n① Click 🌸 (Color) or ⚫ (B&W) button in left toolbar\n② Button highlights to show current mode\n③ New generated images use that mode\n\nMode Explanation:\n• 🌸 Color mode: Generate color frames\n• ⚫ B&W mode: Generate black & white sketch style\n\n⚠️ Important:\n• Mode switch only affects newly generated images\n• Already generated images unchanged\n• To convert existing images, regenerate them\n• B&W mode good for concept stage and quick iteration\n\nUse Cases:\n• Use B&W sketch for concept validation\n• Use color for final presentation\n• Mix both modes for comparison"
+      },
+      {
+        "title": "10. FAQ",
+        "content": "Q1: How to maintain character consistency?\n\nA: Upload reference subject. System maintains 100% character appearance consistency.\n\n\nQ2: Export order is wrong?\n\nA: Box-select frames in desired order. System numbers by selection order.\n\n\nQ3: B&W mode still generates color?\n\nA: New images generated after mode switch apply the new mode.\n\n\nQ4: How to clear chat history?\n\nA: Click 🧹 Clear button next to input.\n\n\nQ5: Difference between Script-to-Viz and Creative Chat?\n\nA:\nScript-to-Viz: For complete scripts, one-time generation\nCreative Chat: For brainstorming, multi-turn conversation\n\n\nQ6: Why \"frames must be same ratio\" error?\n\nA: System requires all exported frames use same ratio.\n\n\nQ7: How to generate different ratios?\n\nA: Select ratio before generating. Generate multiple times for different ratios.\n\n\nQ8: Can canvas mix different ratios?\n\nA: Yes, but export requires same ratio for all selected frames.\n\n\nQ9: How to resize frames?\n\nA: Drag bottom-right corner triangle. Aspect ratio maintained.\n\n\nQ10: Single vs multiple select?\n\nA:\nSingle: Select one frame for individual operations\nMultiple: Select multiple frames for batch operations\n\n\nQ11: How to use batch redraw?\n\nA:\n① Multi-select frames (Shift + Click)\n② Right-click → Batch redraw\n③ Enter instructions for each frame\n④ Click Submit\n\n\nQ12: What is reference subject?\n\nA: Maintains character consistency across all generated frames.\n\n\nQ13: How to edit single frame prompt?\n\nA: Right-click frame, select \"Redraw (View Script)\", edit prompt in window, click \"Redraw\".\n\n\nQ14: What is prompt preview for?\n\nA: View complete export prompts, toggle Chinese/English, copy or download for other tools.\n\n\nQ15: How to quickly duplicate a frame?\n\nA: Right-click frame, select \"Clone\", new frame appears nearby, drag to desired location."
+      }
+    ]
+  }
+}

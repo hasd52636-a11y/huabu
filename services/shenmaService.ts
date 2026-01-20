@@ -387,7 +387,7 @@ export class ShenmaService {
     }
 
     const requestBody = {
-      model: this.config.llmModel || 'gpt-4o', // 神马AI的标准对话模型
+      model: this.config.llmModel || 'gemini-2.0-flash-exp', // 神马AI的标准对话模型，优先使用Gemini
       messages: messages,
       temperature: options?.temperature || 0.7,
       max_tokens: options?.maxTokens || 2048,
@@ -479,7 +479,12 @@ export class ShenmaService {
    */
   async generateVideo(prompt: string, options?: ShenmaVideoOptions): Promise<string | { taskId: string }> {
     console.log('[ShenmaService] Starting video generation with sora_video2');
-    console.log('[ShenmaService] Prompt:', prompt.substring(0, 100) + '...');
+    console.log('[ShenmaService] Prompt:', prompt?.substring(0, 100) + '...');
+    
+    // 检查prompt是否为空
+    if (!prompt || prompt.trim() === '') {
+      throw new Error('Prompt cannot be empty for video generation');
+    }
     
     // 检查是否包含角色引用 (@{username} 语法)
     const characterReferences = prompt.match(/@\{[^}]+\}/g);
@@ -512,7 +517,7 @@ export class ShenmaService {
       }
     }
     
-    // 标准视频生成逻辑
+    // 标准视频生成逻辑 - 参考示例文件的实现
     const endpoint = `${this.config.baseUrl}/v2/videos/generations`;
     
     const requestBody: any = {
@@ -525,10 +530,25 @@ export class ShenmaService {
       private: options?.private ?? false
     };
 
-    // 处理参考图像
+    // 处理参考图像 - 按照示例文件的方式
     if (options?.referenceImage) {
-      requestBody.images = [options.referenceImage];
+      if (Array.isArray(options.referenceImage)) {
+        requestBody.images = options.referenceImage;
+      } else {
+        requestBody.images = [options.referenceImage];
+      }
     }
+
+    // 处理角色客串参数
+    if (options?.characterUrl) {
+      requestBody.character_url = options.characterUrl;
+    }
+    
+    if (options?.characterTimestamps) {
+      requestBody.character_timestamps = options.characterTimestamps;
+    }
+
+    console.log('[ShenmaService] Video request body:', JSON.stringify(requestBody, null, 2));
 
     try {
       const response = await fetch(endpoint, {
@@ -540,10 +560,21 @@ export class ShenmaService {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('[ShenmaService] Video generation error:', response.status, errorText);
-        throw new Error(`API Error: ${response.status} - ${errorText}`);
+        
+        // 尝试解析错误信息
+        try {
+          const errorData = JSON.parse(errorText);
+          const errorMessage = errorData.message || errorData.error?.message || errorText;
+          throw new Error(`API Error: ${response.status} - ${errorMessage}`);
+        } catch (parseError) {
+          throw new Error(`API Error: ${response.status} - ${errorText}`);
+        }
       }
 
-      const data = await response.json();
+      const responseText = await response.text();
+      console.log('[ShenmaService] Video response:', responseText);
+      
+      const data = JSON.parse(responseText);
       
       console.log('[ShenmaService] ✓ Video generation request submitted');
       
@@ -1653,7 +1684,7 @@ export class ShenmaService {
       }));
 
       const requestBody = {
-        model: this.config.visionModel || 'gpt-4o',
+        model: this.config.visionModel || 'gemini-2.0-flash-exp',
         messages: [
           {
             role: 'user',
@@ -1955,7 +1986,7 @@ export class ShenmaService {
     
     try {
       const requestBody = {
-        model: this.config.llmModel || 'gpt-4o',
+        model: this.config.llmModel || 'gemini-2.0-flash-exp',
         messages: [
           {
             role: 'system',
@@ -2006,7 +2037,7 @@ export class ShenmaService {
     
     try {
       const requestBody = {
-        model: this.config.llmModel || 'gpt-4o',
+        model: this.config.llmModel || 'gemini-2.0-flash-exp',
         messages: [
           {
             role: 'system',
@@ -2067,7 +2098,7 @@ export class ShenmaService {
     
     try {
       const requestBody = {
-        model: this.config.llmModel || 'gpt-4o',
+        model: this.config.llmModel || 'gemini-2.0-flash-exp',
         messages: [
           {
             role: 'system',
