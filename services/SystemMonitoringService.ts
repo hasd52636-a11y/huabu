@@ -418,7 +418,7 @@ class SystemMonitoringService {
     try {
       // Measure network latency with a small request
       const start = performance.now();
-      await fetch('/favicon.ico', { method: 'HEAD', cache: 'no-cache' });
+      await fetch('/favicon.svg', { method: 'HEAD', cache: 'no-cache' });
       const latency = performance.now() - start;
       
       // Get connection info if available
