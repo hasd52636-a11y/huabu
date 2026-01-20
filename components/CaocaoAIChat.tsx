@@ -167,9 +167,45 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
   };
 
   // 处理语音控制切换
-  const handleVoiceToggle = () => {
+  const handleVoiceToggle = async () => {
     const newState = !isVoiceActive;
-    onVoiceToggle(newState);
+    
+    if (newState) {
+      // 激活语音控制时，直接开始监听
+      try {
+        // 请求麦克风权限
+        console.log('[CaocaoAIChat] 请求麦克风权限...');
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        // 权限获取成功，关闭流
+        stream.getTracks().forEach(track => track.stop());
+        console.log('[CaocaoAIChat] ✅ 麦克风权限已获得');
+        
+        // 激活语音控制
+        onVoiceToggle(newState);
+        
+        // 添加成功消息
+        addCaocaoMessage('语音控制已激活！现在可以说"曹操"唤醒我，然后说出您的指令。麦克风权限已获得，开始连续监听中...', 'system');
+        
+      } catch (error) {
+        console.error('[CaocaoAIChat] 麦克风权限获取失败:', error);
+        let errorMessage = '麦克风权限获取失败！';
+        
+        if (error instanceof Error) {
+          if (error.name === 'NotAllowedError') {
+            errorMessage = '❌ 麦克风权限被拒绝！\n\n请按以下步骤操作：\n1. 点击地址栏左侧的🔒或🛡️图标\n2. 将"麦克风"设置为"允许"\n3. 刷新页面后重试';
+          } else if (error.name === 'NotFoundError') {
+            errorMessage = '❌ 未找到麦克风设备！\n\n请检查：\n1. 麦克风是否正确连接\n2. 其他应用是否占用麦克风\n3. 系统麦克风设置是否正确';
+          }
+        }
+        
+        addCaocaoMessage(errorMessage, 'system');
+        return; // 不激活语音控制
+      }
+    } else {
+      // 关闭语音控制
+      onVoiceToggle(newState);
+    }
   };
 
   // 处理手势控制切换

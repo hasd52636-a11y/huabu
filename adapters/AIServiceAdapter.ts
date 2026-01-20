@@ -252,16 +252,30 @@ export class MultiProviderAIService implements AIServiceAdapter {
           const errorMsg = `❌ API密钥未配置！
 
 请按以下步骤配置Gemini API密钥：
+
+🔑 获取API密钥：
 1. 访问 https://aistudio.google.com/app/apikey
 2. 登录Google账号并创建API密钥
-3. 复制API密钥
-4. 在.env.local文件中替换 PLACEHOLDER_API_KEY
-5. 重启开发服务器
+3. 复制生成的API密钥
+
+⚙️ 配置方法（选择其中一种）：
+
+方法1 - 在应用中配置：
+1. 点击右侧边栏的"设置"按钮
+2. 在"API提供商配置"中粘贴API密钥
+3. 点击"保存配置"
+
+方法2 - 修改.env.local文件：
+1. 在项目根目录找到.env.local文件
+2. 将 PLACEHOLDER_API_KEY 替换为你的真实API密钥
+3. 保存文件并刷新页面
 
 当前配置状态：
 - Provider: ${settings.provider}
-- API Key: ${settings.apiKey === 'PLACEHOLDER_API_KEY' ? '❌ 占位符密钥' : '❌ 空密钥'}
-- Base URL: ${settings.baseUrl}`;
+- API Key: ${settings.apiKey === 'PLACEHOLDER_API_KEY' ? '❌ 占位符密钥（需要替换）' : '❌ 空密钥'}
+- Base URL: ${settings.baseUrl}
+
+💡 提示：配置完成后，语音控制将能正常识别和执行指令！`;
           
           console.error('[AIServiceAdapter]', errorMsg);
           throw new Error(errorMsg);

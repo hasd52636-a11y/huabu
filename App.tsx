@@ -3931,11 +3931,16 @@ ${block.content}
       {/* Canvas Voice Controller - 语音控制器 */}
       <CanvasVoiceController
         onCommand={handleCanvasVoiceCommand}
-        onProjectToCanvas={handleProjectVoiceContentToCanvas}
         lang={lang}
         wakeWord={wakeWord}
         position={{ x: 20, y: 20 }}
         theme={theme}
+        isActive={isCanvasVoiceActive}
+        apiSettings={{
+          provider: modelConfig.text.provider,
+          apiKey: modelConfig.providers[modelConfig.text.provider]?.apiKey || '',
+          baseUrl: modelConfig.providers[modelConfig.text.provider]?.baseUrl || ''
+        }}
       />
 
       {/* Canvas Gesture Controller - 位于右侧侧边栏左上角 */}
