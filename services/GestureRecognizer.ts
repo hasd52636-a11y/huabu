@@ -73,14 +73,20 @@ export class GestureRecognizer {
   constructor() {
     this.hands = new Hands({
       locateFile: (file) => {
-        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        // 使用更稳定的CDN源，并添加fallback
+        const cdnSources = [
+          `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${file}`,
+          `https://unpkg.com/@mediapipe/hands@0.4.1646424915/${file}`,
+          `https://cdn.skypack.dev/@mediapipe/hands@0.4.1646424915/${file}`
+        ];
+        return cdnSources[0]; // 先尝试第一个
       }
     });
 
     this.hands.setOptions({
       maxNumHands: 2,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.5,
+      modelComplexity: 0, // 降低复杂度提高性能
+      minDetectionConfidence: 0.7, // 提高检测阈值
       minTrackingConfidence: 0.5
     });
 

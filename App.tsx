@@ -69,6 +69,7 @@ import GestureHelp from './components/GestureHelp';
 import AIGestureDemo from './components/AIGestureDemo';
 import CanvasVoiceController from './components/CanvasVoiceController';
 import CanvasGestureController from './components/CanvasGestureController';
+import CaocaoAIChat from './components/CaocaoAIChat';
 import { gestureRecognizer } from './services/GestureRecognizer';
 import { connectionEngine } from './services/ConnectionEngine';
 import { COLORS, I18N, MIN_ZOOM, MAX_ZOOM } from './constants.tsx';
@@ -133,6 +134,11 @@ const App: React.FC = () => {
   const [showGestureHelp, setShowGestureHelp] = useState<boolean>(false);
   const [showAIGestureDemo, setShowAIGestureDemo] = useState<boolean>(false);
   const [isGestureActive, setIsGestureActive] = useState<boolean>(false);
+  
+  // Canvas Voice & Gesture Control State
+  const [isCanvasVoiceActive, setIsCanvasVoiceActive] = useState<boolean>(false);
+  const [isCanvasGestureActive, setIsCanvasGestureActive] = useState<boolean>(false);
+  const [showCaocaoChat, setShowCaocaoChat] = useState<boolean>(false);
 
   // 手势激活状态变化时的处理
   useEffect(() => {
@@ -153,6 +159,9 @@ const App: React.FC = () => {
           gestureRecognizer.setOnGestureCallback(handleGestureCommand);
           
           console.log('[App] 手势控制已激活');
+          
+          // 自动切换到曹操AI标签页
+          setSidebarTab('caocao');
         } catch (error) {
           console.error('[App] 手势控制启动失败:', error);
           setIsGestureActive(false);
@@ -195,7 +204,7 @@ const App: React.FC = () => {
   const [selectedCharacter, setSelectedCharacter] = useState<Character | undefined>();
   
   // Feature Assembly State
-  const [sidebarTab, setSidebarTab] = useState<'chat' | 'assembly'>('chat');
+  const [sidebarTab, setSidebarTab] = useState<'chat' | 'caocao' | 'assembly'>('chat');
   const [currentMenuConfig, setCurrentMenuConfig] = useState<MenuConfig | undefined>();
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   
@@ -3532,6 +3541,13 @@ ${block.content}
                    {t.chat}
                  </button>
                  <button
+                   onClick={() => setSidebarTab('caocao')}
+                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-black uppercase transition-all ${sidebarTab === 'caocao' ? (theme === 'dark' ? 'bg-slate-700 text-purple-400' : 'bg-purple-100 text-purple-600') : (theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-400 hover:text-slate-600')}`}
+                 >
+                   <Brain size={16} />
+                   曹操
+                 </button>
+                 <button
                    onClick={() => setSidebarTab('assembly')}
                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-black uppercase transition-all ${sidebarTab === 'assembly' ? (theme === 'dark' ? 'bg-slate-700 text-amber-400' : 'bg-amber-100 text-amber-600') : (theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-400 hover:text-slate-600')}`}
                  >
@@ -3621,6 +3637,24 @@ ${block.content}
                 onMenuConfigChange={setCurrentMenuConfig}
                 initialFeatures={selectedFeatures}
                 initialMenuConfig={currentMenuConfig}
+              />
+            </div>
+          )}
+
+          {/* 曹操AI对话界面 */}
+          {sidebarTab === 'caocao' && (
+            <div className="flex-1 overflow-hidden">
+              <CaocaoAIChat
+                isVoiceActive={isCanvasVoiceActive}
+                isGestureActive={isCanvasGestureActive}
+                onVoiceToggle={setIsCanvasVoiceActive}
+                onGestureToggle={setIsCanvasGestureActive}
+                onCommand={(command) => {
+                  console.log('[曹操AI] 执行指令:', command);
+                  // 这里可以添加指令处理逻辑
+                }}
+                theme={theme}
+                lang={lang}
               />
             </div>
           )}
@@ -3871,12 +3905,16 @@ ${block.content}
         theme={theme}
       />
 
-      {/* Canvas Gesture Controller - 画布右侧中间手势控制 */}
+      {/* Canvas Gesture Controller - 浮现在侧边栏标签页下方 */}
       <CanvasGestureController
         isActive={isGestureActive}
         onToggle={setIsGestureActive}
         onGestureCommand={handleGestureCommand}
-        position="right-center"
+        position="custom"
+        customPosition={{ 
+          x: showSidebar ? window.innerWidth - sidebarWidth + 20 : window.innerWidth - 280, 
+          y: 140 // 位置在标签页下方
+        }}
         theme={theme}
         lang={lang}
       />

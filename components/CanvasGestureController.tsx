@@ -73,7 +73,7 @@ interface CanvasGestureControllerProps {
   isActive: boolean;
   onToggle: (active: boolean) => void;
   onGestureCommand: (gesture: GestureType) => void;
-  position?: 'right-center' | 'background' | 'custom';
+  position?: 'right-center' | 'background' | 'custom' | 'sidebar-top';
   customPosition?: { x: number; y: number };
   theme?: 'light' | 'dark';
   lang?: 'zh' | 'en';
@@ -268,24 +268,36 @@ const CanvasGestureController: React.FC<CanvasGestureControllerProps> = ({
         position: 'fixed' as const,
         left: customPosition.x,
         top: customPosition.y,
-        zIndex: 30
+        zIndex: 9999 // 最高层级，确保浮现在所有内容之上
       };
-    } else {
-      // right-center
+    } else if (position === 'sidebar-top') {
+      // 在右侧侧边栏上方显示
       return {
         position: 'fixed' as const,
-        right: '20px',
+        right: '20px', // 距离右边缘20px
+        top: '120px',  // 在header下方，侧边栏上方
+        zIndex: 9999 // 最高层级
+      };
+    } else {
+      // right-center - 避开侧边栏，提高z-index
+      return {
+        position: 'fixed' as const,
+        right: '320px', // 避开侧边栏宽度
         top: '50%',
         transform: 'translateY(-50%)',
-        zIndex: 30
+        zIndex: 9999 // 最高层级
       };
     }
   };
 
-  const containerSize = isMinimized ? { width: '120px', height: '90px' } : { width: '240px', height: '180px' };
+  const containerSize = isMinimized ? { width: '200px', height: '150px' } : { width: '280px', height: '210px' };
   if (position === 'background') {
     containerSize.width = '400px';
     containerSize.height = '300px';
+  } else if (position === 'sidebar-top') {
+    // 侧边栏上方的紧凑尺寸
+    containerSize.width = isMinimized ? '160px' : '240px';
+    containerSize.height = isMinimized ? '120px' : '180px';
   }
 
   return (
@@ -294,15 +306,45 @@ const CanvasGestureController: React.FC<CanvasGestureControllerProps> = ({
         rounded-lg shadow-lg overflow-hidden transition-all duration-300
         ${position === 'background' 
           ? 'bg-black/20 backdrop-blur-sm' 
-          : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
+          : position === 'sidebar-top'
+            ? 'bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border border-purple-200 dark:border-purple-700 shadow-purple-100 dark:shadow-purple-900/50'
+            : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
         }
       `}
       style={{ ...getPositionStyles(), ...containerSize }}
       onMouseEnter={() => setShowControls(true)}
       onMouseLeave={() => setShowControls(false)}
     >
+      {/* 标题栏（仅在sidebar-top位置显示） */}
+      {position === 'sidebar-top' && (
+        <div className="absolute top-0 left-0 right-0 bg-purple-500/90 text-white px-3 py-1 text-xs font-semibold flex items-center justify-between z-20">
+          <div className="flex items-center gap-1">
+            <Hand className="w-3 h-3" />
+            <span>手势控制</span>
+          </div>
+          {showControls && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setIsMinimized(!isMinimized)}
+                className="p-1 hover:bg-white/20 rounded transition-colors"
+                title={isMinimized ? currentLang.maximize : currentLang.minimize}
+              >
+                {isMinimized ? <Maximize2 className="w-3 h-3" /> : <Minimize2 className="w-3 h-3" />}
+              </button>
+              <button
+                onClick={() => onToggle(false)}
+                className="p-1 hover:bg-white/20 rounded transition-colors"
+                title={currentLang.close}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 控制按钮 */}
-      {showControls && position !== 'background' && (
+      {showControls && position !== 'background' && position !== 'sidebar-top' && (
         <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
           <button
             onClick={() => setIsMinimized(!isMinimized)}
@@ -322,7 +364,7 @@ const CanvasGestureController: React.FC<CanvasGestureControllerProps> = ({
       )}
 
       {/* 摄像头视频 */}
-      <div className="relative w-full h-full">
+      <div className={`relative w-full h-full ${position === 'sidebar-top' ? 'mt-6' : ''}`}>
         <video
           ref={videoRef}
           className="w-full h-full object-cover"
