@@ -4,13 +4,20 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, CameraOff, Hand, Settings, Minimize2, Maximize2, X } from 'lucide-react';
-import { gestureRecognizer, GestureResult, GestureType } from '../services/GestureRecognizer';
+import { Camera, CameraOff, Hand, Minimize2, Maximize2, X } from 'lucide-react';
+import { simpleGestureRecognizer, SimpleGestureResult, SimpleGestureType } from '../services/SimpleGestureRecognizer';
 
 // 手势执行音效函数
-const playGestureSound = (gestureType: GestureType) => {
+const playGestureSound = (gestureType: SimpleGestureType) => {
   try {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    // 检查浏览器支持
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) {
+      console.warn('浏览器不支持Web Audio API');
+      return;
+    }
+
+    const audioContext = new AudioContext();
     
     if (audioContext.state === 'suspended') {
       audioContext.resume();
@@ -60,7 +67,7 @@ const playGestureSound = (gestureType: GestureType) => {
     
     gainNode.gain.setValueAtTime(0, audioContext.currentTime);
     gainNode.gain.linearRampToValueAtTime(0.1, audioContext.currentTime + 0.01);
-    gainNode.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
     
     oscillator.start(audioContext.currentTime);
     oscillator.stop(audioContext.currentTime + duration);
@@ -72,11 +79,13 @@ const playGestureSound = (gestureType: GestureType) => {
 interface CanvasGestureControllerProps {
   isActive: boolean;
   onToggle: (active: boolean) => void;
-  onGestureCommand: (gesture: GestureType) => void;
+  onGestureCommand: (gesture: SimpleGestureType) => void;
   position?: 'right-center' | 'background' | 'custom' | 'sidebar-top';
   customPosition?: { x: number; y: number };
   theme?: 'light' | 'dark';
   lang?: 'zh' | 'en';
+  showSidebar?: boolean;
+  sidebarWidth?: number;
 }
 
 const CanvasGestureController: React.FC<CanvasGestureControllerProps> = ({
@@ -86,19 +95,20 @@ const CanvasGestureController: React.FC<CanvasGestureControllerProps> = ({
   position = 'right-center',
   customPosition,
   theme = 'dark',
-  lang = 'zh'
+  lang = 'zh',
+  showSidebar = true,
+  sidebarWidth = 480
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
   const [isInitializing, setIsInitializing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentGesture, setCurrentGesture] = useState<GestureType>('idle');
+  const [currentGesture, setCurrentGesture] = useState<SimpleGestureType>('idle');
   const [gestureCount, setGestureCount] = useState(0);
   const [isMinimized, setIsMinimized] = useState(false);
   const [showControls, setShowControls] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
-  const [lastExecutedGesture, setLastExecutedGesture] = useState<string>('');
   const [executionFeedback, setExecutionFeedback] = useState<string>('');
 
   const t = {
@@ -170,46 +180,119 @@ const CanvasGestureController: React.FC<CanvasGestureControllerProps> = ({
     };
   }, [isActive]);
 
+  // 添加键盘快捷键支持（用于测试手势功能）
   useEffect(() => {
-    // 设置手势识别回调
-    gestureRecognizer.setOnGestureCallback(handleGestureResult);
-  }, []);
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if (!isActive) {
+        console.log('[键盘事件] 手势控制未激活，忽略按键');
+        return;
+      }
+      
+      console.log('[键盘事件] 按键:', event.key.toLowerCase());
+      
+      switch (event.key.toLowerCase()) {
+        case 'z':
+          console.log('[键盘事件] 触发放大手势');
+          simpleGestureRecognizer.triggerGesture('zoom_in');
+          break;
+        case 'x':
+          console.log('[键盘事件] 触发缩小手势');
+          simpleGestureRecognizer.triggerGesture('zoom_out');
+          break;
+        case 'arrowup':
+          console.log('[键盘事件] 触发上移手势');
+          simpleGestureRecognizer.triggerGesture('move_up');
+          break;
+        case 'arrowdown':
+          console.log('[键盘事件] 触发下移手势');
+          simpleGestureRecognizer.triggerGesture('move_down');
+          break;
+        case 'arrowleft':
+          console.log('[键盘事件] 触发左移手势');
+          simpleGestureRecognizer.triggerGesture('move_left');
+          break;
+        case 'arrowright':
+          console.log('[键盘事件] 触发右移手势');
+          simpleGestureRecognizer.triggerGesture('move_right');
+          break;
+        case 'r':
+          console.log('[键盘事件] 触发重置手势');
+          simpleGestureRecognizer.triggerGesture('reset_view');
+          break;
+        case 'c':
+          console.log('[键盘事件] 触发清空手势');
+          simpleGestureRecognizer.triggerGesture('clear_canvas');
+          break;
+        case 'a':
+          console.log('[键盘事件] 触发布局手势');
+          simpleGestureRecognizer.triggerGesture('auto_layout');
+          break;
+        case 's':
+          console.log('[键盘事件] 触发全选手势');
+          simpleGestureRecognizer.triggerGesture('select_all');
+          break;
+        default:
+          console.log('[键盘事件] 未识别的按键:', event.key);
+      }
+    };
 
-  const handleGestureResult = (result: GestureResult) => {
-    setCurrentGesture(result.gesture);
-    setGestureCount(prev => prev + 1);
-    
-    // 显示AI分析信息（如果有）
-    if (result.aiAnalysis) {
-      console.log('[AI Gesture Analysis]', {
-        intent: result.aiAnalysis.primaryIntent,
-        confidence: result.aiAnalysis.confidence,
-        reasoning: result.aiAnalysis.reasoning
-      });
+    console.log('[键盘事件] 添加监听器，isActive:', isActive);
+    window.addEventListener('keydown', handleKeyPress);
+
+    return () => {
+      console.log('[键盘事件] 移除监听器');
+      window.removeEventListener('keydown', handleKeyPress);
+    };
+  }, [isActive]); // 确保依赖数组正确
+
+  useEffect(() => {
+    if (isActive) {
+      // 只有在激活时才设置回调
+      console.log('[CanvasGestureController] 设置手势识别回调');
+      simpleGestureRecognizer.setOnGestureCallback(handleGestureResult);
     }
     
+    return () => {
+      if (isActive) {
+        // 只有在当前组件激活时才清理回调
+        console.log('[CanvasGestureController] 清理手势识别回调');
+      }
+    };
+  }, [isActive]); // 依赖isActive状态
+
+  const handleGestureResult = (result: SimpleGestureResult) => {
+    console.log('[CanvasGestureController] 收到手势结果:', result);
+    
+    setCurrentGesture(result.gesture as SimpleGestureType);
+    setGestureCount(prev => (prev as number) + 1);
+    
+    console.log('[手势识别]', {
+      gesture: result.gesture,
+      confidence: result.confidence,
+      timestamp: result.timestamp
+    });
+    
     // 播放手势音效
-    playGestureSound(result.gesture as GestureType);
+    playGestureSound(result.gesture as SimpleGestureType);
     
     // 设置执行状态和反馈
     setIsExecuting(true);
-    setLastExecutedGesture(result.gesture);
-    setExecutionFeedback(`正在执行: ${currentLang.gestures[result.gesture]}`);
+    setExecutionFeedback(`正在执行: ${currentLang.gestures[result.gesture as keyof typeof currentLang.gestures] || result.gesture}`);
     
-    // 触发手势命令
-    onGestureCommand(result.gesture);
+    // 触发手势命令 - 修复：只传递手势字符串，不是整个对象
+    console.log('[CanvasGestureController] 触发手势命令:', result.gesture);
+    onGestureCommand(result.gesture as SimpleGestureType);
     
-    // 显示执行完成反馈
+    // 简化反馈显示，避免复杂的setTimeout链
     setTimeout(() => {
       setIsExecuting(false);
-      setExecutionFeedback(`✓ ${currentLang.gestures[result.gesture]} 完成`);
+      setExecutionFeedback(`✓ ${currentLang.gestures[result.gesture as keyof typeof currentLang.gestures] || result.gesture} 完成`);
       
-      // 清除反馈信息
+      // 延迟清除反馈，但不重置手势状态
       setTimeout(() => {
         setExecutionFeedback('');
-        setCurrentGesture('idle');
-      }, 1500);
-    }, 300); // 300ms后显示完成状态
+      }, 1000); // 缩短显示时间
+    }, 200); // 缩短执行时间
   };
 
   const startGestureRecognition = async () => {
@@ -219,7 +302,7 @@ const CanvasGestureController: React.FC<CanvasGestureControllerProps> = ({
     setError(null);
 
     try {
-      await gestureRecognizer.initialize(videoRef.current, canvasRef.current);
+      await simpleGestureRecognizer.initialize(videoRef.current, canvasRef.current);
       console.log('[CanvasGestureController] 手势识别启动成功');
     } catch (err) {
       setError(err instanceof Error ? err.message : '摄像头初始化失败');
@@ -230,12 +313,12 @@ const CanvasGestureController: React.FC<CanvasGestureControllerProps> = ({
   };
 
   const stopGestureRecognition = () => {
-    gestureRecognizer.stop();
+    simpleGestureRecognizer.stop();
     setCurrentGesture('idle');
     console.log('[CanvasGestureController] 手势识别已停止');
   };
 
-  const getGestureColor = (gesture: GestureType): string => {
+  const getGestureColor = (gesture: SimpleGestureType): string => {
     const colors = {
       idle: 'text-gray-400',
       zoom_in: 'text-green-500',
@@ -264,19 +347,30 @@ const CanvasGestureController: React.FC<CanvasGestureControllerProps> = ({
         pointerEvents: 'none' as const
       };
     } else if (position === 'custom' && customPosition) {
+      // 确保位置在可见范围内
+      const safeX = Math.max(20, Math.min(customPosition.x, window.innerWidth - 300));
+      const safeY = Math.max(20, Math.min(customPosition.y, window.innerHeight - 250));
+      
+      console.log('[手势控制器位置]', {
+        原始位置: customPosition,
+        安全位置: { x: safeX, y: safeY },
+        屏幕尺寸: { width: window.innerWidth, height: window.innerHeight }
+      });
+      
       return {
         position: 'fixed' as const,
-        left: customPosition.x,
-        top: customPosition.y,
-        zIndex: 9999 // 最高层级，确保浮现在所有内容之上
+        left: safeX,
+        top: safeY,
+        zIndex: 99999 // 超高层级，确保可见
       };
     } else if (position === 'sidebar-top') {
-      // 在右侧侧边栏上方显示
+      // 在右侧侧边栏左上角显示
+      const rightOffset = showSidebar ? sidebarWidth + 20 : 20;
       return {
         position: 'fixed' as const,
-        right: '20px', // 距离右边缘20px
-        top: '120px',  // 在header下方，侧边栏上方
-        zIndex: 9999 // 最高层级
+        right: `${rightOffset}px`, // 距离侧边栏左边缘20px
+        top: '80px',  // 在header下方
+        zIndex: 99999 // 最高层级
       };
     } else {
       // right-center - 避开侧边栏，提高z-index
@@ -285,7 +379,7 @@ const CanvasGestureController: React.FC<CanvasGestureControllerProps> = ({
         right: '320px', // 避开侧边栏宽度
         top: '50%',
         transform: 'translateY(-50%)',
-        zIndex: 9999 // 最高层级
+        zIndex: 99999 // 最高层级
       };
     }
   };

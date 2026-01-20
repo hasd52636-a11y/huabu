@@ -248,8 +248,21 @@ export class MultiProviderAIService implements AIServiceAdapter {
     return await this.errorHandler.executeWithRetry(
       async () => {
         // Task 6.2: 验证配置
-        if (!settings.apiKey || settings.apiKey.trim() === '') {
-          const errorMsg = `API密钥未配置，请在设置中配置 ${settings.provider} 的API密钥`;
+        if (!settings.apiKey || settings.apiKey.trim() === '' || settings.apiKey === 'PLACEHOLDER_API_KEY') {
+          const errorMsg = `❌ API密钥未配置！
+
+请按以下步骤配置Gemini API密钥：
+1. 访问 https://aistudio.google.com/app/apikey
+2. 登录Google账号并创建API密钥
+3. 复制API密钥
+4. 在.env.local文件中替换 PLACEHOLDER_API_KEY
+5. 重启开发服务器
+
+当前配置状态：
+- Provider: ${settings.provider}
+- API Key: ${settings.apiKey === 'PLACEHOLDER_API_KEY' ? '❌ 占位符密钥' : '❌ 空密钥'}
+- Base URL: ${settings.baseUrl}`;
+          
           console.error('[AIServiceAdapter]', errorMsg);
           throw new Error(errorMsg);
         }

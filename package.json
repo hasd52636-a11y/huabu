@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "deploy:prepare": "node deploy-prepare.js",
-    "deploy:build": "npm run build && echo '构建完成，可以部署 dist 文件夹'"
+    "deploy:build": "npm run build && echo '构建完成，可以部署 dist 文件夹'",
+    "deploy:check": "node scripts/pre-deploy-check.js",
+    "deploy:ready": "npm run deploy:check && npm run build && npm run deploy:check"
   },
   "dependencies": {
     "@google/genai": "^1.34.0",

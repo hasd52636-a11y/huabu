@@ -1,13 +1,13 @@
 /**
- * 曹操AI对话界面 - 右侧侧边栏AI助手
- * 提供语音唤醒、指令执行反馈和智能对话功能
+ * 曹操AI对话界面 - 纯语音/手势交互专用界面
+ * 集中管理语音和手势控制，提供实时反馈和人机交互
  */
 
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  MessageSquare, Mic, MicOff, Volume2, VolumeX, 
-  Send, User, Bot, Zap, CheckCircle, AlertCircle,
-  Hand, Eye, Brain, Settings
+  Mic, MicOff, Hand, 
+  Bot, CheckCircle, AlertCircle, Brain, 
+  Activity, Loader2
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -15,7 +15,7 @@ interface ChatMessage {
   role: 'user' | 'caocao';
   content: string;
   timestamp: Date;
-  type: 'text' | 'command' | 'system';
+  type: 'text' | 'command' | 'system' | 'gesture' | 'voice';
   commandType?: string;
   status?: 'executing' | 'completed' | 'failed';
 }
@@ -41,63 +41,65 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
-      id: '1',
+      id: `caocao-init-${Date.now()}`,
       role: 'caocao',
-      content: '主人，我是曹操画布工具，随时为您服务！您可以说"曹操"唤醒我，或使用手势控制画布。',
+      content: '主人好！我是曹操，您的专属画布助手。请开启语音或手势控制，我将为您提供最佳的交互体验！',
       timestamp: new Date(),
       type: 'system'
     }
   ]);
-  const [inputText, setInputText] = useState('');
-  const [isListening, setIsListening] = useState(false);
-  const [lastCommand, setLastCommand] = useState<string>('');
+  const [systemStatus, setSystemStatus] = useState<'ready' | 'listening' | 'processing'>('ready');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const t = {
     zh: {
       title: '曹操AI助手',
-      placeholder: '输入指令或说话...',
-      send: '发送',
-      voiceOn: '语音已开启',
-      voiceOff: '语音已关闭',
-      gestureOn: '手势已开启',
-      gestureOff: '手势已关闭',
-      listening: '正在聆听...',
-      executing: '执行中...',
-      completed: '完成',
-      failed: '失败',
+      voiceControl: '语音控制',
+      gestureControl: '手势控制',
+      systemStatus: '系统状态',
+      ready: '就绪',
+      listening: '聆听中',
+      processing: '处理中',
       wakeWord: '说"曹操"唤醒',
+      gestureHint: '做出手势指令',
       caocaoResponses: {
         greeting: '主人好！曹操为您效劳！',
+        voiceActivated: '语音控制已激活！请说"曹操"唤醒我，然后说出您的指令。',
+        voiceDeactivated: '语音控制已关闭。',
+        gestureActivated: '手势控制已激活！请在摄像头前做出手势指令。',
+        gestureDeactivated: '手势控制已关闭。',
         commandReceived: '收到指令，正在执行...',
-        commandCompleted: '指令执行完毕，主人还有什么吩咐？',
-        commandFailed: '抱歉主人，指令执行失败，请重试。',
-        voiceActivated: '语音控制已激活，请说出您的指令。',
-        gestureActivated: '手势控制已激活，请做出手势指令。',
-        ready: '曹操已就绪，随时为主人服务！'
+        commandCompleted: '指令执行完毕！主人还有什么吩咐？',
+        commandFailed: '抱歉主人，指令执行遇到问题，请重试。',
+        gestureDetected: '检测到手势：',
+        voiceDetected: '听到指令：',
+        bothActive: '语音和手势控制都已激活，我将全力为您服务！',
+        systemReady: '系统已就绪，随时为主人效劳！'
       }
     },
     en: {
       title: 'Caocao AI Assistant',
-      placeholder: 'Type command or speak...',
-      send: 'Send',
-      voiceOn: 'Voice On',
-      voiceOff: 'Voice Off',
-      gestureOn: 'Gesture On',
-      gestureOff: 'Gesture Off',
-      listening: 'Listening...',
-      executing: 'Executing...',
-      completed: 'Completed',
-      failed: 'Failed',
+      voiceControl: 'Voice Control',
+      gestureControl: 'Gesture Control',
+      systemStatus: 'System Status',
+      ready: 'Ready',
+      listening: 'Listening',
+      processing: 'Processing',
       wakeWord: 'Say "Caocao" to wake',
+      gestureHint: 'Make gesture commands',
       caocaoResponses: {
         greeting: 'Greetings, Master! Caocao at your service!',
+        voiceActivated: 'Voice control activated! Say "Caocao" to wake me, then speak your command.',
+        voiceDeactivated: 'Voice control deactivated.',
+        gestureActivated: 'Gesture control activated! Make gesture commands in front of the camera.',
+        gestureDeactivated: 'Gesture control deactivated.',
         commandReceived: 'Command received, executing...',
-        commandCompleted: 'Command completed. What else can I do for you, Master?',
-        commandFailed: 'Sorry Master, command failed. Please try again.',
-        voiceActivated: 'Voice control activated. Please speak your command.',
-        gestureActivated: 'Gesture control activated. Please make gesture commands.',
-        ready: 'Caocao is ready to serve you, Master!'
+        commandCompleted: 'Command completed! What else can I do for you, Master?',
+        commandFailed: 'Sorry Master, command execution failed. Please try again.',
+        gestureDetected: 'Gesture detected: ',
+        voiceDetected: 'Voice command: ',
+        bothActive: 'Both voice and gesture controls are active. I am at your full service!',
+        systemReady: 'System ready to serve you, Master!'
       }
     }
   };
@@ -113,36 +115,53 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
     scrollToBottom();
   }, [messages]);
 
+  // 监听语音和手势状态变化
+  useEffect(() => {
+    if (isVoiceActive && isGestureActive) {
+      addCaocaoMessage(currentLang.caocaoResponses.bothActive, 'system');
+      setSystemStatus('ready');
+    } else if (isVoiceActive) {
+      addCaocaoMessage(currentLang.caocaoResponses.voiceActivated, 'system');
+      setSystemStatus('listening');
+    } else if (isGestureActive) {
+      addCaocaoMessage(currentLang.caocaoResponses.gestureActivated, 'system');
+      setSystemStatus('ready');
+    } else {
+      addCaocaoMessage(currentLang.caocaoResponses.systemReady, 'system');
+      setSystemStatus('ready');
+    }
+  }, [isVoiceActive, isGestureActive]);
+
   // 添加曹操回复
   const addCaocaoMessage = (content: string, type: 'text' | 'system' = 'text') => {
     const newMessage: ChatMessage = {
-      id: Date.now().toString(),
+      id: `caocao-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       role: 'caocao',
       content,
       timestamp: new Date(),
       type
     };
-    setMessages(prev => [...prev, newMessage]);
+    setMessages((prev: ChatMessage[]) => [...prev, newMessage]);
   };
 
   // 添加用户消息
-  const addUserMessage = (content: string, commandType?: string) => {
+  const addUserMessage = (content: string, type: 'voice' | 'gesture', commandType?: string) => {
     const newMessage: ChatMessage = {
-      id: Date.now().toString(),
+      id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       role: 'user',
       content,
       timestamp: new Date(),
-      type: commandType ? 'command' : 'text',
+      type,
       commandType,
-      status: commandType ? 'executing' : undefined
+      status: 'executing'
     };
-    setMessages(prev => [...prev, newMessage]);
+    setMessages((prev: ChatMessage[]) => [...prev, newMessage]);
     return newMessage.id;
   };
 
   // 更新消息状态
   const updateMessageStatus = (messageId: string, status: 'completed' | 'failed') => {
-    setMessages(prev => prev.map(msg => 
+    setMessages((prev: ChatMessage[]) => prev.map((msg: ChatMessage) => 
       msg.id === messageId ? { ...msg, status } : msg
     ));
   };
@@ -151,51 +170,12 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
   const handleVoiceToggle = () => {
     const newState = !isVoiceActive;
     onVoiceToggle(newState);
-    
-    if (newState) {
-      addCaocaoMessage(currentLang.caocaoResponses.voiceActivated, 'system');
-    } else {
-      addCaocaoMessage('语音控制已关闭。', 'system');
-    }
   };
 
   // 处理手势控制切换
   const handleGestureToggle = () => {
     const newState = !isGestureActive;
     onGestureToggle(newState);
-    
-    if (newState) {
-      addCaocaoMessage(currentLang.caocaoResponses.gestureActivated, 'system');
-    } else {
-      addCaocaoMessage('手势控制已关闭。', 'system');
-    }
-  };
-
-  // 处理指令发送
-  const handleSendCommand = () => {
-    if (!inputText.trim()) return;
-
-    const messageId = addUserMessage(inputText, 'command');
-    addCaocaoMessage(currentLang.caocaoResponses.commandReceived);
-    
-    // 执行指令
-    onCommand(inputText);
-    setLastCommand(inputText);
-    setInputText('');
-
-    // 模拟指令执行完成
-    setTimeout(() => {
-      updateMessageStatus(messageId, 'completed');
-      addCaocaoMessage(currentLang.caocaoResponses.commandCompleted);
-    }, 1000);
-  };
-
-  // 处理键盘事件
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendCommand();
-    }
   };
 
   // 获取消息图标
@@ -203,19 +183,21 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
     if (message.role === 'caocao') {
       return <Bot className="w-4 h-4 text-purple-500" />;
     } else {
-      if (message.type === 'command') {
-        switch (message.status) {
-          case 'executing':
-            return <Zap className="w-4 h-4 text-yellow-500 animate-pulse" />;
-          case 'completed':
-            return <CheckCircle className="w-4 h-4 text-green-500" />;
-          case 'failed':
-            return <AlertCircle className="w-4 h-4 text-red-500" />;
-          default:
-            return <User className="w-4 h-4 text-blue-500" />;
-        }
+      if (message.type === 'voice') {
+        return <Mic className="w-4 h-4 text-blue-500" />;
+      } else if (message.type === 'gesture') {
+        return <Hand className="w-4 h-4 text-green-500" />;
       }
-      return <User className="w-4 h-4 text-blue-500" />;
+      return <Activity className="w-4 h-4 text-gray-500" />;
+    }
+  };
+
+  // 获取状态颜色
+  const getStatusColor = () => {
+    switch (systemStatus) {
+      case 'listening': return 'text-blue-500';
+      case 'processing': return 'text-yellow-500';
+      default: return 'text-green-500';
     }
   };
 
@@ -229,42 +211,68 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
 
   return (
     <div className={`flex flex-col h-full ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}>
-      {/* 标题栏 */}
-      <div className={`flex items-center justify-between p-4 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
-        <div className="flex items-center gap-2">
-          <Brain className="w-5 h-5 text-purple-500" />
-          <h3 className="font-semibold">{currentLang.title}</h3>
+      {/* 标题栏和控制面板 */}
+      <div className={`p-4 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Brain className="w-5 h-5 text-purple-500" />
+            <h3 className="font-semibold">{currentLang.title}</h3>
+          </div>
+          
+          {/* 系统状态指示器 */}
+          <div className={`flex items-center gap-2 text-sm ${getStatusColor()}`}>
+            {systemStatus === 'processing' && <Loader2 className="w-4 h-4 animate-spin" />}
+            {systemStatus === 'listening' && <Activity className="w-4 h-4 animate-pulse" />}
+            {systemStatus === 'ready' && <CheckCircle className="w-4 h-4" />}
+            <span className="capitalize">{currentLang[systemStatus]}</span>
+          </div>
         </div>
         
-        {/* 控制按钮 */}
-        <div className="flex items-center gap-2">
+        {/* 控制按钮组 */}
+        <div className="grid grid-cols-2 gap-3">
           <button
             onClick={handleVoiceToggle}
-            className={`p-2 rounded-lg transition-colors ${
+            className={`p-3 rounded-lg transition-all flex items-center justify-center gap-2 ${
               isVoiceActive 
-                ? 'bg-green-500 text-white' 
+                ? 'bg-blue-500 text-white shadow-lg' 
                 : theme === 'dark' 
-                  ? 'bg-gray-700 hover:bg-gray-600' 
-                  : 'bg-gray-200 hover:bg-gray-300'
+                  ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' 
+                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
             }`}
-            title={isVoiceActive ? currentLang.voiceOn : currentLang.voiceOff}
           >
-            {isVoiceActive ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+            {isVoiceActive ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+            <span className="text-sm font-medium">{currentLang.voiceControl}</span>
           </button>
           
           <button
             onClick={handleGestureToggle}
-            className={`p-2 rounded-lg transition-colors ${
+            className={`p-3 rounded-lg transition-all flex items-center justify-center gap-2 ${
               isGestureActive 
-                ? 'bg-blue-500 text-white' 
+                ? 'bg-green-500 text-white shadow-lg' 
                 : theme === 'dark' 
-                  ? 'bg-gray-700 hover:bg-gray-600' 
-                  : 'bg-gray-200 hover:bg-gray-300'
+                  ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' 
+                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
             }`}
-            title={isGestureActive ? currentLang.gestureOn : currentLang.gestureOff}
           >
-            <Hand className="w-4 h-4" />
+            <Hand className="w-5 h-5" />
+            <span className="text-sm font-medium">{currentLang.gestureControl}</span>
           </button>
+        </div>
+
+        {/* 交互提示 */}
+        <div className="mt-3 text-xs opacity-75 text-center">
+          {isVoiceActive && (
+            <div className="flex items-center justify-center gap-1 text-blue-400">
+              <Mic className="w-3 h-3" />
+              {currentLang.wakeWord}
+            </div>
+          )}
+          {isGestureActive && (
+            <div className="flex items-center justify-center gap-1 text-green-400 mt-1">
+              <Hand className="w-3 h-3" />
+              {currentLang.gestureHint}
+            </div>
+          )}
         </div>
       </div>
 
@@ -281,7 +289,9 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
             <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
               message.role === 'caocao' 
                 ? 'bg-purple-500' 
-                : 'bg-blue-500'
+                : message.type === 'voice'
+                  ? 'bg-blue-500'
+                  : 'bg-green-500'
             }`}>
               {getMessageIcon(message)}
             </div>
@@ -293,27 +303,29 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
                   ? theme === 'dark'
                     ? 'bg-gray-800 text-white'
                     : 'bg-gray-100 text-gray-900'
-                  : 'bg-blue-500 text-white'
+                  : message.type === 'voice'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-green-500 text-white'
               }`}>
                 <p className="text-sm">{message.content}</p>
-                {message.type === 'command' && message.status && (
+                {message.status && (
                   <div className="flex items-center gap-1 mt-1 text-xs opacity-75">
                     {message.status === 'executing' && (
                       <>
-                        <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
-                        {currentLang.executing}
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        执行中...
                       </>
                     )}
                     {message.status === 'completed' && (
                       <>
-                        <CheckCircle className="w-3 h-3 text-green-400" />
-                        {currentLang.completed}
+                        <CheckCircle className="w-3 h-3" />
+                        已完成
                       </>
                     )}
                     {message.status === 'failed' && (
                       <>
-                        <AlertCircle className="w-3 h-3 text-red-400" />
-                        {currentLang.failed}
+                        <AlertCircle className="w-3 h-3" />
+                        失败
                       </>
                     )}
                   </div>
@@ -328,45 +340,21 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 输入区域 */}
-      <div className={`p-4 border-t ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder={currentLang.placeholder}
-            className={`flex-1 px-3 py-2 rounded-lg border ${
-              theme === 'dark'
-                ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400'
-                : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-            } focus:outline-none focus:ring-2 focus:ring-blue-500`}
-          />
-          <button
-            onClick={handleSendCommand}
-            disabled={!inputText.trim()}
-            className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            title={currentLang.send}
-          >
-            <Send className="w-4 h-4" />
-          </button>
-        </div>
-        
-        {/* 状态指示 */}
-        <div className="flex items-center justify-between mt-2 text-xs opacity-75">
+      {/* 底部状态栏 */}
+      <div className={`p-3 border-t ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
+        <div className="flex items-center justify-between text-xs">
           <div className="flex items-center gap-4">
-            <div className={`flex items-center gap-1 ${isVoiceActive ? 'text-green-500' : ''}`}>
-              <Mic className="w-3 h-3" />
-              {isVoiceActive ? currentLang.voiceOn : currentLang.voiceOff}
+            <div className={`flex items-center gap-1 ${isVoiceActive ? 'text-blue-500' : 'text-gray-400'}`}>
+              <div className={`w-2 h-2 rounded-full ${isVoiceActive ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'}`} />
+              语音
             </div>
-            <div className={`flex items-center gap-1 ${isGestureActive ? 'text-blue-500' : ''}`}>
-              <Hand className="w-3 h-3" />
-              {isGestureActive ? currentLang.gestureOn : currentLang.gestureOff}
+            <div className={`flex items-center gap-1 ${isGestureActive ? 'text-green-500' : 'text-gray-400'}`}>
+              <div className={`w-2 h-2 rounded-full ${isGestureActive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+              手势
             </div>
           </div>
-          <div className="text-purple-400">
-            {currentLang.wakeWord}
+          <div className="text-purple-400 font-medium">
+            曹操AI • {currentLang[systemStatus]}
           </div>
         </div>
       </div>

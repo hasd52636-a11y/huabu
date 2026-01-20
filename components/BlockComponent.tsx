@@ -2122,7 +2122,7 @@ const BlockComponent: React.FC<BlockProps> = ({
                   // Canvas features
                   case 'canvas-reset':
                     console.log('Canvas reset feature clicked', block.id);
-                    alert('重置视角功能需要在画布层面操作');
+                    // 重置视角功能现在通过手势/语音控制实现
                     break;
                   case 'canvas-clear':
                     console.log('Canvas clear feature clicked', block.id);
@@ -2138,7 +2138,7 @@ const BlockComponent: React.FC<BlockProps> = ({
                     break;
                   case 'canvas-auto-layout':
                     console.log('Auto layout feature clicked', block.id);
-                    alert('一键排序功能需要在画布层面操作');
+                    // 自动布局功能现在通过手势/语音控制实现
                     break;
                   case 'canvas-new':
                     console.log('New project feature clicked', block.id);

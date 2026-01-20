@@ -4,12 +4,19 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, MicOff, Loader2, MessageCircle, X, Send, ArrowUpRight } from 'lucide-react';
+import { Mic, MicOff, Loader2, MessageCircle, X, Send } from 'lucide-react';
 
 // 简单音效播放函数
 const playCommandSound = () => {
   try {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    // 检查浏览器支持
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) {
+      console.warn('浏览器不支持Web Audio API');
+      return;
+    }
+
+    const audioContext = new AudioContext();
     
     if (audioContext.state === 'suspended') {
       audioContext.resume();
@@ -106,7 +113,6 @@ interface ChatMessage {
 
 interface CanvasVoiceControllerProps {
   onCommand: (command: VoiceCommand) => void;
-  onProjectToCanvas?: (content: string, type: 'text' | 'image' | 'video') => void;
   lang?: 'zh' | 'en';
   wakeWord?: string;
   position?: { x: number; y: number };
@@ -115,7 +121,6 @@ interface CanvasVoiceControllerProps {
 
 const CanvasVoiceController: React.FC<CanvasVoiceControllerProps> = ({
   onCommand,
-  onProjectToCanvas,
   lang = 'zh',
   wakeWord = '曹操',
   position = { x: 20, y: 20 },
@@ -174,7 +179,7 @@ const CanvasVoiceController: React.FC<CanvasVoiceControllerProps> = ({
         setError('');
       };
 
-      recognition.onresult = (event) => {
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
         const transcript = event.results[0][0].transcript;
         console.log('语音识别结果:', transcript);
         
@@ -202,7 +207,7 @@ const CanvasVoiceController: React.FC<CanvasVoiceControllerProps> = ({
         setIsListening(false);
       };
 
-      recognition.onerror = (event) => {
+      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         setIsListening(false);
         setIsProcessing(false);
         setError(event.error === 'not-allowed' ? currentLang.micPermission : event.error);
@@ -225,18 +230,18 @@ const CanvasVoiceController: React.FC<CanvasVoiceControllerProps> = ({
 
   const addChatMessage = (role: 'user' | 'assistant', content: string, isProcessing = false) => {
     const message: ChatMessage = {
-      id: Date.now().toString(),
+      id: `voice-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       role,
       content,
       timestamp: Date.now(),
       isProcessing
     };
-    setChatMessages(prev => [...prev, message]);
+    setChatMessages((prev: ChatMessage[]) => [...prev, message]);
     return message.id;
   };
 
   const updateChatMessage = (id: string, content: string, isProcessing = false) => {
-    setChatMessages(prev => prev.map(msg => 
+    setChatMessages((prev: ChatMessage[]) => prev.map((msg: ChatMessage) => 
       msg.id === id ? { ...msg, content, isProcessing } : msg
     ));
   };
@@ -307,7 +312,18 @@ const CanvasVoiceController: React.FC<CanvasVoiceControllerProps> = ({
       
     } catch (error) {
       console.error('语音指令处理失败:', error);
-      addChatMessage('assistant', '抱歉，我没有理解你的指令，请再试一次');
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      
+      // 检查是否是API密钥问题
+      if (errorMessage.includes('PLACEHOLDER_API_KEY') || 
+          errorMessage.includes('API密钥未配置') ||
+          errorMessage.includes('network') ||
+          errorMessage.includes('401') ||
+          errorMessage.includes('unauthorized')) {
+        addChatMessage('assistant', '❌ API密钥未配置！\n\n请按以下步骤配置：\n1. 访问 https://aistudio.google.com/app/apikey\n2. 获取Gemini API密钥\n3. 在.env.local文件中替换PLACEHOLDER_API_KEY\n4. 重启服务器');
+      } else {
+        addChatMessage('assistant', `抱歉，处理指令时出现错误：${errorMessage}\n\n请检查网络连接或稍后重试`);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -363,7 +379,7 @@ const CanvasVoiceController: React.FC<CanvasVoiceControllerProps> = ({
     setCurrentInput('');
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();

@@ -70,7 +70,7 @@ import AIGestureDemo from './components/AIGestureDemo';
 import CanvasVoiceController from './components/CanvasVoiceController';
 import CanvasGestureController from './components/CanvasGestureController';
 import CaocaoAIChat from './components/CaocaoAIChat';
-import { gestureRecognizer } from './services/GestureRecognizer';
+import { simpleGestureRecognizer } from './services/SimpleGestureRecognizer';
 import { connectionEngine } from './services/ConnectionEngine';
 import { COLORS, I18N, MIN_ZOOM, MAX_ZOOM } from './constants.tsx';
 import { getAssistantGuideContent, createAssistantSystemPrompt } from './config/assistant-guide';
@@ -82,6 +82,9 @@ import { ConfigPersistence } from './utils/ConfigPersistence';
 import { ConfigValidator } from './utils/ConfigValidator';
 import { templateManager } from './services/TemplateManager';
 import { menuConfigManager } from './utils/MenuConfigManager';
+import CanvasToast from './components/CanvasToast';
+import CanvasConfirmDialog from './components/CanvasConfirmDialog';
+import { useToast } from './hooks/useToast';
 import AdminMonitoringDashboard from './components/AdminMonitoringDashboard';
 import { useSystemMonitoring, useFeatureTracking } from './hooks/useSystemMonitoring';
 
@@ -142,12 +145,12 @@ const App: React.FC = () => {
 
   // 手势激活状态变化时的处理
   useEffect(() => {
-    if (isGestureActive) {
+    if (isCanvasGestureActive) {
       // 启动手势识别
       const startGestureRecognition = async () => {
         try {
           // 更新手势识别器的画布状态
-          gestureRecognizer.updateCanvasState({
+          simpleGestureRecognizer.updateCanvasState({
             blockCount: blocks.length,
             selectedCount: selectedIds.length,
             hasContent: blocks.some(b => b.content && b.content.trim()),
@@ -156,7 +159,7 @@ const App: React.FC = () => {
           });
           
           // 设置手势回调
-          gestureRecognizer.setOnGestureCallback(handleGestureCommand);
+          simpleGestureRecognizer.setOnGestureCallback(handleGestureCommand);
           
           console.log('[App] 手势控制已激活');
           
@@ -164,17 +167,17 @@ const App: React.FC = () => {
           setSidebarTab('caocao');
         } catch (error) {
           console.error('[App] 手势控制启动失败:', error);
-          setIsGestureActive(false);
+          setIsCanvasGestureActive(false);
         }
       };
       
       startGestureRecognition();
     } else {
       // 停止手势识别
-      gestureRecognizer.stop();
+      simpleGestureRecognizer.stop();
       console.log('[App] 手势控制已停止');
     }
-  }, [isGestureActive, blocks.length, selectedIds.length, zoom, pan]);
+  }, [isCanvasGestureActive, blocks.length, selectedIds.length, zoom, pan]);
 
   // New functionality state
   const [showExportModal, setShowExportModal] = useState(false);
@@ -207,6 +210,21 @@ const App: React.FC = () => {
   const [sidebarTab, setSidebarTab] = useState<'chat' | 'caocao' | 'assembly'>('chat');
   const [currentMenuConfig, setCurrentMenuConfig] = useState<MenuConfig | undefined>();
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
+  
+  // Toast and Dialog State
+  const { messages: toastMessages, showSuccess, showError, showInfo, removeToast } = useToast();
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type?: 'danger' | 'warning' | 'info';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
   
   // 获取token context
   const { updateConsumption, checkTokenLimit, showTokenLimitModal } = useTokenContext();
@@ -570,13 +588,18 @@ const App: React.FC = () => {
   const handleSelectAll = () => {
     const allIds = blocks.map(block => block.id);
     setSelectedIds(allIds);
-    alert(`已选中所有 ${allIds.length} 个模块`);
+    showSuccess('全选完成', `已选中所有 ${allIds.length} 个模块`);
   };
 
   // 手势命令处理函数
-  const handleGestureCommand = (gesture: string) => {
+  const handleGestureCommand = (gestureInput: string | any) => {
+    // 处理不同类型的输入参数
+    const gesture = typeof gestureInput === 'string' ? gestureInput : gestureInput.gesture;
+    
+    console.log('[App] 收到手势命令:', gesture);
+    
     // 更新手势识别器的画布状态
-    gestureRecognizer.updateCanvasState({
+    simpleGestureRecognizer.updateCanvasState({
       blockCount: blocks.length,
       selectedCount: selectedIds.length,
       hasContent: blocks.some(b => b.content && b.content.trim()),
@@ -584,40 +607,54 @@ const App: React.FC = () => {
       panPosition: pan
     });
 
+    console.log('[App] 开始执行手势命令:', gesture);
+
     switch (gesture) {
       case 'zoom_in':
+        console.log('[App] 执行放大操作');
         setZoom(prev => Math.min(prev * 1.2, MAX_ZOOM));
         break;
       case 'zoom_out':
+        console.log('[App] 执行缩小操作');
         setZoom(prev => Math.max(prev / 1.2, MIN_ZOOM));
         break;
       case 'move_up':
+        console.log('[App] 执行上移操作');
         setPan(prev => ({ ...prev, y: prev.y + 50 }));
         break;
       case 'move_down':
+        console.log('[App] 执行下移操作');
         setPan(prev => ({ ...prev, y: prev.y - 50 }));
         break;
       case 'move_left':
+        console.log('[App] 执行左移操作');
         setPan(prev => ({ ...prev, x: prev.x + 50 }));
         break;
       case 'move_right':
+        console.log('[App] 执行右移操作');
         setPan(prev => ({ ...prev, x: prev.x - 50 }));
         break;
       case 'reset_view':
+        console.log('[App] 执行重置视角操作');
         handleCanvasReset();
         break;
       case 'clear_canvas':
+        console.log('[App] 执行清空画布操作');
         handleCanvasClear();
         break;
       case 'auto_layout':
+        console.log('[App] 执行自动布局操作');
         handleAutoLayout();
         break;
       case 'select_all':
+        console.log('[App] 执行全选操作');
         handleSelectAll();
         break;
       default:
-        console.log('未知手势:', gesture);
+        console.log('[App] 未知手势:', gesture);
     }
+    
+    console.log('[App] 手势命令执行完成:', gesture);
   };
 
   // 投射语音生成内容到画布
@@ -1285,28 +1322,34 @@ const App: React.FC = () => {
     // 重置画布视角到默认状态
     setZoom(1.0);
     setPan({ x: 200, y: 100 });
-    alert('画布视角已重置');
+    showSuccess('视角重置', '画布视角已重置到默认状态');
   };
 
   const handleCanvasClear = () => {
     // 显示确认对话框
-    const confirmed = window.confirm('确定要清空画布吗？这将删除所有模块，此操作不可撤销。');
-    if (confirmed) {
-      setBlocks([]);
-      setConnections([]);
-      setSelectedIds([]);
-      alert('画布已清空');
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: '清空画布',
+      message: '确定要清空画布吗？这将删除所有模块，此操作不可撤销。',
+      type: 'danger',
+      onConfirm: () => {
+        setBlocks([]);
+        setConnections([]);
+        setSelectedIds([]);
+        showSuccess('画布清空', '所有模块已被清除');
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
   const handleAutoLayout = () => {
     autoLayout(); // 使用现有的自动布局函数
-    alert('自动布局完成');
+    showSuccess('自动布局', '模块布局已优化完成');
   };
 
   const handleCanvasCopy = () => {
     if (selectedIds.length === 0) {
-      alert('请先选择要复制的模块');
+      showInfo('复制提示', '请先选择要复制的模块');
       return;
     }
 
@@ -1348,7 +1391,7 @@ const App: React.FC = () => {
     setConnections(prev => [...prev, ...newConnections]);
     setSelectedIds(newBlocks.map(block => block.id));
     
-    alert(`成功复制了 ${newBlocks.length} 个模块`);
+    showSuccess('复制完成', `成功复制了 ${newBlocks.length} 个模块`);
   };
 
   const autoLayout = () => {
@@ -3139,21 +3182,6 @@ ${block.content}
              <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">{t.api}</span>
            </button>
 
-           {/* Gesture Control Button */}
-           <button 
-            onClick={() => setIsGestureActive(!isGestureActive)} 
-            className={`p-5 rounded-2xl border-2 transition-all flex items-center gap-3 ${
-              isGestureActive 
-                ? (theme === 'dark' ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' : 'bg-purple-100 border-purple-300 text-purple-600')
-                : (theme === 'dark' ? 'bg-white/5 border-white/5 hover:bg-purple-500/20 text-purple-500' : 'bg-white border-black/5 hover:shadow-xl text-purple-600')
-            }`}
-           >
-             <Hand size={24} strokeWidth={3} />
-             <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">
-               {isGestureActive ? (lang === 'zh' ? '手势开启' : 'Gesture On') : (lang === 'zh' ? '手势' : 'Gesture')}
-             </span>
-           </button>
-
            {/* AI Gesture Demo Button */}
            <button 
             onClick={() => setShowAIGestureDemo(true)} 
@@ -3307,25 +3335,30 @@ ${block.content}
       </aside>
 
       <main className="flex-1 h-full pt-28 pl-40" style={{ marginRight: showSidebar ? `${sidebarWidth}px` : 0 }}>
-        {/* 手势和语音控制浮动按钮 */}
-        <div className="fixed top-32 right-6 z-30 flex flex-col gap-2">
-          {/* 手势控制按钮 */}
-          <button
-            onClick={() => setIsGestureActive(!isGestureActive)}
-            className={`p-3 rounded-full shadow-lg transition-all ${
-              isGestureActive 
-                ? 'bg-purple-500 text-white animate-pulse' 
-                : theme === 'dark' 
-                  ? 'bg-gray-800 text-gray-300 hover:bg-purple-600 hover:text-white' 
-                  : 'bg-white text-gray-600 hover:bg-purple-500 hover:text-white'
-            }`}
-            title={isGestureActive ? '关闭手势控制' : '开启手势控制'}
-          >
-            <Hand size={20} />
-          </button>
-          
-        </div>
-        
+        {/* 手势测试按钮（开发调试用） */}
+        {isCanvasGestureActive && (
+          <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+            <button
+              onClick={() => simpleGestureRecognizer.manualTrigger('zoom_in')}
+              className="px-3 py-2 bg-green-500 text-white rounded text-sm"
+            >
+              测试放大
+            </button>
+            <button
+              onClick={() => simpleGestureRecognizer.manualTrigger('zoom_out')}
+              className="px-3 py-2 bg-blue-500 text-white rounded text-sm"
+            >
+              测试缩小
+            </button>
+            <button
+              onClick={() => simpleGestureRecognizer.manualTrigger('reset_view')}
+              className="px-3 py-2 bg-purple-500 text-white rounded text-sm"
+            >
+              测试重置
+            </button>
+          </div>
+        )}
+
         <Canvas 
           blocks={blocks} connections={connections} zoom={zoom} pan={pan} selectedIds={selectedIds} theme={theme} lang={lang} isPerfMode={false} isAutomationTemplate={isAutomationTemplate} modelConfig={modelConfig}
           menuConfig={currentMenuConfig}
@@ -3895,7 +3928,7 @@ ${block.content}
         shenmaService={aiServiceAdapter.getShenmaService()}
       />
 
-      {/* Canvas Voice Controller - 画布左上角语音控制 */}
+      {/* Canvas Voice Controller - 语音控制器 */}
       <CanvasVoiceController
         onCommand={handleCanvasVoiceCommand}
         onProjectToCanvas={handleProjectVoiceContentToCanvas}
@@ -3905,19 +3938,19 @@ ${block.content}
         theme={theme}
       />
 
-      {/* Canvas Gesture Controller - 浮现在侧边栏标签页下方 */}
-      <CanvasGestureController
-        isActive={isGestureActive}
-        onToggle={setIsGestureActive}
-        onGestureCommand={handleGestureCommand}
-        position="custom"
-        customPosition={{ 
-          x: showSidebar ? window.innerWidth - sidebarWidth + 20 : window.innerWidth - 280, 
-          y: 140 // 位置在标签页下方
-        }}
-        theme={theme}
-        lang={lang}
-      />
+      {/* Canvas Gesture Controller - 位于右侧侧边栏左上角 */}
+      {isCanvasGestureActive && (
+        <CanvasGestureController
+          isActive={isCanvasGestureActive}
+          onToggle={setIsCanvasGestureActive}
+          onGestureCommand={handleGestureCommand}
+          position="sidebar-top"
+          theme={theme}
+          lang={lang}
+          showSidebar={showSidebar}
+          sidebarWidth={sidebarWidth}
+        />
+      )}
 
       {/* Voice Command Feedback */}
       {showVoiceFeedback && lastVoiceCommand && (
@@ -3954,6 +3987,24 @@ ${block.content}
         onClose={() => setShowAIGestureDemo(false)}
         theme={theme}
         lang={lang}
+      />
+
+      {/* Canvas Toast Messages */}
+      <CanvasToast
+        messages={toastMessages}
+        onRemove={removeToast}
+        theme={theme}
+      />
+
+      {/* Canvas Confirm Dialog */}
+      <CanvasConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        type={confirmDialog.type}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+        theme={theme}
       />
 
     </div>
