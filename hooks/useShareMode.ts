@@ -19,31 +19,52 @@ export const useShareMode = () => {
   });
 
   useEffect(() => {
-    // 检查URL参数
-    const urlParams = new URLSearchParams(window.location.search);
-    const watchId = urlParams.get('watch');
+    console.log('[useShareMode] Hook initialized');
+    
+    try {
+      // 检查URL参数
+      const urlParams = new URLSearchParams(window.location.search);
+      const watchId = urlParams.get('watch');
+      
+      console.log('[useShareMode] URL params:', { watchId });
 
-    if (watchId) {
-      // 进入观看模式
+      if (watchId) {
+        console.log('[useShareMode] Entering viewer mode with ID:', watchId);
+        
+        // 进入观看模式
+        setState(prev => ({
+          ...prev,
+          isViewer: true,
+          shareId: watchId,
+          isConnecting: true
+        }));
+
+        // 尝试连接
+        connectToShare(watchId);
+      } else {
+        console.log('[useShareMode] No watch ID found, staying in normal mode');
+      }
+    } catch (error) {
+      console.error('[useShareMode] Error in initialization:', error);
       setState(prev => ({
         ...prev,
-        isViewer: true,
-        shareId: watchId,
-        isConnecting: true
+        connectionError: `初始化错误: ${error instanceof Error ? error.message : '未知错误'}`
       }));
-
-      // 尝试连接
-      connectToShare(watchId);
     }
   }, []);
 
   const connectToShare = async (shareId: string) => {
+    console.log('[useShareMode] Attempting to connect to share:', shareId);
+    
     try {
       setState(prev => ({ ...prev, isConnecting: true, connectionError: null }));
       
+      console.log('[useShareMode] Calling p2pShareService.joinViewing...');
       const success = await p2pShareService.joinViewing(shareId);
+      console.log('[useShareMode] joinViewing result:', success);
       
       if (success) {
+        console.log('[useShareMode] Connection successful');
         setState(prev => ({
           ...prev,
           isConnecting: false,
@@ -51,6 +72,7 @@ export const useShareMode = () => {
           connectionError: null
         }));
       } else {
+        console.log('[useShareMode] Connection failed');
         setState(prev => ({
           ...prev,
           isConnecting: false,
@@ -59,6 +81,7 @@ export const useShareMode = () => {
         }));
       }
     } catch (error) {
+      console.error('[useShareMode] Connection error:', error);
       setState(prev => ({
         ...prev,
         isConnecting: false,

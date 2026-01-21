@@ -12,14 +12,27 @@ const ViewerMode: React.FC<ViewerModeProps> = ({ shareId }) => {
   const { isConnecting, connectionError, isConnected, retry, exitViewer } = useShareMode();
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [lastUpdate, setLastUpdate] = useState<number>(0);
+  const [debugInfo, setDebugInfo] = useState<string>('');
 
   useEffect(() => {
-    // 监听画布更新
-    p2pShareService.onCanvasUpdated((newBlocks) => {
-      setBlocks(newBlocks);
-      setLastUpdate(Date.now());
-    });
-  }, []);
+    console.log('[ViewerMode] Component mounted with shareId:', shareId);
+    setDebugInfo(`ViewerMode initialized with shareId: ${shareId}`);
+    
+    try {
+      // 监听画布更新
+      p2pShareService.onCanvasUpdated((newBlocks) => {
+        console.log('[ViewerMode] Canvas updated:', newBlocks);
+        setBlocks(newBlocks);
+        setLastUpdate(Date.now());
+      });
+    } catch (error) {
+      console.error('[ViewerMode] Error setting up canvas listener:', error);
+      setDebugInfo(prev => prev + `\nError: ${error}`);
+    }
+  }, [shareId]);
+
+  // 添加调试信息显示
+  const showDebugInfo = new URLSearchParams(window.location.search).get('debug') === 'true';
 
   // 连接中状态
   if (isConnecting) {
@@ -33,6 +46,12 @@ const ViewerMode: React.FC<ViewerModeProps> = ({ shareId }) => {
             <div className="mt-4 text-sm text-gray-500">
               分享ID: {shareId}
             </div>
+            {showDebugInfo && (
+              <div className="mt-4 text-xs text-left bg-gray-100 p-2 rounded">
+                <strong>Debug Info:</strong><br />
+                {debugInfo}
+              </div>
+            )}
           </div>
         </div>
       </div>

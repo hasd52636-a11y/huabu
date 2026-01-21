@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Viewer</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .debug { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Debug Viewer Mode</h1>
+    <div class="debug" id="url-info"></div>
+    <div class="debug" id="status"></div>
+    <div class="debug" id="errors"></div>
+
+    <script>
+        // 检查URL参数
+        const urlParams = new URLSearchParams(window.location.search);
+        const watchId = urlParams.get('watch');
+        
+        document.getElementById('url-info').innerHTML = `
+            <strong>URL Info:</strong><br>
+            Full URL: ${window.location.href}<br>
+            Watch ID: ${watchId || 'None'}<br>
+            Is Viewer Mode: ${watchId ? 'Yes' : 'No'}
+        `;
+
+        // 检查PeerJS是否可用
+        try {
+            if (typeof Peer !== 'undefined') {
+                document.getElementById('status').innerHTML += 'PeerJS is available<br>';
+            } else {
+                document.getElementById('status').innerHTML += 'PeerJS is NOT available<br>';
+            }
+        } catch (e) {
+            document.getElementById('errors').innerHTML += `PeerJS Error: ${e.message}<br>`;
+        }
+
+        // 检查React是否可用
+        try {
+            if (typeof React !== 'undefined') {
+                document.getElementById('status').innerHTML += 'React is available<br>';
+            } else {
+                document.getElementById('status').innerHTML += 'React is NOT available<br>';
+            }
+        } catch (e) {
+            document.getElementById('errors').innerHTML += `React Error: ${e.message}<br>`;
+        }
+
+        // 监听错误
+        window.addEventListener('error', (e) => {
+            document.getElementById('errors').innerHTML += `Error: ${e.message} at ${e.filename}:${e.lineno}<br>`;
+        });
+
+        window.addEventListener('unhandledrejection', (e) => {
+            document.getElementById('errors').innerHTML += `Unhandled Promise Rejection: ${e.reason}<br>`;
+        });
+    </script>
+</body>
+</html>
