@@ -41,10 +41,10 @@ const SimpleViewerPage: React.FC<SimpleViewerPageProps> = ({ shareId }) => {
           setLastUpdateTime(new Date(parsedData.lastUpdate).toLocaleTimeString());
         }
       } else {
-        setError('分享不存在或已过期');
+        setError('同屏分享不存在或已过期');
       }
     } catch (err) {
-      setError('无法加载分享数据');
+      setError('无法加载同屏分享数据');
     } finally {
       setLoading(false);
     }
@@ -160,7 +160,7 @@ const SimpleViewerPage: React.FC<SimpleViewerPageProps> = ({ shareId }) => {
           <div className="text-center">
             <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <h2 className="text-xl font-semibold text-gray-900 mb-2">加载中...</h2>
-            <p className="text-gray-600">正在获取分享内容</p>
+            <p className="text-gray-600">正在获取同屏分享内容</p>
           </div>
         </div>
       </div>
@@ -175,7 +175,7 @@ const SimpleViewerPage: React.FC<SimpleViewerPageProps> = ({ shareId }) => {
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Eye className="w-8 h-8 text-red-500" />
             </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">无法访问分享</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">无法访问同屏分享</h2>
             <p className="text-gray-600 mb-4">{error}</p>
             
             <div className="space-y-3">
@@ -208,7 +208,7 @@ const SimpleViewerPage: React.FC<SimpleViewerPageProps> = ({ shareId }) => {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Eye className="w-5 h-5 text-blue-600" />
-            <h1 className="text-lg font-semibold text-gray-900">实时观看画布</h1>
+            <h1 className="text-lg font-semibold text-gray-900">实时同屏观看</h1>
             <div className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
               在线
             </div>
@@ -311,7 +311,7 @@ const SimpleViewerPage: React.FC<SimpleViewerPageProps> = ({ shareId }) => {
       
       {/* 底部信息栏 */}
       <div className="fixed bottom-4 left-4 bg-white rounded-lg shadow-lg p-3 text-xs text-gray-600 max-w-xs">
-        <div className="font-medium mb-1">分享信息</div>
+        <div className="font-medium mb-1">同屏分享信息</div>
         <div>创建时间: {shareData ? new Date(shareData.timestamp).toLocaleString() : '-'}</div>
         <div>模块数量: {shareData?.canvasState.blocks.length || 0}</div>
         <div>缩放比例: {shareData ? Math.round(shareData.canvasState.zoom * 100) : 100}%</div>

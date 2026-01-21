@@ -46,7 +46,7 @@ const SimpleShareButton: React.FC<SimpleShareButtonProps> = ({
       timestamp: Date.now(),
       canvasState: canvasState,
       status: 'active',
-      message: '分享功能已启用，观众可以实时查看画布内容'
+      message: '同屏分享功能已启用，观众可以实时查看画布内容'
     };
     
     localStorage.setItem(`canvas-share-${shareId}`, JSON.stringify(shareData));
@@ -73,7 +73,7 @@ const SimpleShareButton: React.FC<SimpleShareButtonProps> = ({
     (window as any).shareUpdateInterval = updateInterval;
     
     // 显示分享成功提示
-    alert(`分享已开始！\n\n分享链接：\n${url}\n\n请复制链接分享给观众\n\n当前画布有 ${blocks.length} 个模块`);
+    alert(`同屏分享已开始！\n\n分享链接：\n${url}\n\n请复制链接分享给观众\n\n当前画布有 ${blocks.length} 个模块`);
   };
 
   const handleCopyUrl = async () => {
@@ -116,7 +116,7 @@ const SimpleShareButton: React.FC<SimpleShareButtonProps> = ({
             ? 'text-blue-500 bg-blue-500/10 hover:bg-blue-500/20' 
             : 'text-slate-400 hover:text-blue-500 hover:bg-blue-500/10'
         }`}
-        title={isSharing ? '停止分享' : '开始分享'}
+        title={isSharing ? '停止同屏分享' : '同屏分享'}
       >
         <Share2 size={24} />
         {isSharing && (
@@ -130,7 +130,7 @@ const SimpleShareButton: React.FC<SimpleShareButtonProps> = ({
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Share2 className="w-5 h-5 text-blue-600" />
-              <h3 className="font-medium text-gray-900">分享链接</h3>
+              <h3 className="font-medium text-gray-900">同屏分享链接</h3>
             </div>
             <button
               onClick={handleStopShare}
@@ -172,8 +172,8 @@ const SimpleShareButton: React.FC<SimpleShareButtonProps> = ({
           </div>
 
           <div className="text-xs text-gray-500 space-y-1">
-            <p>• 这是一个简化版分享功能</p>
-            <p>• 观众可以通过链接查看分享页面</p>
+            <p>• 这是一个同屏分享功能</p>
+            <p>• 观众可以通过链接实时查看画布</p>
             <p>• 不需要复杂的网络配置</p>
             <p>• 适合快速分享和演示</p>
           </div>
