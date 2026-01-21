@@ -257,6 +257,134 @@ export interface TokenQuota {
 }
 
 // ============================================================================
+// MULTI-MODEL TEXT CHAT TYPES
+// ============================================================================
+
+/**
+ * 模型类型分类
+ * Model type classification for better organization
+ */
+export type ModelType = 
+  | 'fast-lightweight'    // 快速轻量型
+  | 'deep-analysis'       // 深度分析型  
+  | 'reasoning-focused'   // 推理专用型
+  | 'network-enabled'     // 联网功能型
+  | 'multimodal'          // 全模态型
+  | 'standard';           // 标准型
+
+/**
+ * 模型能力标识
+ * Model capability flags
+ */
+export interface ModelCapability {
+  supportsImages: boolean;      // 支持图像分析
+  supportsVideo: boolean;       // 支持视频分析
+  supportsInternet: boolean;    // 支持联网搜索
+  supportsThinking: boolean;    // 支持思维链推理
+  supportsCodeExecution: boolean; // 支持代码执行
+  isRecommended: boolean;       // 是否推荐使用
+  isExperimental: boolean;      // 是否为实验性模型
+}
+
+/**
+ * 模型信息定义
+ * Complete model information structure
+ */
+export interface ModelInfo {
+  id: string;                   // 模型ID，如 'gemini-3-pro-preview-thinking'
+  name: string;                 // 显示名称，如 'Gemini 3.0 Pro (思维链)'
+  description: string;          // 模型描述
+  provider: ProviderType;       // 所属提供商
+  type: ModelType;              // 模型类型分类
+  capabilities: ModelCapability; // 模型能力
+  pricing?: {                   // 价格信息（可选）
+    input: number;              // 输入token价格（每1K tokens）
+    output: number;             // 输出token价格（每1K tokens）
+    currency: string;           // 货币单位
+  };
+  limits?: {                    // 限制信息（可选）
+    maxTokens: number;          // 最大token数
+    contextWindow: number;      // 上下文窗口大小
+  };
+  isAvailable: boolean;         // 是否可用
+  lastUpdated: number;          // 最后更新时间
+  platformInfo?: {              // 平台信息（可选）
+    name: string;               // 平台名称
+    icon: string;               // 平台图标
+    color: string;              // 平台颜色
+  };
+}
+
+/**
+ * 智能路由配置
+ * Smart routing configuration for automatic model selection
+ */
+export interface SmartRoutingConfig {
+  enabled: boolean;             // 是否启用智能路由
+  preferredModels: {            // 不同场景的首选模型
+    quickResponse: string;      // 快速响应场景
+    complexAnalysis: string;    // 复杂分析场景
+    reasoning: string;          // 推理场景
+    multimodal: string;         // 多模态场景
+    internetSearch: string;     // 联网搜索场景
+  };
+  fallbackModel: string;        // 降级模型
+  autoSwitch: boolean;          // 是否自动切换
+}
+
+/**
+ * 用户偏好设置
+ * User preference settings for model selection
+ */
+export interface UserPreferences {
+  defaultTextModel: string;     // 默认文本模型
+  smartRouting: SmartRoutingConfig; // 智能路由配置
+  showModelCapabilities: boolean; // 是否显示模型能力标识
+  showPricing: boolean;         // 是否显示价格信息
+  autoSaveConversations: boolean; // 是否自动保存对话
+  preferredLanguage: 'zh' | 'en'; // 首选语言
+}
+
+/**
+ * 对话消息扩展
+ * Extended conversation message with model information
+ */
+export interface ConversationMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: number;
+  modelId?: string;             // 使用的模型ID
+  modelName?: string;           // 模型显示名称
+  tokenUsage?: {                // token使用情况
+    input: number;
+    output: number;
+    total: number;
+  };
+  attachments?: Array<{         // 附件信息
+    type: 'image' | 'video' | 'file';
+    url: string;
+    name?: string;
+  }>;
+  metadata?: Record<string, any>; // 额外元数据
+}
+
+/**
+ * 模型使用统计
+ * Model usage statistics for analytics
+ */
+export interface ModelUsageStats {
+  modelId: string;
+  totalRequests: number;
+  totalTokens: number;
+  averageResponseTime: number;
+  successRate: number;
+  lastUsed: number;
+  errorCount: number;
+  userRating?: number;          // 用户评分（1-5）
+}
+
+// ============================================================================
 // NEW SIMPLIFIED CONFIGURATION STRUCTURE (API Config Persistence Fix)
 // ============================================================================
 
@@ -286,6 +414,8 @@ export interface ModalityConfig {
  * 设计理念：
  * 1. providers: 全局配置，每个提供商只需配置一次API密钥和Base URL
  * 2. text/image/video: 模态选择，选择使用哪个提供商
+ * 3. availableModels: 可用模型列表，支持动态模型管理
+ * 4. userPreferences: 用户偏好设置
  */
 export interface NewModelConfig {
   // 提供商凭证配置（全局，只需配置一次）
@@ -301,11 +431,25 @@ export interface NewModelConfig {
   image: ModalityConfig;
   video: ModalityConfig;
   
+  // 新增：可用模型列表
+  availableModels?: {
+    text: ModelInfo[];          // 可用的文本模型列表
+    image: ModelInfo[];         // 可用的图像模型列表  
+    video: ModelInfo[];         // 可用的视频模型列表
+  };
+  
+  // 新增：用户偏好设置
+  userPreferences?: UserPreferences;
+  
+  // 新增：模型使用统计
+  usageStats?: ModelUsageStats[];
+  
   // 元数据
   _meta?: {
     version: string;
     lastSaved: number;
     lastValidated?: number;
+    configVersion?: string;      // 配置版本，用于迁移（可选）
   };
 }
 
@@ -1237,3 +1381,803 @@ export interface FeatureAssemblyPanelProps {
   initialFeatures?: string[];  // 初始启用的功能列表
   initialMenuConfig?: MenuConfig;  // 初始菜单配置
 }
+
+// ============================================================================
+// PREDEFINED MODEL INFORMATION
+// ============================================================================
+
+/**
+ * 预定义的神马API可用模型信息
+ * Predefined model information for ShenmaAPI models
+ */
+export const SHENMA_TEXT_MODELS: ModelInfo[] = [
+  {
+    id: 'gemini-3-pro-preview-thinking-*',
+    name: 'Gemini 3.0 Pro (思维链)',
+    description: '最新的高级AI模型，支持深度思维链推理，适合复杂问题分析',
+    provider: 'shenma',
+    type: 'deep-analysis',
+    capabilities: {
+      supportsImages: true,
+      supportsVideo: true,
+      supportsInternet: false,
+      supportsThinking: true,
+      supportsCodeExecution: false,
+      isRecommended: true,
+      isExperimental: false
+    },
+    pricing: {
+      input: 0.002,
+      output: 0.012,
+      currency: 'USD'
+    },
+    limits: {
+      maxTokens: 4096,
+      contextWindow: 32768
+    },
+    isAvailable: true,
+    lastUpdated: Date.now()
+  },
+  {
+    id: 'gemini-3-flash-preview-nothinking',
+    name: 'Gemini 3.0 Flash (快速)',
+    description: 'Google最新的高级AI模型，速度很快，智商和gemini-3-pro差不多',
+    provider: 'shenma',
+    type: 'fast-lightweight',
+    capabilities: {
+      supportsImages: true,
+      supportsVideo: true,
+      supportsInternet: false,
+      supportsThinking: false,
+      supportsCodeExecution: false,
+      isRecommended: true,
+      isExperimental: false
+    },
+    pricing: {
+      input: 0.0005,
+      output: 0.003,
+      currency: 'USD'
+    },
+    limits: {
+      maxTokens: 4096,
+      contextWindow: 32768
+    },
+    isAvailable: true,
+    lastUpdated: Date.now()
+  },
+  {
+    id: 'gemini-3-flash-preview',
+    name: 'Gemini 3.0 Flash (标准)',
+    description: 'Gemini 3.0 Flash标准版本，平衡速度和质量',
+    provider: 'shenma',
+    type: 'standard',
+    capabilities: {
+      supportsImages: true,
+      supportsVideo: true,
+      supportsInternet: false,
+      supportsThinking: false,
+      supportsCodeExecution: false,
+      isRecommended: false,
+      isExperimental: false
+    },
+    pricing: {
+      input: 0.0005,
+      output: 0.003,
+      currency: 'USD'
+    },
+    limits: {
+      maxTokens: 4096,
+      contextWindow: 32768
+    },
+    isAvailable: true,
+    lastUpdated: Date.now()
+  },
+  {
+    id: 'gpt-4-all',
+    name: 'GPT-4 All (联网版)',
+    description: '集合官方GPT-4、联网、读图、绘图功能、code interpreter一体',
+    provider: 'shenma',
+    type: 'network-enabled',
+    capabilities: {
+      supportsImages: true,
+      supportsVideo: false,
+      supportsInternet: true,
+      supportsThinking: false,
+      supportsCodeExecution: true,
+      isRecommended: true,
+      isExperimental: false
+    },
+    pricing: {
+      input: 0.002,
+      output: 0.012,
+      currency: 'USD'
+    },
+    limits: {
+      maxTokens: 4096,
+      contextWindow: 32768
+    },
+    isAvailable: true,
+    lastUpdated: Date.now()
+  },
+  {
+    id: 'gpt-4o-all',
+    name: 'GPT-4o All (全模态)',
+    description: 'GPT All模型，集合官方GPT-4、联网、读图、绘图功能、code interpreter一体',
+    provider: 'shenma',
+    type: 'multimodal',
+    capabilities: {
+      supportsImages: true,
+      supportsVideo: false,
+      supportsInternet: true,
+      supportsThinking: false,
+      supportsCodeExecution: true,
+      isRecommended: true,
+      isExperimental: false
+    },
+    pricing: {
+      input: 0.002,
+      output: 0.012,
+      currency: 'USD'
+    },
+    limits: {
+      maxTokens: 4096,
+      contextWindow: 32768
+    },
+    isAvailable: true,
+    lastUpdated: Date.now()
+  },
+  {
+    id: 'gpt-5-nano-2025-08-07',
+    name: 'GPT-5 Nano (实验版)',
+    description: 'GPT-5 Nano实验版本，支持联网和响应创建',
+    provider: 'shenma',
+    type: 'reasoning-focused',
+    capabilities: {
+      supportsImages: true,
+      supportsVideo: false,
+      supportsInternet: true,
+      supportsThinking: true,
+      supportsCodeExecution: false,
+      isRecommended: false,
+      isExperimental: true
+    },
+    pricing: {
+      input: 0.003,
+      output: 0.015,
+      currency: 'USD'
+    },
+    limits: {
+      maxTokens: 4096,
+      contextWindow: 32768
+    },
+    isAvailable: true,
+    lastUpdated: Date.now()
+  }
+];
+
+/**
+ * 默认的智能路由配置
+ * Default smart routing configuration
+ */
+export const DEFAULT_SMART_ROUTING_CONFIG: SmartRoutingConfig = {
+  enabled: true,
+  preferredModels: {
+    quickResponse: 'gemini-3-flash-preview-nothinking',
+    complexAnalysis: 'gemini-3-pro-preview-thinking',
+    reasoning: 'gpt-5-nano-2025-08-07',
+    multimodal: 'gpt-4o-all',
+    internetSearch: 'gpt-4-all'
+  },
+  fallbackModel: 'gemini-3-flash-preview',
+  autoSwitch: false
+};
+
+/**
+ * 默认的用户偏好设置
+ * Default user preferences
+ */
+export const DEFAULT_USER_PREFERENCES: UserPreferences = {
+  defaultTextModel: 'gemini-3-flash-preview-nothinking',
+  smartRouting: DEFAULT_SMART_ROUTING_CONFIG,
+  showModelCapabilities: true,
+  showPricing: false,
+  autoSaveConversations: true,
+  preferredLanguage: 'zh'
+};
+
+/**
+ * 模型类型的显示信息
+ * Display information for model types
+ */
+export const MODEL_TYPE_INFO: Record<ModelType, { 
+  name: string; 
+  nameEn: string; 
+  icon: string; 
+  description: string; 
+  descriptionEn: string; 
+}> = {
+  'fast-lightweight': {
+    name: '快速轻量型',
+    nameEn: 'Fast & Lightweight',
+    icon: '⚡',
+    description: '响应速度快，适合日常对话和简单任务',
+    descriptionEn: 'Fast response, suitable for daily conversations and simple tasks'
+  },
+  'deep-analysis': {
+    name: '深度分析型',
+    nameEn: 'Deep Analysis',
+    icon: '🧠',
+    description: '支持复杂推理和深度分析，适合专业问题',
+    descriptionEn: 'Supports complex reasoning and deep analysis for professional questions'
+  },
+  'reasoning-focused': {
+    name: '推理专用型',
+    nameEn: 'Reasoning Focused',
+    icon: '🤔',
+    description: '专注于逻辑推理和问题解决',
+    descriptionEn: 'Focused on logical reasoning and problem solving'
+  },
+  'network-enabled': {
+    name: '联网功能型',
+    nameEn: 'Network Enabled',
+    icon: '🌐',
+    description: '支持实时信息搜索和联网功能',
+    descriptionEn: 'Supports real-time information search and network features'
+  },
+  'multimodal': {
+    name: '全模态型',
+    nameEn: 'Multimodal',
+    icon: '🎭',
+    description: '支持文本、图像、视频等多种模态处理',
+    descriptionEn: 'Supports text, image, video and other multimodal processing'
+  },
+  'standard': {
+    name: '标准型',
+    nameEn: 'Standard',
+    icon: '📝',
+    description: '标准功能模型，平衡性能和功能',
+    descriptionEn: 'Standard model with balanced performance and features'
+  }
+};
+
+/**
+ * 图像模型常量定义 - 仅包含确认可用的模型
+ * Image Models Constants - Only confirmed working models
+ */
+export const IMAGE_MODELS = {
+  // 基础生成模型 - 确认可用
+  basic: [
+    'nano-banana',      // 神马基础图像模型 (确认可用)
+    'nano-banana-hd',   // 神马高清图像模型 (确认可用)
+    'nano-banana-2',    // 神马图像模型v2 (确认可用)
+    'gpt-image-1'       // GPT图像模型 (确认可用)
+  ],
+  
+  // 高级生成模型 - 确认可用
+  advanced: [
+    'flux-kontext-pro', // Flux专业版 (确认可用)
+    'flux-kontext-max', // Flux最大版 (确认可用)
+    'dall-e-3'          // DALL-E 3 (确认可用)
+  ],
+  
+  // 编辑专用模型 - 暂无确认可用的编辑模型
+  editing: [
+    // 所有编辑模型均不可用，已移除
+  ]
+} as const;
+
+/**
+ * 视频模型常量定义 - 仅包含确认可用的模型
+ * Video Models Constants - Only confirmed working models
+ */
+export const VIDEO_MODELS = {
+  // Sora系列 - 确认可用
+  sora: [
+    'sora_video2',              // Sora Video 2 (确认可用)
+    'sora-2',                   // Sora 2 (确认可用)
+    'sora-2-pro'                // Sora 2 Pro (确认可用)
+  ],
+  
+  // Veo系列 - 确认可用
+  veo: [
+    'veo3',           // Veo 3 (确认可用)
+    'veo3-fast',      // Veo 3 Fast (确认可用)
+    'veo3-pro',       // Veo 3 Pro (确认可用)
+    'veo3.1-pro'      // Veo 3.1 Pro (确认可用)
+  ],
+  
+  // WanX系列 - 暂无确认可用的模型
+  wanx: [
+    // 所有WanX模型均不可用，已移除
+  ],
+  
+  // 专用功能 - 暂无确认可用的模型
+  special: [
+    // 所有专用功能模型均不可用，已移除
+  ]
+} as const;
+
+/**
+ * 模型平台分类映射 - 仅包含确认可用的模型
+ * Model Platform Classification Mapping - Only confirmed working models
+ */
+export const MODEL_PLATFORM_INFO = {
+  // 神马平台 (Shenma Platform) - 确认可用的模型
+  shenma: {
+    name: '神马',
+    nameEn: 'Shenma',
+    description: '神马AI平台提供的模型',
+    descriptionEn: 'Models provided by Shenma AI Platform',
+    icon: '🐎',
+    color: 'text-purple-500',
+    models: {
+      text: ['gemini-3-flash-preview-nothinking', 'gemini-3-flash-preview', 'gpt-5-nano-2025-08-07', 'gpt-4o-all', 'gpt-4-all', 'gpt-4o'],
+      image: ['nano-banana', 'nano-banana-hd', 'nano-banana-2', 'gpt-image-1', 'flux-kontext-pro', 'flux-kontext-max', 'dall-e-3'],
+      video: ['sora_video2', 'sora-2', 'sora-2-pro', 'veo3', 'veo3-fast', 'veo3-pro', 'veo3.1-pro']
+    }
+  }
+} as const;
+
+/**
+ * 根据模型ID获取平台信息
+ * Get platform information by model ID
+ */
+export const getModelPlatform = (modelId: string, generationType: 'text' | 'image' | 'video'): keyof typeof MODEL_PLATFORM_INFO | null => {
+  for (const [platformKey, platformInfo] of Object.entries(MODEL_PLATFORM_INFO)) {
+    const models = platformInfo.models[generationType];
+    if ((models as readonly string[]).includes(modelId)) {
+      return platformKey as keyof typeof MODEL_PLATFORM_INFO;
+    }
+  }
+  return null;
+};
+
+/**
+ * 按平台分组模型
+ * Group models by platform
+ */
+export const groupModelsByPlatform = (modelIds: string[], generationType: 'text' | 'image' | 'video'): Record<string, string[]> => {
+  const grouped: Record<string, string[]> = {};
+  
+  modelIds.forEach(modelId => {
+    const platform = getModelPlatform(modelId, generationType);
+    const platformKey = platform as string || 'unknown';
+    
+    if (!grouped[platformKey]) {
+      grouped[platformKey] = [];
+    }
+    grouped[platformKey].push(modelId);
+  });
+  
+  return grouped;
+};
+export const FEATURE_BINDINGS = {
+  // 注意：以下功能绑定的模型当前不可用，已禁用相关功能
+  // Note: Models bound to these features are currently unavailable, features disabled
+  
+  // 图像编辑功能 - 暂时禁用
+  'smear-removal': {
+    model: 'byteedit-v2.0',
+    reason: '涂抹去除需要 ByteEdit 专用API (当前不可用)'
+  },
+  'style-transfer': {
+    model: 'byteedit-v2.0', 
+    reason: '风格转换需要 ByteEdit 专用API (当前不可用)'
+  },
+  'background-removal': {
+    model: 'byteedit-v2.0',
+    reason: '背景去除需要 ByteEdit 专用API (当前不可用)'
+  },
+  'image-enhance': {
+    model: 'byteedit-enhance',
+    reason: '图像增强需要 ByteEdit 增强API (当前不可用)'
+  },
+  
+  // 视频特殊功能 - 暂时禁用
+  'character-cameo': {
+    model: 'sora-2',
+    reason: '角色客串需要 Sora API (可用)'
+  },
+  'video-style-transfer': {
+    model: 'video-style-transfer',
+    reason: '视频风格转换需要专用API (当前不可用)'
+  },
+  'character-animation': {
+    model: 'wan2.2-animate-mix',
+    reason: '角色动画需要 WanX 专用API (当前不可用)'
+  }
+} as const;
+
+/**
+ * 获取所有图像模型列表
+ * Get all image models list
+ */
+export const getAllImageModels = (): string[] => {
+  return [
+    ...IMAGE_MODELS.basic,
+    ...IMAGE_MODELS.advanced,
+    ...IMAGE_MODELS.editing
+  ];
+};
+
+/**
+ * 获取所有视频模型列表
+ * Get all video models list
+ */
+export const getAllVideoModels = (): string[] => {
+  return [
+    ...VIDEO_MODELS.sora,
+    ...VIDEO_MODELS.veo,
+    ...VIDEO_MODELS.wanx,
+    ...VIDEO_MODELS.special
+  ];
+};
+
+/**
+ * 用户模型偏好接口
+ * User Model Preferences Interface
+ */
+export interface UserModelPreferences {
+  defaultImageModel: string;
+  defaultVideoModel: string;
+  defaultTextModel: string;
+  lastUpdated: Date;
+}
+
+/**
+ * 默认用户模型偏好
+ * Default User Model Preferences
+ */
+export const DEFAULT_MODEL_PREFERENCES: UserModelPreferences = {
+  defaultImageModel: 'nano-banana-hd',
+  defaultVideoModel: 'sora_video2',
+  defaultTextModel: 'gemini-3-flash-preview-nothinking',
+  lastUpdated: new Date()
+};
+
+// ============================================================================
+// INTELLIGENT PARAMETER PANEL SYSTEM
+// ============================================================================
+
+/**
+ * 生成参数接口 - 统一的参数配置结构
+ * Generation Parameters Interface - Unified parameter configuration structure
+ */
+export interface GenerationParameters {
+  // 通用参数 (Common parameters)
+  prompt: string;
+  negativePrompt?: string;
+  seed?: number;
+  
+  // 图像专用参数 (Image-specific parameters)
+  aspectRatio?: '16:9' | '9:16' | '1:1' | '4:3' | '4:5' | '5:4' | '2:3' | '3:2' | '21:9';
+  imageSize?: '1K' | '2K' | '4K';
+  guidanceScale?: number;
+  steps?: number;
+  referenceImage?: File | string;
+  
+  // 视频专用参数 (Video-specific parameters)
+  duration?: '5' | '10' | '15' | '25' | '30' | '60';
+  fps?: number;
+  motionStrength?: number;
+  cameraMovement?: 'static' | 'pan' | 'zoom' | 'rotate';
+  referenceVideo?: File | string;
+  
+  // 高级参数 (Advanced parameters)
+  customParameters?: Record<string, any>;
+}
+
+/**
+ * 模型参数定义接口
+ * Model Parameter Definition Interface
+ */
+export interface ModelParameter {
+  key: string;
+  label: string;
+  type: 'text' | 'number' | 'select' | 'boolean' | 'file' | 'range';
+  defaultValue: any;
+  required: boolean;
+  validation: ParameterValidation;
+  description?: string;
+  category?: string;
+  advanced?: boolean;
+}
+
+/**
+ * 参数验证规则接口
+ * Parameter Validation Rules Interface
+ */
+export interface ParameterValidation {
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: string[];
+  disabledOptions?: string[]; // 新增：禁用的选项列表
+  pattern?: string;
+  fileTypes?: string[];
+  maxFileSize?: number;
+  required?: boolean;
+}
+
+/**
+ * 模型限制接口
+ * Model Restrictions Interface
+ */
+export interface ModelRestrictions {
+  maxFileSize: number; // in bytes
+  supportedFormats: string[];
+  supportedAspectRatios: string[];
+  maxDuration?: number; // for video, in seconds
+  maxResolution?: { width: number; height: number };
+  parameterLimits: Record<string, { min?: number; max?: number; options?: string[] }>;
+}
+
+/**
+ * 参数预设接口
+ * Parameter Preset Interface
+ */
+export interface ParameterPreset {
+  id: string;
+  name: string;
+  description?: string;
+  generationType: 'image' | 'video';
+  modelId?: string; // if null, applies to all models
+  parameters: GenerationParameters;
+  createdAt: number;
+  updatedAt: number;
+  isDefault?: boolean;
+}
+
+/**
+ * 验证结果接口 (扩展现有的ValidationResult)
+ * Validation Result Interface (extends existing ValidationResult)
+ */
+export interface ParameterValidationResult {
+  isValid: boolean;
+  errors: ParameterValidationError[];
+  warnings: ParameterValidationWarning[];
+}
+
+/**
+ * 参数验证错误接口
+ * Parameter Validation Error Interface
+ */
+export interface ParameterValidationError {
+  parameterKey: string;
+  message: string;
+  code: string;
+  severity: 'error' | 'warning';
+}
+
+/**
+ * 参数验证警告接口
+ * Parameter Validation Warning Interface
+ */
+export interface ParameterValidationWarning {
+  parameterKey: string;
+  message: string;
+  suggestion?: string;
+}
+
+/**
+ * 参数面板状态接口
+ * Parameter Panel State Interface
+ */
+export interface ParameterPanelState {
+  isOpen: boolean;
+  activeTab: 'image' | 'video';
+  selectedModel: string;
+  parameters: GenerationParameters;
+  validationResults: ParameterValidationResult[];
+  presets: ParameterPreset[];
+  isLoading: boolean;
+  error?: string;
+}
+
+/**
+ * 参数面板组件属性接口
+ * Parameter Panel Component Props Interface
+ */
+export interface ParameterPanelProps {
+  isOpen: boolean;
+  onClose: () => void;
+  selectedModel: string;
+  generationType: 'image' | 'video';
+  onParametersChange: (parameters: GenerationParameters) => void;
+  initialParameters?: GenerationParameters;
+  theme?: 'light' | 'dark';
+  lang?: 'zh' | 'en';
+}
+
+/**
+ * 标签管理器组件属性接口
+ * Tab Manager Component Props Interface
+ */
+export interface TabManagerProps {
+  activeTab: 'image' | 'video';
+  onTabChange: (tab: 'image' | 'video') => void;
+  availableTabs: ('image' | 'video')[];
+  theme: 'light' | 'dark';
+}
+
+/**
+ * 参数控件组件属性接口
+ * Parameter Controls Component Props Interface
+ */
+export interface ParameterControlsProps {
+  generationType: 'image' | 'video';
+  modelId: string;
+  parameters: GenerationParameters;
+  onParameterChange: (key: string, value: any) => void;
+  validationErrors: ParameterValidationError[];
+  theme: 'light' | 'dark';
+}
+
+/**
+ * 预设管理器组件属性接口
+ * Preset Manager Component Props Interface
+ */
+export interface PresetManagerProps {
+  generationType: 'image' | 'video';
+  currentParameters: GenerationParameters;
+  onPresetLoad: (preset: ParameterPreset) => void;
+  onPresetSave: (name: string, parameters: GenerationParameters) => void;
+  theme: 'light' | 'dark';
+}
+
+/**
+ * 模型配置服务接口
+ * Model Config Service Interface
+ */
+export interface ModelConfigService {
+  getModelParameters(modelId: string, generationType: 'image' | 'video'): ModelParameter[];
+  getModelRestrictions(modelId: string): ModelRestrictions;
+  validateParameter(modelId: string, parameterKey: string, value: any): ParameterValidationResult;
+}
+
+/**
+ * 参数验证服务接口
+ * Parameter Validation Service Interface
+ */
+export interface ParameterValidationService {
+  validateParameters(modelId: string, parameters: GenerationParameters): ParameterValidationResult[];
+  validateFileSize(file: File, maxSize: number): boolean;
+  validateAspectRatio(ratio: string, supportedRatios: string[]): boolean;
+  validateImageFormat(file: File, supportedFormats: string[]): boolean;
+}
+
+/**
+ * 预设存储服务接口
+ * Preset Storage Service Interface
+ */
+export interface PresetStorageService {
+  savePreset(preset: ParameterPreset): Promise<void>;
+  loadPresets(generationType: 'image' | 'video'): Promise<ParameterPreset[]>;
+  deletePreset(presetId: string): Promise<void>;
+  updatePreset(presetId: string, preset: ParameterPreset): Promise<void>;
+}
+
+/**
+ * 模型复杂度级别
+ * Model Complexity Level
+ */
+export type ModelComplexity = 'simple' | 'medium' | 'complex';
+
+/**
+ * 模型复杂度映射
+ * Model Complexity Mapping
+ */
+export const MODEL_COMPLEXITY_MAPPING: Record<string, ModelComplexity> = {
+  // 简单模型 (Simple models)
+  'nano-banana': 'simple',
+  'gpt-image-1': 'simple',
+  'sora_video2': 'simple',
+  'high-quality': 'simple',
+  
+  // 中等复杂度模型 (Medium complexity models)
+  'nano-banana-hd': 'medium',
+  'nano-banana-2': 'medium',
+  'flux-kontext-pro': 'medium',
+  'sora-2': 'medium',
+  'sora_video2-portrait': 'medium',
+  'sora_video2-landscape': 'medium',
+  'sora_video2-portrait-hd': 'medium',
+  'sora_video2-portrait-15s': 'medium',
+  'sora_video2-portrait-hd-15s': 'medium',
+  'veo3': 'medium',
+  'veo3-fast': 'medium',
+  'recraftv3': 'medium',
+  'dall-e-2': 'medium',
+  'wanx2.1-vace-plus': 'medium',
+  'wan2.2-animate-move': 'medium',
+  'wan2.2-animate-mix': 'medium',
+  
+  // 复杂模型 (Complex models)
+  'byteedit-v2.0': 'complex',
+  'byteedit-enhance': 'complex',
+  'flux-kontext-max': 'complex',
+  'sora-2-pro': 'complex',
+  'veo3-pro': 'complex',
+  'veo3.1': 'complex',
+  'veo3.1-pro': 'complex',
+  'dall-e-3': 'complex',
+  'animate-anyone-gen2': 'complex',
+  'video-style-transfer': 'complex'
+};
+
+/**
+ * 获取模型复杂度
+ * Get Model Complexity
+ */
+export const getModelComplexity = (modelId: string): ModelComplexity => {
+  return MODEL_COMPLEXITY_MAPPING[modelId] || 'medium';
+};
+
+/**
+ * 默认参数预设
+ * Default Parameter Presets
+ */
+export const DEFAULT_PARAMETER_PRESETS: ParameterPreset[] = [
+  {
+    id: 'image-standard',
+    name: '标准图像',
+    description: '适合大多数图像生成场景的标准配置',
+    generationType: 'image',
+    parameters: {
+      prompt: '',
+      aspectRatio: '1:1',
+      imageSize: '2K',
+      guidanceScale: 7.5,
+      steps: 20
+    },
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    isDefault: true
+  },
+  {
+    id: 'image-high-quality',
+    name: '高质量图像',
+    description: '高质量图像生成配置，适合专业用途',
+    generationType: 'image',
+    parameters: {
+      prompt: '',
+      aspectRatio: '16:9',
+      imageSize: '4K',
+      guidanceScale: 10,
+      steps: 30
+    },
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    isDefault: true
+  },
+  {
+    id: 'video-standard',
+    name: '标准视频',
+    description: '适合大多数视频生成场景的标准配置',
+    generationType: 'video',
+    parameters: {
+      prompt: '',
+      aspectRatio: '16:9',
+      duration: '10',
+      fps: 24
+    },
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    isDefault: true
+  },
+  {
+    id: 'video-portrait',
+    name: '竖屏视频',
+    description: '适合社交媒体的竖屏视频配置',
+    generationType: 'video',
+    parameters: {
+      prompt: '',
+      aspectRatio: '9:16',
+      duration: '15',
+      fps: 30
+    },
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    isDefault: true
+  }
+];

@@ -12,7 +12,7 @@
 
 import { ShenmaService } from '../services/shenmaService.js';
 import ZhipuService from '../services/zhipuService.js';
-import { smartRoutingService } from '../services/SmartRoutingService.js';
+import { SmartRoutingService } from '../services/SmartRoutingService.js';
 import { ErrorHandler } from '../services/ErrorHandler.js';
 import { ProviderSettings, ModelConfig } from '../types.js';
 import { TokenCalculator } from '../services/TokenCalculator.js';

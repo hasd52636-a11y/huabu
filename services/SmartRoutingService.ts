@@ -1,343 +1,474 @@
 /**
- * 智能路由服务 - 实现多模态AI的智能选择和回退机制
+ * 智能路由服务
+ * Smart Routing Service for Multi-Model Text Chat
  * 
- * 策略：
- * 1. 主模型：神马API的Gemini（多模态能力强）
- * 2. 备份模型：神马API的GPT-4o（稳定性好）
- * 3. 智能检测：根据内容类型自动选择最佳模型
- * 4. 可用性检查：确保提供商配置有效后再使用
+ * 负责：
+ * - 分析内容类型并推荐合适的模型
+ * - 修复图像分析路由问题
+ * - 实现用户选择优先级逻辑
+ * - 支持智能模型推荐系统
  */
 
-import { ProviderSettings } from '../types';
-import { SMART_ROUTING_CONFIG, getRecommendedModel, createProviderSettings } from '../config/smartRouting';
-
-export interface SmartRoutingConfig {
-  primaryProvider: ProviderSettings;
-  fallbackProvider: ProviderSettings;
-  enableSmartDetection: boolean;
-  maxRetries: number;
-}
+import { ModelConfigManager } from './ModelConfigManager';
+import { NewModelConfig, ModelInfo, ProviderSettings, getProviderSettings, getAllImageModels, getAllVideoModels } from '../types';
+import { FeatureModelManager } from './FeatureModelManager';
 
 export interface ContentAnalysis {
   hasImages: boolean;
   hasVideo: boolean;
-  hasText: boolean;
-  isMultimodal: boolean;
-  contentType: 'text' | 'image' | 'video' | 'multimodal';
-  recommendedModel: string;
+  hasCode: boolean;
+  hasUrls: boolean;
+  isQuestion: boolean;
+  isCreativeTask: boolean;
+  isAnalysisTask: boolean;
+  isReasoningTask: boolean;
+  needsRealTimeInfo: boolean;
+  complexity: 'simple' | 'medium' | 'complex';
+  language: 'zh' | 'en' | 'mixed';
+  contentLength: number;
+}
+
+export interface RoutingRecommendation {
+  recommendedModelId: string;
+  confidence: number;
+  reason: string;
+  fallbackModelId?: string;
+  scenario: 'quickResponse' | 'complexAnalysis' | 'reasoning' | 'multimodal' | 'internetSearch';
 }
 
 export class SmartRoutingService {
-  private config: SmartRoutingConfig;
+  private manager: ModelConfigManager;
+  private config: NewModelConfig;
 
-  constructor(config?: Partial<SmartRoutingConfig>) {
-    this.config = {
-      primaryProvider: SMART_ROUTING_CONFIG.PRIMARY_PROVIDER,
-      fallbackProvider: SMART_ROUTING_CONFIG.FALLBACK_PROVIDER,
-      enableSmartDetection: SMART_ROUTING_CONFIG.DETECTION_RULES.ENABLE_CONTENT_DETECTION,
-      maxRetries: SMART_ROUTING_CONFIG.DETECTION_RULES.MAX_RETRIES,
-      ...config
-    };
-  }
-
-  /**
-   * 检查提供商是否可用（API密钥有效）
-   * Task 5.1: 添加提供商可用性检查
-   */
-  isProviderAvailable(settings: ProviderSettings): boolean {
-    // 检查 API 密钥
-    if (!settings.apiKey || settings.apiKey.trim() === '') {
-      console.warn(`[SmartRouting] Provider ${settings.provider} has no API key`);
-      return false;
-    }
-
-    // 检查 API 密钥长度（基本格式验证）
-    if (settings.apiKey.length < 10) {
-      console.warn(`[SmartRouting] Provider ${settings.provider} has invalid API key format (too short)`);
-      return false;
-    }
-
-    // 检查 Base URL
-    if (!settings.baseUrl || settings.baseUrl.trim() === '') {
-      console.warn(`[SmartRouting] Provider ${settings.provider} has no base URL`);
-      return false;
-    }
-
-    // 检查 Base URL 格式
-    if (!settings.baseUrl.startsWith('http://') && !settings.baseUrl.startsWith('https://')) {
-      console.warn(`[SmartRouting] Provider ${settings.provider} has invalid base URL format`);
-      return false;
-    }
-
-    // 检查模型 ID
-    if (!settings.modelId || settings.modelId.trim() === '') {
-      console.warn(`[SmartRouting] Provider ${settings.provider} has no model ID`);
-      return false;
-    }
-
-    console.log(`[SmartRouting] ✓ Provider ${settings.provider} is available (API key: ${this.maskApiKey(settings.apiKey)})`);
-    return true;
-  }
-
-  /**
-   * 脱敏显示 API 密钥
-   */
-  private maskApiKey(apiKey: string): string {
-    if (!apiKey || apiKey.length < 8) {
-      return '••••••••';
-    }
-    return apiKey.substring(0, 4) + '••••••••' + apiKey.substring(apiKey.length - 4);
-  }
-
-  /**
-   * 获取可用的提供商列表
-   * Task 5.3: 添加 getAvailableProviders 方法
-   */
-  getAvailableProviders(providers: ProviderSettings[]): ProviderSettings[] {
-    const available = providers.filter(provider => this.isProviderAvailable(provider));
-    
-    console.log(`[SmartRouting] Available providers: ${available.length}/${providers.length}`);
-    available.forEach(provider => {
-      console.log(`[SmartRouting]   - ${provider.provider}: ${provider.modelId}`);
-    });
-    
-    return available;
-  }
-
-  /**
-   * 分析内容类型，智能选择最佳模型
-   */
-  analyzeContent(contents: any): ContentAnalysis {
-    let hasImages = false;
-    let hasVideo = false;
-    let hasText = false;
-
-    if (contents && contents.parts && Array.isArray(contents.parts)) {
-      contents.parts.forEach((part: any) => {
-        if (part.inlineData) {
-          const mimeType = part.inlineData.mimeType || '';
-          if (mimeType.startsWith('image/')) {
-            hasImages = true;
-          } else if (mimeType.startsWith('video/')) {
-            hasVideo = true;
-          }
-        } else if (part.text) {
-          hasText = true;
-        }
-      });
-    } else if (typeof contents === 'string') {
-      hasText = true;
-    }
-
-    const isMultimodal = (hasImages && hasText) || (hasVideo && hasText) || (hasImages && hasVideo);
-    
-    let contentType: ContentAnalysis['contentType'] = 'text';
-    let recommendedModel = getRecommendedModel('text', isMultimodal);
-
-    if (isMultimodal) {
-      contentType = 'multimodal';
-      recommendedModel = getRecommendedModel('multimodal', true);
-    } else if (hasVideo) {
-      contentType = 'video';
-      recommendedModel = getRecommendedModel('video-analysis');
-    } else if (hasImages) {
-      contentType = 'image';
-      recommendedModel = getRecommendedModel('text', true); // 图像+文本
-    } else {
-      contentType = 'text';
-      recommendedModel = getRecommendedModel('text');
-    }
-
-    return {
-      hasImages,
-      hasVideo,
-      hasText,
-      isMultimodal,
-      contentType,
-      recommendedModel
-    };
-  }
-
-  /**
-   * 获取智能路由的提供商设置
-   */
-  getSmartProvider(contents: any, userSettings?: ProviderSettings): ProviderSettings {
-    const analysis = this.analyzeContent(contents);
-    
-    // 必须尊重用户配置，优先使用userSettings
-    if (userSettings) {
-      console.log(`[SmartRouting] User settings provided, using them directly`);
-      console.log(`[SmartRouting] User settings:`, {
-        provider: userSettings.provider,
-        hasApiKey: !!userSettings.apiKey,
-        apiKeyLength: userSettings.apiKey?.length || 0,
-        baseUrl: userSettings.baseUrl,
-        modelId: userSettings.modelId
-      });
-      
-      // 只更新模型ID，保持其他配置不变
-      return {
-        ...userSettings,
-        modelId: analysis.recommendedModel
-      };
-    }
-
-    // 没有用户配置时，才使用默认提供商
-    const baseProvider = this.config.primaryProvider;
-    
-    // 根据内容分析结果选择最佳提供商
-    const smartSettings = createProviderSettings(
-      analysis.recommendedModel,
-      baseProvider.apiKey,
-      baseProvider
-    );
-
-    console.log(`[SmartRouting] Content analysis:`, analysis);
-    console.log(`[SmartRouting] Selected model: ${smartSettings.modelId}`);
-    console.log(`[SmartRouting] Using provider: ${smartSettings.provider}, API key: ${smartSettings.apiKey?.substring(0, 4)}...${smartSettings.apiKey?.substring(smartSettings.apiKey.length - 4)}`);
-
-    return smartSettings;
-  }
-
-  /**
-   * 获取回退提供商设置
-   */
-  getFallbackProvider(userSettings?: ProviderSettings): ProviderSettings {
-    // 尊重用户配置的提供商，而不是硬编码使用默认提供商
-    if (userSettings) {
-      console.log(`[SmartRouting] Using user settings for fallback provider`);
-      return {
-        ...userSettings,
-        modelId: this.config.fallbackProvider.modelId
-      };
-    }
-    
-    return createProviderSettings(
-      this.config.fallbackProvider.modelId,
-      this.config.fallbackProvider.apiKey,
-      this.config.fallbackProvider
-    );
-  }
-
-  /**
-   * 智能执行策略 - 主模型失败时自动回退
-   * Task 5.2: 增强版，检查API密钥有效性后再尝试调用
-   */
-  async executeWithFallback<T>(
-    primaryFn: () => Promise<T>,
-    fallbackFn: () => Promise<T>,
-    operation: string = 'AI operation',
-    primarySettings?: ProviderSettings,
-    fallbackSettings?: ProviderSettings
-  ): Promise<T> {
-    let lastError: Error | null = null;
-
-    // 检查主提供商是否可用
-    const primaryAvailable = primarySettings ? this.isProviderAvailable(primarySettings) : true;
-    const fallbackAvailable = fallbackSettings ? this.isProviderAvailable(fallbackSettings) : true;
-
-    // 如果两个提供商都不可用，直接抛出错误
-    if (!primaryAvailable && !fallbackAvailable) {
-      const errorMsg = '没有可用的AI服务提供商，请检查API配置';
-      console.error(`[SmartRouting] ${errorMsg}`);
-      throw new Error(errorMsg);
-    }
-
-    // 如果主提供商不可用，直接跳到备用提供商
-    if (!primaryAvailable) {
-      console.warn(`[SmartRouting] Primary provider ${primarySettings?.provider} is not available, skipping to fallback`);
-      
-      if (fallbackAvailable) {
-        try {
-          console.log(`[SmartRouting] Using fallback model for ${operation}`);
-          return await fallbackFn();
-        } catch (error) {
-          const fallbackError = (error as Error)?.message || 'Unknown fallback error';
-          throw new Error(`备用模型调用失败: ${fallbackError}`);
-        }
-      }
-    }
-
-    // 尝试主模型
-    if (primaryAvailable) {
-      try {
-        console.log(`[SmartRouting] Trying primary model for ${operation}`);
-        return await primaryFn();
-      } catch (error) {
-        lastError = error as Error;
-        console.warn(`[SmartRouting] Primary model failed for ${operation}:`, error);
-      }
-    }
-
-    // 检查备用提供商是否可用
-    if (!fallbackAvailable) {
-      const primaryError = lastError?.message || 'Primary provider not available';
-      throw new Error(`主模型失败，且备用模型不可用: ${primaryError}`);
-    }
-
-    // 回退到备用模型
-    try {
-      console.log(`[SmartRouting] Falling back to secondary model for ${operation}`);
-      return await fallbackFn();
-    } catch (error) {
-      console.error(`[SmartRouting] Fallback model also failed for ${operation}:`, error);
-      
-      // 抛出更详细的错误信息
-      const primaryError = lastError?.message || 'Unknown primary error';
-      const fallbackError = (error as Error)?.message || 'Unknown fallback error';
-      
-      const primaryModel = primarySettings?.modelId || this.config.primaryProvider.modelId;
-      const fallbackModel = fallbackSettings?.modelId || this.config.fallbackProvider.modelId;
-      
-      throw new Error(
-        `所有模型都失败了:\n主模型 (${primaryModel}): ${primaryError}\n备用模型 (${fallbackModel}): ${fallbackError}`
-      );
-    }
-  }
-
-  /**
-   * 检测是否需要特殊模型
-   */
-  needsSpecialModel(contents: any): { needed: boolean; model?: string; reason?: string } {
-    const analysis = this.analyzeContent(contents);
-
-    // 视频分析需要特殊模型
-    if (analysis.hasVideo) {
-      return {
-        needed: true,
-        model: getRecommendedModel('video-analysis'),
-        reason: 'Video analysis requires specialized Gemini model'
-      };
-    }
-
-    // 复杂多模态内容
-    if (analysis.isMultimodal && analysis.hasImages && analysis.hasVideo) {
-      return {
-        needed: true,
-        model: getRecommendedModel('video-analysis'),
-        reason: 'Complex multimodal content requires advanced model'
-      };
-    }
-
-    return { needed: false };
+  constructor(config: NewModelConfig) {
+    this.config = config;
+    this.manager = new ModelConfigManager(config);
   }
 
   /**
    * 更新配置
    */
-  updateConfig(newConfig: Partial<SmartRoutingConfig>): void {
-    this.config = { ...this.config, ...newConfig };
+  updateConfig(config: NewModelConfig): void {
+    this.config = config;
+    this.manager.updateConfig(config);
   }
 
   /**
-   * 获取当前配置
+   * 分析内容特征
    */
-  getConfig(): SmartRoutingConfig {
-    return { ...this.config };
+  analyzeContent(content: string, attachments?: Array<{ type: string; url?: string }>): ContentAnalysis {
+    const contentLower = content.toLowerCase();
+    
+    // 检测多媒体内容
+    const hasImages = !!(attachments?.some(a => a.type.startsWith('image/')) || 
+      /\.(jpg|jpeg|png|gif|webp|svg|bmp)/i.test(content) ||
+      /data:image\//.test(content));
+    
+    const hasVideo = !!(attachments?.some(a => a.type.startsWith('video/')) || 
+      /\.(mp4|webm|ogg|mov|avi|mkv|flv|wmv|m4v)/i.test(content) ||
+      /(youtube\.com|youtu\.be|vimeo\.com|bilibili\.com)/i.test(content));
+
+    // 检测代码内容
+    const hasCode = /```|`[^`]+`|function\s*\(|class\s+\w+|import\s+|from\s+|def\s+|public\s+class/.test(content);
+
+    // 检测URL
+    const hasUrls = /https?:\/\/[^\s]+/.test(content);
+
+    // 检测问题类型
+    const isQuestion = /[？?]|what|how|why|when|where|who|which|是什么|怎么|为什么|如何|哪里|谁|什么时候/.test(contentLower);
+
+    // 检测创意任务
+    const creativeKeywords = '写|创作|生成|设计|画|制作|编写|创建|想象|构思|write|create|generate|design|draw|make|imagine|compose';
+    const isCreativeTask = new RegExp(creativeKeywords, 'i').test(contentLower);
+
+    // 检测分析任务
+    const analysisKeywords = '分析|解释|评估|比较|总结|归纳|研究|调查|analyze|explain|evaluate|compare|summarize|research|investigate';
+    const isAnalysisTask = new RegExp(analysisKeywords, 'i').test(contentLower);
+
+    // 检测推理任务
+    const reasoningKeywords = '推理|逻辑|证明|推导|思考|判断|计算|解决|reason|logic|proof|derive|think|solve|calculate';
+    const isReasoningTask = new RegExp(reasoningKeywords, 'i').test(contentLower);
+
+    // 检测实时信息需求
+    const realtimeKeywords = '最新|今天|现在|当前|实时|新闻|股价|天气|latest|today|now|current|real-time|news|weather';
+    const needsRealTimeInfo = new RegExp(realtimeKeywords, 'i').test(contentLower);
+
+    // 判断复杂度
+    let complexity: 'simple' | 'medium' | 'complex' = 'simple';
+    if (content.length > 500 || isAnalysisTask || isReasoningTask || hasCode) {
+      complexity = 'complex';
+    } else if (content.length > 100 || isCreativeTask || hasImages || hasVideo) {
+      complexity = 'medium';
+    }
+
+    // 检测语言
+    const chineseChars = (content.match(/[\u4e00-\u9fff]/g) || []).length;
+    const englishChars = (content.match(/[a-zA-Z]/g) || []).length;
+    let language: 'zh' | 'en' | 'mixed' = 'en';
+    if (chineseChars > englishChars) {
+      language = 'zh';
+    } else if (chineseChars > 0 && englishChars > 0) {
+      language = 'mixed';
+    }
+
+    return {
+      hasImages,
+      hasVideo,
+      hasCode,
+      hasUrls,
+      isQuestion,
+      isCreativeTask,
+      isAnalysisTask,
+      isReasoningTask,
+      needsRealTimeInfo,
+      complexity,
+      language,
+      contentLength: content.length
+    };
+  }
+
+  /**
+   * 智能推荐模型
+   * 修复图像分析路由问题，确保多模态内容正确路由
+   */
+  recommendModel(content: string, attachments?: Array<{ type: string; url?: string }>): RoutingRecommendation {
+    const analysis = this.analyzeContent(content, attachments);
+    
+    // 多模态内容优先处理（修复图像分析路由问题）
+    if (analysis.hasImages || analysis.hasVideo) {
+      const multimodalModel = this.manager.getRecommendedModel('multimodal');
+      return {
+        recommendedModelId: multimodalModel,
+        confidence: 0.95,
+        reason: analysis.hasImages && analysis.hasVideo 
+          ? '检测到图像和视频内容，使用多模态模型'
+          : analysis.hasImages 
+            ? '检测到图像内容，使用支持图像分析的模型'
+            : '检测到视频内容，使用支持视频分析的模型',
+        scenario: 'multimodal',
+        fallbackModelId: this.manager.getRecommendedModel('complexAnalysis')
+      };
+    }
+
+    // 实时信息需求
+    if (analysis.needsRealTimeInfo) {
+      const internetModel = this.manager.getRecommendedModel('internetSearch');
+      return {
+        recommendedModelId: internetModel,
+        confidence: 0.9,
+        reason: '检测到实时信息需求，使用支持联网搜索的模型',
+        scenario: 'internetSearch',
+        fallbackModelId: this.manager.getRecommendedModel('quickResponse')
+      };
+    }
+
+    // 推理任务
+    if (analysis.isReasoningTask || analysis.hasCode) {
+      const reasoningModel = this.manager.getRecommendedModel('reasoning');
+      return {
+        recommendedModelId: reasoningModel,
+        confidence: 0.85,
+        reason: analysis.hasCode 
+          ? '检测到代码内容，使用推理专用模型'
+          : '检测到推理任务，使用专门的推理模型',
+        scenario: 'reasoning',
+        fallbackModelId: this.manager.getRecommendedModel('complexAnalysis')
+      };
+    }
+
+    // 复杂分析任务
+    if (analysis.complexity === 'complex' || analysis.isAnalysisTask) {
+      const analysisModel = this.manager.getRecommendedModel('complexAnalysis');
+      return {
+        recommendedModelId: analysisModel,
+        confidence: 0.8,
+        reason: '检测到复杂分析任务，使用深度分析模型',
+        scenario: 'complexAnalysis',
+        fallbackModelId: this.manager.getRecommendedModel('quickResponse')
+      };
+    }
+
+    // 默认快速响应
+    const quickModel = this.manager.getRecommendedModel('quickResponse');
+    return {
+      recommendedModelId: quickModel,
+      confidence: 0.7,
+      reason: '常规对话任务，使用快速响应模型',
+      scenario: 'quickResponse',
+      fallbackModelId: this.manager.getDefaultModel()
+    };
+  }
+
+  /**
+   * 获取模型的提供商设置
+   */
+  getModelProviderSettings(modelId: string): ProviderSettings {
+    const modelInfo = this.manager.getModelInfo(modelId);
+    if (!modelInfo) {
+      throw new Error(`模型 ${modelId} 不存在`);
+    }
+
+    // 创建临时配置以使用getProviderSettings
+    const tempConfig = {
+      ...this.config,
+      text: { provider: modelInfo.provider, modelId }
+    };
+
+    return getProviderSettings(tempConfig, 'text');
+  }
+
+  /**
+   * 检查模型是否支持多模态
+   */
+  isMultimodalCapable(modelId: string): boolean {
+    const modelInfo = this.manager.getModelInfo(modelId);
+    return !!(modelInfo?.capabilities.supportsImages || modelInfo?.capabilities.supportsVideo);
+  }
+
+  /**
+   * 检查模型是否支持联网
+   */
+  isInternetCapable(modelId: string): boolean {
+    const modelInfo = this.manager.getModelInfo(modelId);
+    return !!modelInfo?.capabilities.supportsInternet;
+  }
+
+  /**
+   * 获取用户偏好的模型（考虑用户选择优先级）
+   */
+  getUserPreferredModel(userSelectedModelId?: string, content?: string, attachments?: Array<{ type: string; url?: string }>): string {
+    const userPreferences = this.manager.getUserPreferences();
+    
+    // 如果用户明确选择了模型，优先使用用户选择
+    if (userSelectedModelId && this.manager.isModelAvailable(userSelectedModelId)) {
+      // 但是要检查模型能力是否匹配内容需求
+      if (content && attachments) {
+        const analysis = this.analyzeContent(content, attachments);
+        const isMultimodal = analysis.hasImages || analysis.hasVideo;
+        
+        if (isMultimodal && !this.isMultimodalCapable(userSelectedModelId)) {
+          // 用户选择的模型不支持多模态，但内容需要多模态处理
+          // 返回推荐的多模态模型，但记录用户偏好
+          console.warn(`[SmartRouting] 用户选择的模型 ${userSelectedModelId} 不支持多模态，自动切换到多模态模型`);
+          return this.manager.getRecommendedModel('multimodal');
+        }
+        
+        if (analysis.needsRealTimeInfo && !this.isInternetCapable(userSelectedModelId)) {
+          // 用户选择的模型不支持联网，但内容需要实时信息
+          console.warn(`[SmartRouting] 用户选择的模型 ${userSelectedModelId} 不支持联网，自动切换到联网模型`);
+          return this.manager.getRecommendedModel('internetSearch');
+        }
+      }
+      
+      return userSelectedModelId;
+    }
+
+    // 如果启用了智能路由，使用智能推荐
+    if (userPreferences.smartRouting.enabled && content) {
+      const recommendation = this.recommendModel(content, attachments);
+      return recommendation.recommendedModelId;
+    }
+
+    // 否则使用默认模型
+    return userPreferences.defaultTextModel;
+  }
+
+  /**
+   * 获取路由决策的详细信息（用于调试和用户反馈）
+   */
+  getRoutingDecision(content: string, userSelectedModelId?: string, attachments?: Array<{ type: string; url?: string }>) {
+    const analysis = this.analyzeContent(content, attachments);
+    const recommendation = this.recommendModel(content, attachments);
+    const finalModelId = this.getUserPreferredModel(userSelectedModelId, content, attachments);
+    const modelInfo = this.manager.getModelInfo(finalModelId);
+
+    return {
+      analysis,
+      recommendation,
+      finalModelId,
+      modelInfo,
+      userOverride: userSelectedModelId && userSelectedModelId !== recommendation.recommendedModelId,
+      smartRoutingEnabled: this.manager.getUserPreferences().smartRouting.enabled
+    };
+  }
+
+  /**
+   * 批量分析多个内容的路由决策
+   */
+  batchAnalyze(contents: Array<{ content: string; attachments?: Array<{ type: string; url?: string }> }>) {
+    return contents.map(({ content, attachments }) => ({
+      content: content.substring(0, 50) + (content.length > 50 ? '...' : ''),
+      decision: this.getRoutingDecision(content, undefined, attachments)
+    }));
+  }
+
+  /**
+   * 智能推荐图像模型
+   * Intelligently recommend image model based on content and feature requirements
+   */
+  recommendImageModel(content: string, featureId?: string, userPreference?: string): string {
+    const featureManager = new FeatureModelManager();
+    
+    // 如果指定了功能ID，检查是否需要特定模型
+    if (featureId) {
+      const requiredModel = featureManager.getRequiredModel(featureId);
+      if (requiredModel) {
+        console.log(`[SmartRouting] Feature ${featureId} requires model: ${requiredModel}`);
+        return requiredModel;
+      }
+    }
+    
+    // 分析内容特征来推荐合适的图像模型
+    const contentLower = content.toLowerCase();
+    const imageModels = getAllImageModels();
+    
+    // 检测编辑相关关键词
+    const editingKeywords = ['编辑', '修改', '去除', '删除', '涂抹', '背景', '风格', '转换', 'edit', 'remove', 'delete', 'background', 'style'];
+    const needsEditing = editingKeywords.some(keyword => contentLower.includes(keyword));
+    
+    if (needsEditing) {
+      // 需要编辑功能，优先使用 ByteEdit 模型
+      if (imageModels.includes('byteedit-v2.0')) {
+        return 'byteedit-v2.0';
+      }
+    }
+    
+    // 检测高质量需求
+    const qualityKeywords = ['高清', '高质量', '专业', '精细', 'hd', 'high quality', 'professional', 'detailed'];
+    const needsHighQuality = qualityKeywords.some(keyword => contentLower.includes(keyword));
+    
+    if (needsHighQuality) {
+      // 需要高质量，优先使用高级模型
+      const advancedModels = ['flux-kontext-max', 'dall-e-3', 'recraftv3'];
+      for (const model of advancedModels) {
+        if (imageModels.includes(model)) {
+          return model;
+        }
+      }
+    }
+    
+    // 使用用户偏好或默认模型
+    if (userPreference && imageModels.includes(userPreference)) {
+      return userPreference;
+    }
+    
+    // 返回默认的高清模型
+    return imageModels.includes('nano-banana-hd') ? 'nano-banana-hd' : imageModels[0];
+  }
+
+  /**
+   * 智能推荐视频模型
+   * Intelligently recommend video model based on content and feature requirements
+   */
+  recommendVideoModel(content: string, featureId?: string, userPreference?: string): string {
+    const featureManager = new FeatureModelManager();
+    
+    // 如果指定了功能ID，检查是否需要特定模型
+    if (featureId) {
+      const requiredModel = featureManager.getRequiredModel(featureId);
+      if (requiredModel) {
+        console.log(`[SmartRouting] Feature ${featureId} requires model: ${requiredModel}`);
+        return requiredModel;
+      }
+    }
+    
+    // 分析内容特征来推荐合适的视频模型
+    const contentLower = content.toLowerCase();
+    const videoModels = getAllVideoModels();
+    
+    // 检测角色相关关键词
+    const characterKeywords = ['角色', '人物', '客串', '动画', '表演', 'character', 'person', 'cameo', 'animation', 'performance'];
+    const needsCharacter = characterKeywords.some(keyword => contentLower.includes(keyword));
+    
+    if (needsCharacter) {
+      // 需要角色功能，优先使用 Sora 或 WanX 模型
+      const characterModels = ['sora-2', 'sora-2-pro', 'wan2.2-animate-mix'];
+      for (const model of characterModels) {
+        if (videoModels.includes(model)) {
+          return model;
+        }
+      }
+    }
+    
+    // 检测快速生成需求
+    const speedKeywords = ['快速', '快', '简单', 'fast', 'quick', 'simple'];
+    const needsSpeed = speedKeywords.some(keyword => contentLower.includes(keyword));
+    
+    if (needsSpeed) {
+      // 需要快速生成，优先使用快速模型
+      const fastModels = ['veo3-fast', 'sora_video2'];
+      for (const model of fastModels) {
+        if (videoModels.includes(model)) {
+          return model;
+        }
+      }
+    }
+    
+    // 检测高质量需求
+    const qualityKeywords = ['高清', '高质量', '专业', '精细', 'hd', 'high quality', 'professional', 'detailed'];
+    const needsHighQuality = qualityKeywords.some(keyword => contentLower.includes(keyword));
+    
+    if (needsHighQuality) {
+      // 需要高质量，优先使用专业模型
+      const proModels = ['veo3-pro', 'sora-2-pro', 'veo3.1-pro'];
+      for (const model of proModels) {
+        if (videoModels.includes(model)) {
+          return model;
+        }
+      }
+    }
+    
+    // 使用用户偏好或默认模型
+    if (userPreference && videoModels.includes(userPreference)) {
+      return userPreference;
+    }
+    
+    // 返回默认的视频模型
+    return videoModels.includes('sora_video2') ? 'sora_video2' : videoModels[0];
+  }
+
+  /**
+   * 获取模型选择结果（包含锁定信息）
+   * Get model selection result with lock information
+   */
+  getModelSelectionResult(
+    generationType: 'text' | 'image' | 'video',
+    content: string,
+    featureId?: string,
+    userPreference?: string
+  ): { modelId: string; isLocked: boolean; lockReason?: string } {
+    const featureManager = new FeatureModelManager();
+    
+    // 检查功能是否需要特定模型
+    if (featureId) {
+      const result = featureManager.getModelForFeature(featureId, userPreference);
+      if (result.isLocked) {
+        return {
+          modelId: result.selectedModel,
+          isLocked: true,
+          lockReason: result.lockReason
+        };
+      }
+    }
+    
+    // 根据生成类型推荐模型
+    let recommendedModel: string;
+    switch (generationType) {
+      case 'image':
+        recommendedModel = this.recommendImageModel(content, featureId, userPreference);
+        break;
+      case 'video':
+        recommendedModel = this.recommendVideoModel(content, featureId, userPreference);
+        break;
+      default:
+        recommendedModel = this.getUserPreferredModel(userPreference, content);
+    }
+    
+    return {
+      modelId: recommendedModel,
+      isLocked: false
+    };
   }
 }
-
-// 创建全局实例
-export const smartRoutingService = new SmartRoutingService();
 
 export default SmartRoutingService;

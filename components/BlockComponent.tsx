@@ -209,7 +209,7 @@ const BlockComponent: React.FC<BlockProps> = ({
         const shenmaService = new ShenmaService({
           provider: 'shenma',
           apiKey: '', // Will be set from config
-          baseUrl: 'https://api.shenma.com',
+          baseUrl: 'https://hk-api.gptbest.vip',
           llmModel: 'gpt-4o',
           imageModel: 'nano-banana',
           videoModel: 'sora-2'
@@ -854,7 +854,7 @@ const BlockComponent: React.FC<BlockProps> = ({
       const ShenmaService = (await import('../services/shenmaService')).ShenmaService;
       const shenmaService = new ShenmaService({
         provider: 'shenma',
-        baseUrl: 'https://api.shenma.com',
+        baseUrl: 'https://hk-api.gptbest.vip',
         apiKey: '', // Will be set from current provider config
         llmModel: 'gpt-4o',
         imageModel: 'nano-banana',

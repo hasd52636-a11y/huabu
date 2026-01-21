@@ -1,0 +1,521 @@
+以下是豆包(即梦、火山)绘图
+
+快速接入
+接口详情请看官方文档
+https://www.volcengine.com/docs/6791/1279296
+我们完全对齐 火山豆包 官方 火山豆包 Docs 使用方法完全一致。
+在需要使用 火山豆包 API的地方，将 visual.volcengineapi.com 替换为平台获取的 Base_URL/volcv 即可
+替换示例：
+官方 : https://visual.volcengineapi.com?Action=CVProcess&Version=2022-08-31
+我们 : https://{{Base_URL}}/volcv/v1?Action=CVProcess&Version=2022-08-31
+代码中调用请注意：
+关于API KEY的填写，在Header的Authorization参数里，将管理后台-API KEYS里生成的API KEY填在Bearer后面，比如Bearer sk-xxxxxxx
+
+******
+
+豆包(即梦、火山)绘图
+inpainting涂抹消除
+POST
+/volcv/v1
+最后修改时间：
+24 天前
+用户可通过涂抹、选区等方式建立重绘区域，调用算法重新绘制。此功能为不支持输入prompt的消除功能，在路人消除、杂物消除、水印消除等任务表现较好，推荐使用分割接口来进行消除，消除的人物选择完整，建议一次性给客户返回3-4个效果供客户进行挑选。
+算法侧会出现一定概率生成「AI鬼脸」的问题，算法侧会返回错误码（201304），建议业务方可通过判断错误码显示兜底图片或自行处理。
+1
+https://www.volcengine.com/docs/6791/1279296
+详情请看官方对接文档
+请求参数
+Query 参数
+Action
+string 
+必需
+示例:
+CVProcess
+Version
+string 
+必需
+示例:
+2022-08-31
+Header 参数
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+Body 参数
+application/json
+object
+ 
+示例
+{}
+
+
+请求示例代码
+
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/volcv/v1?Action=CVProcess&Version=2022-08-31", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+返回响应
+🟢200
+成功
+application/json
+object
+
+
+
+{
+    "code": 10000,
+    "data": {
+        "algorithm_base_resp": {
+            "status_code": 0,
+            "status_message": "Success"
+        },
+        "binary_data_base64": [
+            "消除图base64"
+        ],
+        "image_urls": [
+            "消除图url"
+        ],
+        "request_id": "740d84695b1a51a5e36f7559"
+    },
+    "message": "Success",
+    "request_id": "2024031411153853949433144E29001798",
+    "status": 10000,
+    "time_elapsed": "3.940519855s"
+}
+
+
+# inpainting涂抹消除
+
+## OpenAPI Specification
+
+```yaml
+openapi: 3.0.1
+info:
+  title: ''
+  description: ''
+  version: 1.0.0
+paths:
+  /volcv/v1:
+    post:
+      summary: inpainting涂抹消除
+      deprecated: false
+      description: >-
+        用户可通过涂抹、选区等方式建立重绘区域，调用算法重新绘制。此功能为不支持输入prompt的消除功能，在路人消除、杂物消除、水印消除等任务表现较好，推荐使用分割接口来进行消除，消除的人物选择完整，建议一次性给客户返回3-4个效果供客户进行挑选。
+
+        算法侧会出现一定概率生成「AI鬼脸」的问题，算法侧会返回错误码（201304），建议业务方可通过判断错误码显示兜底图片或自行处理。
+
+        ![1](https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_756cb3c9266d53f71c411e1284d8dce8.png)
+
+
+        https://www.volcengine.com/docs/6791/1279296
+
+        **详情请看官方对接文档**
+      tags:
+        - 绘图模型/ 豆包(即梦、火山)绘图
+      parameters:
+        - name: Action
+          in: query
+          description: ''
+          required: true
+          example: CVProcess
+          schema:
+            type: string
+        - name: Version
+          in: query
+          description: ''
+          required: true
+          example: '2022-08-31'
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          description: ''
+          required: false
+          example: Bearer {{YOUR_API_KEY}}
+          schema:
+            type: string
+            default: Bearer {{YOUR_API_KEY}}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: {}
+              x-apifox-orders: []
+            examples: {}
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: {}
+                x-apifox-orders: []
+          headers: {}
+          x-apifox-name: 成功
+      security: []
+      x-apifox-folder: 绘图模型/ 豆包(即梦、火山)绘图
+      x-apifox-status: released
+      x-run-in-apifox: https://app.apifox.com/web/project/3868318/apis/api-289472195-run
+components:
+  schemas: {}
+  securitySchemes: {}
+servers: []
+security: []
+
+```
+
+******
+
+豆包(即梦、火山)绘图
+inpainting涂抹编辑
+POST
+/volcv/v1
+最后修改时间：
+24 天前
+用户可通过涂抹、选区等方式建立重绘区域，调用算法重新绘制。此功能为支持输入prompt的涂抹编辑功能，按照prompt生成指定内容。考虑效果更优，建议一次性给客户返回3-4个效果供客户进行挑选。
+1
+https://www.volcengine.com/docs/6791/1279296
+详情请看官方对接文档
+请求参数
+Query 参数
+Action
+string 
+必需
+示例:
+CVProcess
+Version
+string 
+必需
+示例:
+2022-08-31
+Header 参数
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+Body 参数
+application/json
+object
+ 
+示例
+{
+    "binary_data_base64": ["原图", "原图标注后的mask"],
+    "custom_prompt": "一只小狗",  // 写入Prompt，AIGC生成取代的内容
+    "req_key": "i2i_inpainting_edit",
+    "scale": 5,
+    "seed": -1,
+    "steps": 25
+}
+
+请求示例代码
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = "{\r\n    \"binary_data_base64\": [\"原图\", \"原图标注后的mask\"],\r\n    \"custom_prompt\": \"一只小狗\",  // 写入Prompt，AIGC生成取代的内容\r\n    \"req_key\": \"i2i_inpainting_edit\",\r\n    \"scale\": 5,\r\n    \"seed\": -1,\r\n    \"steps\": 25\r\n}";
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/volcv/v1?Action=CVProcess&Version=2022-08-31", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+
+返回响应
+🟢200
+成功
+application/json
+object
+ 
+
+{
+    "code": 10000,
+    "data": {
+        "algorithm_base_resp": {
+            "status_code": 0,
+            "status_message": "Success"
+        },
+        "binary_data_base64": [
+            "编辑后的图base64"
+        ],
+        "image_urls": [
+            "编辑后的图url"
+        ],
+        "request_id": "d1741fd2176ae73ea6e17ae911bc81a5d6848449357c7024fe3be30701412726"
+    },
+    "message": "Success",
+    "request_id": "2024031414442379E5503DD25AA800AB0F",
+    "status": 10000,
+    "time_elapsed": "2.173378731s"
+}
+
+
+
+# inpainting涂抹编辑
+
+## OpenAPI Specification
+
+```yaml
+openapi: 3.0.1
+info:
+  title: ''
+  description: ''
+  version: 1.0.0
+paths:
+  /volcv/v1:
+    post:
+      summary: inpainting涂抹编辑
+      deprecated: false
+      description: >-
+        用户可通过涂抹、选区等方式建立重绘区域，调用算法重新绘制。此功能为支持输入prompt的涂抹编辑功能，按照prompt生成指定内容。考虑效果更优，建议一次性给客户返回3-4个效果供客户进行挑选。
+
+        ![1](https://portal.volccdn.com/obj/volcfe/cloud-universal-doc/upload_5d63833a0d2278f1aca3119730717ef3.png)
+
+
+        https://www.volcengine.com/docs/6791/1279296
+
+        **详情请看官方对接文档**
+      tags:
+        - 绘图模型/ 豆包(即梦、火山)绘图
+      parameters:
+        - name: Action
+          in: query
+          description: ''
+          required: true
+          example: CVProcess
+          schema:
+            type: string
+        - name: Version
+          in: query
+          description: ''
+          required: true
+          example: '2022-08-31'
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          description: ''
+          required: false
+          example: Bearer {{YOUR_API_KEY}}
+          schema:
+            type: string
+            default: Bearer {{YOUR_API_KEY}}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: {}
+            example: "{\r\n    \"binary_data_base64\": [\"原图\", \"原图标注后的mask\"],\r\n    \"custom_prompt\": \"一只小狗\",  // 写入Prompt，AIGC生成取代的内容\r\n    \"req_key\": \"i2i_inpainting_edit\",\r\n    \"scale\": 5,\r\n    \"seed\": -1,\r\n    \"steps\": 25\r\n}"
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: {}
+          headers: {}
+          x-apifox-name: 成功
+      security: []
+      x-apifox-folder: 绘图模型/ 豆包(即梦、火山)绘图
+      x-apifox-status: released
+      x-run-in-apifox: https://app.apifox.com/web/project/3868318/apis/api-289473237-run
+components:
+  schemas: {}
+  securitySchemes: {}
+servers: []
+security: []
+
+```
+
+******
+豆包(即梦、火山)绘图
+通用2.0Pro-指令编辑（SeedEdit）
+POST
+/volcv/v1
+最后修改时间：
+24 天前
+https://www.volcengine.com/docs/6791/1279296
+详情请看官方对接文档
+请求参数
+Query 参数
+Action
+string 
+必需
+示例:
+CVProcess
+Version
+string 
+必需
+示例:
+2022-08-31
+Header 参数
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+Body 参数
+application/json
+object
+ 
+示例
+{
+    "req_key": "byteedit_v2.0",
+    // "binary_data_base64": [],
+    "image_urls": [
+        "https://xxx"
+    ],
+    "prompt": "修改成红色衣服",
+    "negative_prompt": "",
+    "seed": -1,
+    "scale": 0.5,
+    "return_url": true,
+    "logo_info": {
+        "add_logo": false,
+        "position": 0,
+        "language": 0,
+        "logo_text_content": "这里是明水印内容"
+    }
+}
+
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = "{\r\n    \"req_key\": \"byteedit_v2.0\",\r\n    // \"binary_data_base64\": [],\r\n    \"image_urls\": [\r\n        \"https://xxx\"\r\n    ],\r\n    \"prompt\": \"修改成红色衣服\",\r\n    \"negative_prompt\": \"\",\r\n    \"seed\": -1,\r\n    \"scale\": 0.5,\r\n    \"return_url\": true,\r\n    \"logo_info\": {\r\n        \"add_logo\": false,\r\n        \"position\": 0,\r\n        \"language\": 0,\r\n        \"logo_text_content\": \"这里是明水印内容\"\r\n    }\r\n}";
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/volcv/v1?Action=CVProcess&Version=2022-08-31", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+返回响应
+🟢200
+成功
+application/json
+object
+
+
+{
+    "code": 10000,
+    "data": {
+        "algorithm_base_resp": {
+            "status_code": 0,
+            "status_message": "Success"
+        },
+        "binary_data_base64": [],
+        "image_urls": [
+            "https://xxxx"
+        ],
+        "infer_ctx": {
+            "algorithm_key": "high_aes_scheduler_seededit_v1.6",
+            "app_key": "2100xxx",
+            "created_at": "2025-04-24T17:31:15.660547898+08:00",
+            "generate_id": "",
+            "log_id": "202504241731056AE80EBE54A94EAE89AC",
+            "params": {
+                "app_id": "",
+                "aspect_ratio": "",
+                "common_params": "",
+                "ddim_steps": 0,
+                "edit_session_id": "",
+                "fps": 0,
+                "frames": 0,
+                "group_name": "",
+                "height": 1024,
+                "input_image_url": "",
+                "is_only_sr": false,
+                "is_pe": false,
+                "llm_result": "",
+                "media_source": "",
+                "n_samples": 0,
+                "negative_prompt": "",
+                "ori_prompt": "修改成红色毛发",
+                "origin_request_id": "",
+                "output_height": 1024,
+                "output_width": 1024,
+                "pe_result": "",
+                "predict_tags_result": "",
+                "rephraser_result": "",
+                "req_key": "seededit_v16",
+                "rescale": 0,
+                "resolution": "",
+                "scale": 0.5,
+                "seed": 0,
+                "shift": 0,
+                "sr_img2img_fix_steps": 0,
+                "sr_scale": 0,
+                "sr_strength": 0.3,
+                "sr_upscaler": "",
+                "steps": 0,
+                "strength": 0.3,
+                "trace_id": "",
+                "translate_negative_prompt": "",
+                "translate_prompt": "",
+                "use_pre_llm": false,
+                "use_prompt_aug": false,
+                "use_sr": true,
+                "version_id": "",
+                "video_url": "",
+                "vlm_edit": "Instruction: 将鬃毛和面部毛发改为红色",
+                "vlm_input": "一只毛发浓密的雄狮，有着棕黄色的鬃毛和面部毛发",
+                "vlm_output": "一只毛发浓密的雄狮，有着红色的鬃毛和面部毛发",
+                "width": 1024
+            },
+            "request_id": "a04f81492fc0e8ecc59957137cc02e2c27067344fd6f02c6c0b019ea8c759020",
+            "session_id": "",
+            "time_stamp": "1745487075"
+        },
+        "llm_result": "",
+        "pe_result": "",
+        "predict_tags_result": "",
+        "rephraser_result": "",
+        "request_id": "a04f81492fc0e8ecc59957137cc02e2c27067344fd6f02c6c0b019ea8c759020",
+        "vlm_result": "一只毛发浓密的雄狮，有着红色的鬃毛和面部毛发"
+    },
+    "message": "Success",
+    "request_id": "202504241731056AE80EBE54A94EAE89AC",
+    "status": 10000,
+    "time_elapsed": "10.618578556s"
+}
+

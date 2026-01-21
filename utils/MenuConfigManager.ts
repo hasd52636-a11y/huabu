@@ -187,11 +187,11 @@ export class MenuConfigManager {
     // 支持的模型列表，包括当前模型和所有可能的模型名称
     const supportedModels = [
       // Google Gemini模型
-      'gemini-3-pro-image-preview', 
+      'nano-banana-hd', 
       'gemini-2.0-flash-exp', 
       'gemini-3-flash-preview', 
       'gemini-3-pro-preview', 
-      'imagen-3.0-generate-001',
+      'nano-banana-hd',
       
       // 神马API模型
       'nano-banana', 
@@ -227,7 +227,7 @@ export class MenuConfigManager {
       'veo3-fast', 
       'veo3.1', 
       'veo3.1-pro',
-      'veo-3.1-fast-generate-preview', 
+      'sora_video2', 
       'veo-3.1-generate-preview',
       
       // WanX视频模型

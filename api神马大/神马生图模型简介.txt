@@ -1,0 +1,1109 @@
+生图模型简介
+平台提供的生图模型主要有以下两种使用方式：一种是根据prompt输入直接生成图像；一种是根据现有图像，加上prompt输入，生成图像变体。
+根据文本提示创建图像
+在使用文生图的大模型时，为了生成更高质量的图像，输入的prompt（提示词）需要精心设计。以下是一些有助于提高生成图像质量的提示词输入技巧：
+具体描述：尽量详细地描述你想要生成的图像内容。比如，如果你想生成一幅日落的海滩风景，不要仅仅输入“海滩日落”，而是可以尝试输入“一个宁静的海滩上，夕阳西下，天空呈现出橙红色，海浪轻轻拍打着沙滩，远处有一艘小船”。
+情感和氛围：除了描述图像的内容，还可以加入对情感或氛围的描述，比如“温馨的”、“神秘的”、“充满活力的”等，这样可以帮助模型更好地理解你想要的风格。
+风格指定：如果你有特定的艺术风格偏好，比如“印象派”、“超现实主义”等，可以在prompt中明确指出，这样生成的图像更有可能符合你的期待。
+避免模糊不清的词汇：尽量避免使用过于抽象或模糊不清的词汇，比如“美”、“好”等，这些词汇对于模型来说难以具体化，可能会导致生成的图像与预期相差较大。
+使用否定词：如果你不希望图像中出现某些元素，可以使用否定词来排除。例如，“生成一幅海滩日落的图片，但不要有船”。
+分步骤输入：对于复杂场景，可以尝试分步骤输入提示词，先生成基础图像，再根据需要调整或添加细节。
+尝试不同的描述方式：有时候，即使描述的是同一个场景，不同的描述方式也会得到不同的结果。可以尝试从不同的角度或使用不同的词汇来描述，看看哪种方式能得到更满意的结果。
+利用模型的特定功能：一些模型可能提供了特定的功能或参数调整选项，比如调整生成图像的分辨率、风格强度等，合理利用这些功能也可以帮助提高生成图像的质量。
+通过上述方法，可以有效地提高使用文生图大模型时生成图像的质量。不过，由于不同的模型可能有不同的特点和偏好，实际操作中可能还需要根据具体模型的特性和反馈进行适当的调整。
+可以参考如下示例：
+A futuristic eco-friendly skyscraper in central Tokyo. The building incorporates lush vertical gardens on every floor, with cascading plants and trees lining glass terraces. Solar panels and wind turbines are integrated into the structure’s design, reflecting a sustainable future. The Tokyo Tower is visible in the background, contrasting the modern eco-architecture with traditional city landmarks.
+An elegant snow leopard perched on a cliff in the Himalayan mountains, surrounded by swirling snow. The animal’s fur is intricately detailed with distinctive patterns and a thick winter coat. The scene captures the majesty and isolation of the leopard’s habitat, with mist and mountain peaks fading into the background.
+根据现有图像，生成图像变体
+有部分生图模型支持通过已有图像生成图像变体，这种情况下，仍然需要输入适当的prompt，才能达到预期的效果，具体prompt输入，可以参考上面内容。
+
+
+Dalle 格式介绍
+1. Generations 通用 (图生图 & 文生图)
+用途：用文字或文字+图片来生成一张全新的图片。
+场景：
+单纯输入文本 Prompt → 生成图片（文生图）。
+上传一张参考图 + 文本 Prompt → 按照描述生成新的变体或带风格的图片（图生图）。
+关键点：
+1.通常是文生图，以及没有局部 Mask 修改
+2.传递文件链接
+2. Edits 通用 (图像编辑)
+用途：对已有图片进行编辑或局部修改。
+场景：
+上传图片 + 蒙版（mask）+ 文本 Prompt → 指定区域被替换/修改。
+例如：去掉背景、换衣服颜色、在空白处加物体。
+关键点：
+1.官方 gpt-image-1 模型支持 “编辑”，需要传 mask（或透明区域）
+2.传递文件流
+3. Chat 通用 （对话格式）
+用途：快速在客户端支持绘图模型
+场景：仅支持对话的客户端，可以快速体验
+dalle 接口 model 枚举值
+gpt-image-1
+gpt-4o-image
+gpt-4o-image-vip
+sora_image-vip
+sora_image
+flux-kontext-pro\max\dev
+flux -*
+nano-banana
+nano-banana-hd
+dall-e-3
+recraftv3
+qwen-image
+qwen-image-edit
+doubao-seedream-4-0-250828
+doubao-seededit-3-0-i2i-250628
+doubao-seedream-3-0-t2i-250415
+说明
+支持所有 flux-kontext 系列，flux-kontext-dev 必须有参考图
+支持所有flux 系列
+
+
+******
+Generations 通用 (图生图&文生图)
+POST
+/v1/images/generations
+最后修改时间：
+3 个月前
+如果支持参考图，例如 flux-kontext ，参考图url 放 prompt 中空格隔开
+请求参数
+Header 参数
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+Body 参数
+application/json
+model
+string 
+必需
+prompt
+string 
+必需
+size
+string 
+可选
+最终会转换成比例，建议直接使用 aspect_ratio
+aspect_ratio
+string 
+可选
+21:9, 16:9, 4:3, 3:2, 1:1, 2:3, 3:4, 9:16, 9:21
+image
+array[string]
+部分模型支持
+可选
+
+
+示例
+{
+    "model": "string",
+    "prompt": "string",
+    "size": "string",
+    "aspect_ratio": "string",
+    "image": [
+        "string"
+    ]
+}
+
+
+
+请求示例代码
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+   "model": "string",
+   "prompt": "string",
+   "size": "string",
+   "aspect_ratio": "string",
+   "image": [
+      "string"
+   ]
+});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/v1/images/generations", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+
+返回响应
+🟢200
+成功
+application/json
+object
+
+示例
+{}
+
+
+******
+Edits 通用 (图像编辑)
+POST
+/v1/images/edits
+最后修改时间：
+4 个月前
+official docs:
+https://platform.openai.com/docs/api-reference/images/createEdit
+
+Image Editing Request Parameters
+Parameter	Type	Required	Description
+image	file or file array	✅	The image(s) to edit. Must be a supported image file or array.
+- gpt-image-1: PNG, WEBP, or JPG, each <25MB.
+- dall-e-2: 1 square PNG <4MB.
+prompt	string	✅	A text description of the desired image(s).
+- Max length: 1000 chars for dall-e-2, 32000 chars for gpt-image-1.
+mask	file		Optional PNG mask image. Transparent areas (alpha = 0) indicate regions to edit.
+Must match size of image and be <4MB. Applies to first image.
+model	string		Model to use: "dall-e-2" or "gpt-image-1".
+Defaults to "dall-e-2", unless gpt-image-1-specific parameters are used.
+n	integer or null		Number of images to generate. Must be between 1 and 10.
+Default: 1.
+quality	string or null		For gpt-image-1 only. Options: "high", "medium", "low".
+Default: "auto".
+response_format	string or null		Response format. Options: "url" or "b64_json".
+Only "dall-e-2" supports "url" (valid for 60 minutes).
+size	string or null		Image size:
+- gpt-image-1: "1024x1024", "1536x1024", "1024x1536", "auto" (default)
+- dall-e-2: "256x256", "512x512", "1024x1024"
+
+
+请求参数
+Header 参数
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+Body 参数multipart/form-data
+image
+file 
+支持多图
+必需
+示例:
+E:\\Desktop\\gpt\\icon_samll2.png
+prompt
+string 
+必需
+示例:
+带上眼镜
+model
+string 
+必需
+支持 gpt-image-1、flux-kontext-pro、flux-kontext-max
+示例:
+gpt-image-1
+
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+
+var formdata = new FormData();
+formdata.append("image", fileInput.files[0], "E:\\Desktop\\gpt\\icon_samll2.png");
+formdata.append("prompt", "带上眼镜");
+formdata.append("model", "gpt-image-1");
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: formdata,
+   redirect: 'follow'
+};
+
+fetch("/v1/images/edits", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+
+返回响应
+🟢200
+成功
+application/json
+object
+ 
+
+
+示例
+{
+    "created": 1713833628,
+    "data": [
+        {
+            "b64_json": "..."
+        }
+    ],
+    "usage": {
+        "total_tokens": 100,
+        "input_tokens": 50,
+        "output_tokens": 50,
+        "input_tokens_details": {
+            "text_tokens": 10,
+            "image_tokens": 40
+        }
+    }
+}
+
+******
+
+Nano-banana(Generations，推荐对接)
+POST
+/v1/images/generations
+最后修改时间：
+30 天前
+Nano-banana 和 gemini-2.5-flash-image-preview 的区别
+gemini-2.5-flash-image-preview 官方的api模型，没做任何处理，仅支持聊天接口，可能不会返回图片，返回的图片是 base64
+nano-banana 我们基于 gemini-2.5-flash-image-preview 专门画图优化的api模型，支持 dalle 格式、返回url，失败不扣费，优化了支持设置图片比例
+nano-banana-hd 是高清版4K画质
+请求参数
+Header 参数
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+Body 参数
+application/json
+model
+string 
+必需
+prompt
+string 
+必需
+aspect_ratio
+enum<string> 
+可选
+枚举值:
+4:3
+3:4
+16:9
+9:16
+2:3
+3:2
+1:1
+4:5
+5:4
+21:9
+response_format
+string 
+可选
+url 或 b64_json
+image
+array[string]
+可选
+参考图数组，url 或 b64_json
+image_size
+enum<string> 
+可选
+仅 nano-banana-2 支持
+枚举值:
+1K
+2K
+4K
+
+
+示例
+{
+    "prompt": "cat",
+    "model": "nano-banana"
+}
+
+
+请求示例代码
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+   "prompt": "cat",
+   "model": "nano-banana"
+});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/v1/images/generations", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+******
+
+Nano-banana(Edits兼容)
+POST
+/v1/images/edits
+最后修改时间：
+大约 2 个月前
+Nano-banana 和 gemini-2.5-flash-image-preview 的区别
+gemini-2.5-flash-image-preview 官方的api模型，没做任何处理，仅支持聊天接口，可能不会返回图片，返回的图片是 base64
+nano-banana 我们基于 gemini-2.5-flash-image-preview 专门画图优化的api模型，支持 dalle 格式、返回url，失败不扣费，优化了支持设置图片比例
+nano-banana-hd 是高清版4K画质
+请求参数
+Header 参数
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+Body 参数multipart/form-data
+model
+string 
+必需
+示例:
+nano-banana
+prompt
+string 
+必需
+示例:
+一只猫
+image
+file 
+必需
+支持多图或不带参考图
+示例:
+["file://E:\\Downloads\\1745936044575403500.png","file://E:\\Downloads\\微信图片_20250826114255_1785.jpg"]
+response_format
+string 
+可选
+url 或 b64_json
+示例:
+url
+aspect_ratio
+enum<string> 
+可选
+枚举值:
+1:1
+2:3
+3:2
+3:4
+4:3
+4:5
+5:4
+9:16
+16:9
+21:9
+image_size
+enum<string> 
+可选
+仅 nano-banana-2 支持
+枚举值:
+1K
+2K
+4K
+示例:
+4K
+
+
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+
+var formdata = new FormData();
+formdata.append("model", "nano-banana");
+formdata.append("prompt", "一只猫");
+formdata.append("image", fileInput.files[0], "E:\Downloads\1745936044575403500.png");
+formdata.append("image", fileInput.files[0], "E:\Downloads\微信图片_20250826114255_1785.jpg");
+formdata.append("response_format", "url");
+formdata.append("aspect_ratio", "");
+formdata.append("image_size", "4K");
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: formdata,
+   redirect: 'follow'
+};
+
+fetch("/v1/images/edits", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+
+返回响应
+🟢200
+成功
+application/json
+object
+ 
+示例
+{}
+
+
+Nano-banana 官方格式
+开发中
+POST
+/v1beta/models/gemini-2.5-flash-image:generateContent
+最后修改时间：
+大约 1 个月前
+官方文档：
+https://ai.google.dev/gemini-api/docs/image-generation?hl=zh-cn#aspect_ratios
+请求参数
+Header 参数
+Content-Type
+string 
+必需
+示例:
+application/json
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+Body 参数
+application/json
+contents
+array [object] 
+必需
+parts
+array [object] 
+可选
+role
+string 
+可选
+generationConfig
+object 
+可选
+imageConfig
+object 
+可选
+responseModalities
+array[string]
+可选
+
+
+
+示例
+{
+    "contents": [
+        {
+            "parts": [
+                {
+                    "inlineData": {
+                        "data": "iVBORw0KGgoAAAANSUh.....",
+                        "mimeType": "image/png"
+                    }
+                },
+                {
+                    "inlineData": {
+                        "data": "iVBORw0KGgoAAAANSUh.....",
+                        "mimeType": "image/png"
+                    }
+                },
+                {
+                    "text": "hi"
+                }
+            ],
+            "role": "user"
+        }
+    ],
+    "generationConfig": {
+        "imageConfig": {
+            "aspectRatio": "3:4"
+        },
+        "responseModalities": [
+            "IMAGE"
+        ]
+    }
+}
+
+
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+   "contents": [
+      {
+         "parts": [
+            {
+               "inlineData": {
+                  "data": "iVBORw0KGgoAAAANSUh.....",
+                  "mimeType": "image/png"
+               }
+            },
+            {
+               "inlineData": {
+                  "data": "iVBORw0KGgoAAAANSUh.....",
+                  "mimeType": "image/png"
+               }
+            },
+            {
+               "text": "hi"
+            }
+         ],
+         "role": "user"
+      }
+   ],
+   "generationConfig": {
+      "imageConfig": {
+         "aspectRatio": "3:4"
+      },
+      "responseModalities": [
+         "IMAGE"
+      ]
+   }
+});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/v1beta/models/gemini-2.5-flash-image:generateContent", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+   "contents": [
+      {
+         "parts": [
+            {
+               "inlineData": {
+                  "data": "iVBORw0KGgoAAAANSUh.....",
+                  "mimeType": "image/png"
+               }
+            },
+            {
+               "inlineData": {
+                  "data": "iVBORw0KGgoAAAANSUh.....",
+                  "mimeType": "image/png"
+               }
+            },
+            {
+               "text": "hi"
+            }
+         ],
+         "role": "user"
+      }
+   ],
+   "generationConfig": {
+      "imageConfig": {
+         "aspectRatio": "3:4"
+      },
+      "responseModalities": [
+         "IMAGE"
+      ]
+   }
+});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/v1beta/models/gemini-2.5-flash-image:generateContent", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+
+返回响应
+🟢200
+成功
+application/json
+object
+
+
+示例
+{}
+
+
+******
+Recraftv3
+POST
+/v1/images/generations
+最后修改时间：
+20 天前
+model 支持
+recraftv3
+recraftv3-halloween
+size 支持
+1024x512
+1024x1024
+1024x576
+1024x768
+1024x512
+512x1024
+512x768
+1280x960
+1280x960
+960x1280
+960x1280
+768x1366
+768x512
+1366x768
+1344x576
+请求参数
+Header 参数
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+Body 参数
+application/json
+object
+ 
+
+
+示例
+{}
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/v1/images/generations", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+返回响应
+🟢200
+成功
+application/json
+object
+ 
+示例
+{}
+
+******
+文生图
+POST
+/v1/images/generations
+最后修改时间：
+4 个月前
+图片
+给定提示和/或输入图像，模型将生成新图像。
+相关指南：图像生成
+根据提示创建图像。
+请求参数
+Header 参数
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+Body 参数
+application/json
+prompt
+string 
+必需
+所需图像的文本描述。最大长度为 1000 个字符。
+n
+integer 
+可选
+要生成的图像数。必须介于 1 和 10 之间。
+size
+string 
+可选
+生成图像的大小。必须是256x256、512x512或 1024x1024之一。
+
+
+示例
+
+{
+    "prompt": "string",
+    "n": 0,
+    "size": "string"
+}
+
+
+******
+Flux
+POST
+/v1/images/generations
+最后修改时间：
+20 天前
+model 支持
+flux
+flux-dev
+flux-pro
+size 支持
+1024x512
+1024x1024
+1024x576
+1024x768
+1024x512
+512x1024
+512x768
+1280x960
+1280x960
+960x1280
+960x1280
+768x1366
+768x512
+1366x768
+1344x576
+请求参数
+Header 参数
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+Body 参数
+application/json
+object
+ 
+示例
+{
+    "model": "flux-dev",
+    "prompt": "cat",
+    "size": "1024x1024"
+}
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+   "model": "flux-dev",
+   "prompt": "cat",
+   "size": "1024x1024"
+});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/v1/images/generations", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+
+返回响应
+🟢200
+成功
+application/json
+object
+ 
+示例
+{}
+
+****
+所有图像编辑(异步)
+POST
+/v1/images/edits
+最后修改时间：
+大约 2 个月前
+async 为 true 时，将异步提交，返回 task id
+请求参数
+Query 参数
+async
+string 
+启用异步模式
+必需
+示例:
+true
+webhook
+string 
+可选
+示例:
+https://www.baidu.com/notify
+Header 参数
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+Body 参数multipart/form-data
+image
+file 
+支持多图
+必需
+示例:
+E:\\Desktop\\gpt\\icon_samll2.png
+prompt
+string 
+必需
+示例:
+带上眼镜
+model
+string 
+必需
+支持 gpt-image-1、flux-kontext-pro、flux-kontext-max
+示例:
+gpt-image-1
+
+
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+
+var formdata = new FormData();
+formdata.append("image", fileInput.files[0], "E:\\Desktop\\gpt\\icon_samll2.png");
+formdata.append("prompt", "带上眼镜");
+formdata.append("model", "gpt-image-1");
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: formdata,
+   redirect: 'follow'
+};
+
+fetch("/v1/images/edits?async=true&webhook=https://www.baidu.com/notify", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+返回响应
+🟢200
+成功
+application/json
+object
+ 
+示例
+{
+    "task_id": "3dad96708a77485e97ac7ef652796d7b"
+}
+
+
+******
+所有画图(异步)
+POST
+/v1/images/generations
+最后修改时间：
+大约 2 个月前
+支持所有画图模型异步请求
+提交图像生成请求：
+使用 POST /v1/images/generations 提交图像生成请求并传递参数（如 size、prompt、model 等）。
+响应中返回一个 task_id，此 task_id 用于后续查询图像生成状态。
+查询图像生成结果：
+使用 GET /v1/images/tasks/{task_id} 查询生成任务的状态。如果任务完成，响应会包含生成的图像 URL。
+请求参数
+Query 参数
+async
+string 
+启用异步模式
+必需
+示例:
+true
+webhook
+string 
+可选
+示例:
+https://www.baidu.com/notify
+Header 参数
+Content-Type
+string 
+必需
+示例:
+application/json
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+Body 参数
+application/json
+prompt
+string 
+必需
+model
+string 
+必需
+示例
+{
+    "size": "1024x1024",
+    "prompt": "cat",
+    "model": "sora_image",
+    "n": 1
+}
+
+
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+   "size": "1024x1024",
+   "prompt": "cat",
+   "model": "sora_image",
+   "n": 1
+});
+
+var requestOptions = {
+   method: 'POST',
+   headers: myHeaders,
+   body: raw,
+   redirect: 'follow'
+};
+
+fetch("/v1/images/generations?async=true&webhook=https://www.baidu.com/notify", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+
+返回响应
+🟢200
+成功
+application/json
+code
+string 
+必需
+message
+string 
+必需
+data
+string 
+task id
+必需
+示例
+{
+    "task_id": "3dad96708a77485e97ac7ef652796d7b"
+}
+
+
+******
+所有画图(查询异步结果)
+GET
+/v1/images/tasks/{task_id}
+最后修改时间：
+4 个月前
+status：
+IN_PROGRESS （处理中）
+FAILURE （失败）
+SUCCESS （成功）
+请求参数
+Path 参数
+task_id
+string 
+必需
+Header 参数
+Content-Type
+string 
+必需
+示例:
+application/json
+Authorization
+string 
+可选
+默认值:
+Bearer {{YOUR_API_KEY}}
+
+
+
+var myHeaders = new Headers();
+myHeaders.append("Authorization", "Bearer {{YOUR_API_KEY}}");
+myHeaders.append("Content-Type", "application/json");
+
+var requestOptions = {
+   method: 'GET',
+   headers: myHeaders,
+   redirect: 'follow'
+};
+
+fetch("/v1/images/tasks/", requestOptions)
+   .then(response => response.text())
+   .then(result => console.log(result))
+   .catch(error => console.log('error', error));
+
+
+
+返回响应
+🟢200
+成功
+application/json
+object
+ 
+示例
+{
+    "code": "success",
+    "message": "",
+    "data": {
+        "task_id": "3dad96708a77485e97ac7ef652796d7b",
+        "platform": "sync-task",
+        "action": "image-sync",
+        "status": "SUCCESS",
+        "fail_reason": "",
+        "submit_time": 1758993864,
+        "start_time": 1758993885,
+        "finish_time": 1758993885,
+        "progress": "100%",
+        "data": {
+            "data": [
+                {
+                    "url": "https://files.closeai.fans/filesystem/output/20250927/f870fae3-b0c3-4e4d-ba13-387a6556c613.png",
+                    "b64_json": "",
+                    "revised_prompt": "一只小猫在炒菜"
+                }
+            ],
+            "model": "nano-banana",
+            "created": 1758993885,
+            "usage": {
+                "prompt_tokens": 1425,
+                "completion_tokens": 1290,
+                "total_tokens": 2715,
+                "prompt_tokens_details": {
+                    "cached_tokens": 0,
+                    "text_tokens": 0,
+                    "audio_tokens": 0,
+                    "image_tokens": 0
+                },
+                "completion_tokens_details": {
+                    "text_tokens": 0,
+                    "audio_tokens": 0,
+                    "reasoning_tokens": 0
+                },
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "input_tokens_details": null,
+                "output_tokens_details": null
+            }
+        },
+        "search_item": ""
+    }
+}
+
+
+

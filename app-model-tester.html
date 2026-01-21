@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>应用模型测试工具 - 测试模型选择器中的实际模型</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .api-config {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+
+        .config-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .config-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .config-group label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .config-group input, .config-group select {
+            padding: 12px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .config-group input:focus, .config-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .test-section {
+            margin-bottom: 30px;
+        }
+
+        .test-section h3 {
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .test-card {
+            background: white;
+            border: 2px solid #e1e5e9;
+            border-radius: 15px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            min-height: 250px;
+        }
+
+        .test-card.success {
+            border-color: #28a745;
+            background: linear-gradient(135deg, #f8fff9 0%, #ffffff 100%);
+        }
+
+        .test-card.error {
+            border-color: #dc3545;
+            background: linear-gradient(135deg, #fff8f8 0%, #ffffff 100%);
+        }
+
+        .test-card.testing {
+            border-color: #007bff;
+            background: linear-gradient(135deg, #f8fbff 0%, #ffffff 100%);
+        }
+        .test-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        .test-card h4 {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .model-type {
+            font-size: 0.8rem;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+
+        .type-fast-lightweight { background: #e3f2fd; color: #1976d2; }
+        .type-deep-analysis { background: #f3e5f5; color: #7b1fa2; }
+        .type-reasoning-focused { background: #fff3e0; color: #f57c00; }
+        .type-network-enabled { background: #e8f5e8; color: #388e3c; }
+        .type-multimodal { background: #fce4ec; color: #c2185b; }
+        .type-standard { background: #f5f5f5; color: #616161; }
+
+        .test-card p {
+            color: #666;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .capabilities {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-bottom: 15px;
+        }
+
+        .capability {
+            font-size: 0.75rem;
+            padding: 2px 6px;
+            border-radius: 8px;
+            background: #f0f0f0;
+            color: #666;
+        }
+
+        .capability.recommended { background: #fff3cd; color: #856404; }
+        .capability.experimental { background: #f8d7da; color: #721c24; }
+
+        .test-button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 10px;
+        }
+
+        .test-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .test-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .status {
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .status.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status.testing {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .result-details {
+            margin-top: 10px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            max-height: 200px;
+            overflow-y: auto;
+            border-left: 4px solid #007bff;
+        }
+
+        .result-details.error {
+            background: #fff5f5;
+            border-left-color: #dc3545;
+        }
+
+        .result-details.success {
+            background: #f0fff4;
+            border-left-color: #28a745;
+        }
+
+        .overall-status {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .test-all-button {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-right: 15px;
+        }
+        .test-all-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(40, 167, 69, 0.4);
+        }
+
+        .clear-button {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .clear-button:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .config-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .test-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 应用模型测试工具</h1>
+            <p>测试模型选择器中的实际配置模型 - 文本、图像、视频模型全覆盖</p>
+        </div>
+        <div class="content">
+            <!-- API配置区域 -->
+            <div class="api-config">
+                <h3>🔧 API配置</h3>
+                <div class="config-row">
+                    <div class="config-group">
+                        <label for="apiKey">API密钥</label>
+                        <input type="password" id="apiKey" placeholder="输入您的API密钥" value="sk-jB7cXgP74ykqSS1QRkRZI0WOtwkkZYRnNwwWNp1xQQpwbNVB">
+                    </div>
+                    <div class="config-group">
+                        <label for="baseUrl">API基础URL</label>
+                        <input type="text" id="baseUrl" placeholder="https://hk-api.gptbest.vip" value="https://hk-api.gptbest.vip">
+                    </div>
+                </div>
+                <div class="config-row">
+                    <div class="config-group">
+                        <label for="timeout">请求超时 (秒)</label>
+                        <input type="number" id="timeout" value="30" min="5" max="120">
+                    </div>
+                    <div class="config-group">
+                        <label for="testMode">测试模式</label>
+                        <select id="testMode">
+                            <option value="quick">快速测试 (简单请求)</option>
+                            <option value="full">完整测试 (实际功能)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 整体状态 -->
+            <div class="overall-status">
+                <h3>📊 测试概览</h3>
+                <p id="overallStatus">准备开始测试...</p>
+                <div style="margin-top: 15px;">
+                    <button class="test-all-button" onclick="testAllModels()">
+                        <span id="testAllText">🧪 测试所有模型</span>
+                    </button>
+                    <button class="clear-button" onclick="clearAllResults()">🗑️ 清除结果</button>
+                    <button class="clear-button" onclick="exportErrorReport()" style="background: #dc3545; margin-left: 10px;">📋 导出错误报告</button>
+                </div>
+            </div>
+
+            <!-- 文本模型测试 -->
+            <div class="test-section">
+                <h3>💬 文本生成模型 (6个)</h3>
+                <div class="test-grid" id="textModels">
+                    <!-- 动态生成 -->
+                </div>
+            </div>
+
+            <!-- 图像模型测试 -->
+            <div class="test-section">
+                <h3>🎨 图像生成模型 (8个)</h3>
+                <div class="test-grid" id="imageModels">
+                    <!-- 动态生成 -->
+                </div>
+            </div>
+            <!-- 视频模型测试 -->
+            <div class="test-section">
+                <h3>🎬 视频生成模型 (18个)</h3>
+                <div class="test-grid" id="videoModels">
+                    <!-- 动态生成 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 应用中实际配置的模型 - 从API调用记录确认可用
+        const appModels = {
+            // 文本模型 - 确认可用的6个
+            text: [
+                {
+                    id: 'gemini-3-flash-preview-nothinking',
+                    name: 'Gemini 3.0 Flash (快速)',
+                    description: 'Google最新的高级AI模型，速度很快，智商和gemini-3-pro差不多',
+                    type: 'fast-lightweight',
+                    capabilities: ['快速', '多模态', '推荐'],
+                    endpoint: '/v1/chat/completions'
+                },
+                {
+                    id: 'gemini-3-flash-preview',
+                    name: 'Gemini 3.0 Flash (标准)',
+                    description: 'Gemini 3.0 Flash标准版本，平衡速度和质量',
+                    type: 'standard',
+                    capabilities: ['多模态'],
+                    endpoint: '/v1/chat/completions'
+                },
+                {
+                    id: 'gpt-5-nano-2025-08-07',
+                    name: 'GPT-5 Nano (实验版)',
+                    description: 'GPT-5 Nano实验版本，支持联网和响应创建',
+                    type: 'reasoning-focused',
+                    capabilities: ['联网', '思维链', '实验版'],
+                    endpoint: '/v1/chat/completions'
+                },
+                {
+                    id: 'gpt-4o-all',
+                    name: 'GPT-4o All (全模态)',
+                    description: 'GPT All模型，集合官方GPT-4、联网、读图、绘图功能、code interpreter一体',
+                    type: 'multimodal',
+                    capabilities: ['联网', '多模态', '代码执行', '推荐'],
+                    endpoint: '/v1/chat/completions'
+                },
+                {
+                    id: 'gpt-4-all',
+                    name: 'GPT-4 All (联网版)',
+                    description: '集合官方GPT-4、联网、读图、绘图功能、code interpreter一体',
+                    type: 'network-enabled',
+                    capabilities: ['联网', '多模态', '代码执行', '推荐'],
+                    endpoint: '/v1/chat/completions'
+                },
+                {
+                    id: 'gpt-4o',
+                    name: 'GPT-4o',
+                    description: 'OpenAI GPT-4o模型',
+                    type: 'standard',
+                    capabilities: ['多模态'],
+                    endpoint: '/v1/chat/completions'
+                }
+            ],
+            // 图像模型 - 确认可用的7个
+            image: [
+                { id: 'nano-banana', name: 'Nano Banana', description: '神马基础图像模型', category: '基础模型', endpoint: '/v1/chat/completions' },
+                { id: 'nano-banana-hd', name: 'Nano Banana HD', description: '神马高清图像模型', category: '基础模型', endpoint: '/v1/chat/completions' },
+                { id: 'nano-banana-2', name: 'Nano Banana 2', description: '神马图像模型v2', category: '基础模型', endpoint: '/v1/chat/completions' },
+                { id: 'gpt-image-1', name: 'GPT Image 1', description: 'GPT图像模型', category: '基础模型', endpoint: '/v1/chat/completions' },
+                { id: 'flux-kontext-pro', name: 'Flux Kontext Pro', description: 'Flux专业版', category: '高级模型', endpoint: '/v1/chat/completions' },
+                { id: 'flux-kontext-max', name: 'Flux Kontext Max', description: 'Flux最大版', category: '高级模型', endpoint: '/v1/chat/completions' },
+                { id: 'dall-e-3', name: 'DALL-E 3', description: 'DALL-E 3', category: '高级模型', endpoint: '/v1/chat/completions' }
+            ],
+            ],
+
+            // 视频模型 - 确认可用的7个
+            video: [
+                // Sora系列
+                { id: 'sora_video2', name: 'Sora Video 2', description: 'Sora Video 2', category: 'Sora系列', endpoint: '/v1/chat/completions' },
+                { id: 'sora-2', name: 'Sora 2', description: 'Sora 2', category: 'Sora系列', endpoint: '/v2/videos/generations' },
+                { id: 'sora-2-pro', name: 'Sora 2 Pro', description: 'Sora 2 Pro', category: 'Sora系列', endpoint: '/v2/videos/generations' },
+                
+                // Veo系列
+                { id: 'veo3', name: 'Veo 3', description: 'Veo 3', category: 'Veo系列', endpoint: '/v2/videos/generations' },
+                { id: 'veo3-fast', name: 'Veo 3 Fast', description: 'Veo 3 Fast', category: 'Veo系列', endpoint: '/v2/videos/generations' },
+                { id: 'veo3-pro', name: 'Veo 3 Pro', description: 'Veo 3 Pro', category: 'Veo系列', endpoint: '/v2/videos/generations' },
+                { id: 'veo3.1-pro', name: 'Veo 3.1 Pro', description: 'Veo 3.1 Pro', category: 'Veo系列', endpoint: '/v2/videos/generations' }
+            ]
+        };
+            ]
+        };
+        // 测试结果存储
+        let testResults = {};
+
+        // 初始化页面
+        function initializePage() {
+            renderModelCards();
+            updateOverallStatus();
+        }
+
+        // 渲染模型卡片
+        function renderModelCards() {
+            ['text', 'image', 'video'].forEach(category => {
+                const container = document.getElementById(category + 'Models');
+                if (!container) return;
+                
+                container.innerHTML = '';
+                
+                appModels[category].forEach(model => {
+                    const card = createModelCard(model, category);
+                    container.appendChild(card);
+                });
+            });
+        }
+
+        // 创建模型卡片
+        function createModelCard(model, category) {
+            const card = document.createElement('div');
+            card.className = 'test-card';
+            
+            let capabilitiesHtml = '';
+            if (category === 'text') {
+                capabilitiesHtml = `
+                    <div class="model-type type-${model.type}">${getTypeDisplayName(model.type)}</div>
+                    <div class="capabilities">
+                        ${model.capabilities.map(cap => `<span class="capability ${cap === '推荐' ? 'recommended' : cap === '实验版' ? 'experimental' : ''}">${cap}</span>`).join('')}
+                    </div>
+                `;
+            } else {
+                capabilitiesHtml = `<div class="model-type type-standard">${model.category || '标准模型'}</div>`;
+            }
+            
+            card.innerHTML = `
+                <h4>${model.name}</h4>
+                ${capabilitiesHtml}
+                <p><strong>模型ID:</strong> ${model.id}<br>
+                   <strong>端点:</strong> ${model.endpoint}<br>
+                   <strong>描述:</strong> ${model.description}</p>
+                <button class="test-button" onclick="testModel('${model.id}', '${category}')">
+                    <span id="btn-${model.id}">🧪 测试连接</span>
+                </button>
+                <div class="status pending" id="status-${model.id}">等待测试</div>
+                <div class="result-details" id="details-${model.id}" style="display: none;"></div>
+            `;
+            return card;
+        }
+
+        // 获取类型显示名称
+        function getTypeDisplayName(type) {
+            const typeNames = {
+                'fast-lightweight': '⚡ 快速轻量型',
+                'deep-analysis': '🧠 深度分析型',
+                'reasoning-focused': '🤔 推理专用型',
+                'network-enabled': '🌐 联网功能型',
+                'multimodal': '🎭 全模态型',
+                'standard': '📝 标准型'
+            };
+            return typeNames[type] || '📝 标准型';
+        }
+        // 测试单个模型
+        async function testModel(modelId, category) {
+            const model = findModelById(modelId);
+            if (!model) return;
+
+            const statusEl = document.getElementById(`status-${modelId}`);
+            const btnEl = document.getElementById(`btn-${modelId}`);
+            const detailsEl = document.getElementById(`details-${modelId}`);
+            const card = statusEl.closest('.test-card');
+
+            // 更新状态为测试中
+            statusEl.className = 'status testing';
+            statusEl.textContent = '测试中...';
+            btnEl.innerHTML = '<span class="loading"></span>测试中';
+            detailsEl.style.display = 'none';
+            card.className = 'test-card testing';
+
+            try {
+                const result = await performModelTest(model, category);
+                testResults[modelId] = result;
+
+                if (result.success) {
+                    statusEl.className = 'status success';
+                    statusEl.textContent = `✅ 连接成功 (${result.responseTime}ms)`;
+                    card.className = 'test-card success';
+                    
+                    detailsEl.className = 'result-details success';
+                    detailsEl.innerHTML = `
+                        <div style="font-weight: bold; color: #28a745; margin-bottom: 10px;">✅ 测试成功</div>
+                        <div><strong>响应时间:</strong> ${result.responseTime}ms</div>
+                        <div><strong>响应内容:</strong> ${result.response || '成功'}</div>
+                        <div><strong>端点:</strong> ${model.endpoint}</div>
+                        <div><strong>模型ID:</strong> ${model.id}</div>
+                        <div><strong>类别:</strong> ${category}</div>
+                    `;
+                } else {
+                    statusEl.className = 'status error';
+                    statusEl.textContent = '❌ 连接失败';
+                    card.className = 'test-card error';
+                    
+                    // 详细的错误信息分析
+                    let errorAnalysis = '';
+                    let troubleshooting = '';
+                    
+                    if (result.statusCode === 401) {
+                        errorAnalysis = 'API密钥无权限访问此模型';
+                        troubleshooting = '请检查API密钥是否正确，或联系服务提供商确认模型访问权限';
+                    } else if (result.statusCode === 403) {
+                        errorAnalysis = '模型需要特殊权限或付费订阅';
+                        troubleshooting = '该模型可能需要付费订阅或特殊权限，请联系服务提供商';
+                    } else if (result.statusCode === 404) {
+                        errorAnalysis = '模型ID不存在或端点路径错误';
+                        troubleshooting = '请检查模型ID是否正确，或端点配置是否有误';
+                    } else if (result.statusCode === 429) {
+                        errorAnalysis = '请求频率限制或配额不足';
+                        troubleshooting = '请稍后重试，或检查API配额是否充足';
+                    } else if (result.statusCode >= 500) {
+                        errorAnalysis = '服务器错误或模型暂时不可用';
+                        troubleshooting = '服务器端问题，请稍后重试或联系服务提供商';
+                    } else {
+                        errorAnalysis = '未知错误';
+                        troubleshooting = '请检查网络连接和API配置';
+                    }
+                    
+                    detailsEl.className = 'result-details error';
+                    detailsEl.innerHTML = `
+                        <div style="font-weight: bold; color: #dc3545; margin-bottom: 10px;">❌ 测试失败</div>
+                        <div><strong>状态码:</strong> ${result.statusCode || 'N/A'}</div>
+                        <div><strong>错误信息:</strong> ${result.error}</div>
+                        <div><strong>可能原因:</strong> ${errorAnalysis}</div>
+                        <div><strong>解决建议:</strong> ${troubleshooting}</div>
+                        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #dee2e6;">
+                            <div><strong>端点:</strong> ${model.endpoint}</div>
+                            <div><strong>模型ID:</strong> ${model.id}</div>
+                            <div><strong>类别:</strong> ${category}</div>
+                        </div>
+                    `;
+                }
+                detailsEl.style.display = 'block';
+            } catch (error) {
+                testResults[modelId] = { success: false, error: error.message };
+                statusEl.className = 'status error';
+                statusEl.textContent = '❌ 测试异常';
+                card.className = 'test-card error';
+                
+                detailsEl.className = 'result-details error';
+                detailsEl.innerHTML = `
+                    <div style="font-weight: bold; color: #dc3545; margin-bottom: 10px;">❌ 测试异常</div>
+                    <div><strong>异常信息:</strong> ${error.message}</div>
+                    <div><strong>可能原因:</strong> 网络连接问题或请求超时</div>
+                    <div><strong>解决建议:</strong> 检查网络连接，增加超时时间，或稍后重试</div>
+                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #dee2e6;">
+                        <div><strong>端点:</strong> ${model.endpoint}</div>
+                        <div><strong>模型ID:</strong> ${model.id}</div>
+                        <div><strong>类别:</strong> ${category}</div>
+                    </div>
+                `;
+                detailsEl.style.display = 'block';
+            }
+
+            btnEl.innerHTML = '🔄 重新测试';
+            updateOverallStatus();
+        }
+        // 执行模型测试
+        async function performModelTest(model, category) {
+            const apiKey = document.getElementById('apiKey').value;
+            const baseUrl = document.getElementById('baseUrl').value;
+            const timeout = parseInt(document.getElementById('timeout').value) * 1000;
+            const testMode = document.getElementById('testMode').value;
+
+            if (!apiKey) {
+                throw new Error('请输入API密钥');
+            }
+
+            const startTime = Date.now();
+            let requestBody, endpoint;
+
+            // 根据模型类型和端点构建请求
+            endpoint = `${baseUrl}${model.endpoint}`;
+
+            if (model.endpoint === '/v1/chat/completions') {
+                // 聊天格式 - 适用于文本、图像、视频
+                if (category === 'text') {
+                    requestBody = {
+                        model: model.id,
+                        messages: [
+                            { role: 'user', content: testMode === 'quick' ? 'Hello' : 'Hello, please respond with "API connection successful"' }
+                        ],
+                        max_tokens: testMode === 'quick' ? 10 : 50,
+                        temperature: 0.7
+                    };
+                } else if (category === 'image') {
+                    requestBody = {
+                        model: model.id,
+                        messages: [
+                            { role: 'user', content: testMode === 'quick' ? 'cat' : 'Generate a simple test image of a cat' }
+                        ]
+                    };
+                } else if (category === 'video') {
+                    // 视频生成使用聊天格式，在提示词中指定要求
+                    let prompt = testMode === 'quick' ? 'cat video' : 'Generate a simple test video of a cat';
+                    if (model.id.includes('portrait')) {
+                        prompt = '竖屏 ' + prompt;
+                    } else if (model.id.includes('landscape')) {
+                        prompt = '横屏 ' + prompt;
+                    }
+                    if (model.id.includes('hd')) {
+                        prompt = '高清 ' + prompt;
+                    }
+                    if (model.id.includes('15s')) {
+                        prompt = '15s ' + prompt;
+                    }
+                    
+                    requestBody = {
+                        model: model.id,
+                        messages: [
+                            { role: 'user', content: prompt }
+                        ],
+                        stream: false
+                    };
+                }
+            } else if (model.endpoint === '/v2/videos/generations') {
+                // 统一格式视频接口
+                requestBody = {
+                    prompt: testMode === 'quick' ? 'cat' : 'A simple test video of a cat',
+                    model: model.id
+                };
+                
+                // 根据模型添加特定参数
+                if (model.id.includes('veo')) {
+                    requestBody.aspect_ratio = '16:9';
+                    requestBody.enhance_prompt = false;
+                    requestBody.enable_upsample = false;
+                } else if (model.id.includes('sora')) {
+                    requestBody.aspect_ratio = '16:9';
+                    requestBody.duration = '5';
+                    requestBody.hd = false;
+                }
+            } else {
+                throw new Error('未知的端点类型: ' + model.endpoint);
+            }
+
+            // 发送请求
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+            try {
+                console.log(`[测试] 请求 ${model.id}:`, {
+                    endpoint,
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey.substring(0, 10)}...`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: requestBody
+                });
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+                const responseTime = Date.now() - startTime;
+
+                console.log(`[测试] 响应 ${model.id}:`, {
+                    status: response.status,
+                    statusText: response.statusText,
+                    responseTime
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error(`[测试] 错误详情 ${model.id}:`, errorText);
+                    
+                    // 尝试解析错误JSON
+                    let parsedError = errorText;
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        parsedError = errorJson.error?.message || errorJson.message || errorText;
+                    } catch (e) {
+                        // 保持原始错误文本
+                    }
+                    
+                    return {
+                        success: false,
+                        error: parsedError,
+                        statusCode: response.status,
+                        responseTime,
+                        endpoint,
+                        requestBody
+                    };
+                }
+
+                const data = await response.json();
+                console.log(`[测试] 成功响应 ${model.id}:`, data);
+                
+                let responseContent = '';
+
+                // 解析响应内容
+                if (model.endpoint === '/v1/chat/completions') {
+                    if (category === 'text') {
+                        responseContent = data.choices?.[0]?.message?.content || '文本生成成功';
+                    } else if (category === 'image') {
+                        responseContent = data.choices?.[0]?.message?.content || '图像生成请求成功';
+                    } else if (category === 'video') {
+                        responseContent = data.choices?.[0]?.message?.content || '视频生成请求成功';
+                    }
+                } else if (model.endpoint === '/v2/videos/generations') {
+                    responseContent = data.task_id ? `视频任务创建成功 (ID: ${data.task_id})` : '视频生成请求成功';
+                }
+
+                return {
+                    success: true,
+                    response: responseContent,
+                    responseTime,
+                    data,
+                    endpoint,
+                    requestBody
+                };
+
+            } catch (error) {
+                clearTimeout(timeoutId);
+                console.error(`[测试] 异常 ${model.id}:`, error);
+                
+                if (error.name === 'AbortError') {
+                    throw new Error(`请求超时 (${timeout/1000}秒)`);
+                }
+                throw error;
+            }
+        }
+        // 查找模型
+        function findModelById(modelId) {
+            for (const category of Object.keys(appModels)) {
+                const model = appModels[category].find(m => m.id === modelId);
+                if (model) return model;
+            }
+            return null;
+        }
+
+        // 测试所有模型
+        async function testAllModels() {
+            const testAllBtn = document.querySelector('.test-all-button');
+            const testAllText = document.getElementById('testAllText');
+            
+            testAllBtn.disabled = true;
+            testAllText.innerHTML = '<span class="loading"></span>测试中...';
+
+            const allModels = [];
+            Object.keys(appModels).forEach(category => {
+                appModels[category].forEach(model => {
+                    allModels.push({ ...model, category });
+                });
+            });
+
+            // 并发测试（限制并发数）
+            const concurrency = 3;
+            for (let i = 0; i < allModels.length; i += concurrency) {
+                const batch = allModels.slice(i, i + concurrency);
+                await Promise.all(
+                    batch.map(model => testModel(model.id, model.category))
+                );
+                // 短暂延迟避免API限流
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            testAllBtn.disabled = false;
+            testAllText.textContent = '🧪 测试所有模型';
+        }
+
+        // 清除所有结果
+        function clearAllResults() {
+            testResults = {};
+            
+            // 重置所有状态
+            document.querySelectorAll('.status').forEach(el => {
+                el.className = 'status pending';
+                el.textContent = '等待测试';
+            });
+            
+            // 重置所有卡片样式
+            document.querySelectorAll('.test-card').forEach(el => {
+                el.className = 'test-card';
+            });
+            
+            document.querySelectorAll('.result-details').forEach(el => {
+                el.style.display = 'none';
+                el.className = 'result-details';
+            });
+            
+            document.querySelectorAll('[id^="btn-"]').forEach(el => {
+                el.textContent = '🧪 测试连接';
+            });
+
+            updateOverallStatus();
+        }
+
+        // 更新整体状态
+        function updateOverallStatus() {
+            const totalTests = Object.keys(appModels).reduce((sum, category) => 
+                sum + appModels[category].length, 0
+            );
+            const completedTests = Object.keys(testResults).length;
+            const successfulTests = Object.values(testResults).filter(r => r.success).length;
+            const failedTests = completedTests - successfulTests;
+
+            const statusEl = document.getElementById('overallStatus');
+            
+            if (completedTests === 0) {
+                statusEl.textContent = `准备测试 ${totalTests} 个确认可用模型 (文本:${appModels.text.length} 图像:${appModels.image.length} 视频:${appModels.video.length})`;
+            } else if (completedTests < totalTests) {
+                statusEl.textContent = `测试进度: ${completedTests}/${totalTests} | 成功: ${successfulTests} | 失败: ${failedTests}`;
+            } else {
+                const successRate = ((successfulTests / totalTests) * 100).toFixed(1);
+                statusEl.textContent = `测试完成! 成功率: ${successRate}% (${successfulTests}/${totalTests})`;
+            }
+        }
+        // 导出错误报告
+        function exportErrorReport() {
+            const failedTests = Object.entries(testResults).filter(([id, result]) => !result.success);
+            
+            if (failedTests.length === 0) {
+                alert('没有失败的测试需要导出');
+                return;
+            }
+
+            let report = `# 应用模型测试错误报告\n\n`;
+            report += `生成时间: ${new Date().toLocaleString()}\n`;
+            report += `API密钥: ${document.getElementById('apiKey').value.substring(0, 10)}...\n`;
+            report += `基础URL: ${document.getElementById('baseUrl').value}\n`;
+            report += `测试模式: ${document.getElementById('testMode').value}\n\n`;
+            
+            report += `## 测试概览\n`;
+            report += `- 总测试数: ${Object.keys(testResults).length}\n`;
+            report += `- 成功数: ${Object.values(testResults).filter(r => r.success).length}\n`;
+            report += `- 失败数: ${failedTests.length}\n`;
+            report += `- 文本模型: ${appModels.text.length}个\n`;
+            report += `- 图像模型: ${appModels.image.length}个\n`;
+            report += `- 视频模型: ${appModels.video.length}个\n\n`;
+
+            report += `## 失败详情\n\n`;
+            
+            failedTests.forEach(([modelId, result]) => {
+                const model = findModelById(modelId);
+                const category = appModels.text.find(m => m.id === modelId) ? 'text' : 
+                               appModels.image.find(m => m.id === modelId) ? 'image' : 'video';
+                
+                report += `### ${model?.name || modelId}\n`;
+                report += `- **模型ID**: ${modelId}\n`;
+                report += `- **类别**: ${category}\n`;
+                report += `- **端点**: ${model?.endpoint || 'unknown'}\n`;
+                if (model?.type) report += `- **类型**: ${model.type}\n`;
+                if (model?.category) report += `- **分类**: ${model.category}\n`;
+                report += `- **状态码**: ${result.statusCode || 'N/A'}\n`;
+                report += `- **错误信息**: ${result.error || 'N/A'}\n`;
+                if (result.endpoint) {
+                    report += `- **完整端点**: ${result.endpoint}\n`;
+                }
+                if (result.requestBody) {
+                    report += `- **请求体**: \`\`\`json\n${JSON.stringify(result.requestBody, null, 2)}\n\`\`\`\n`;
+                }
+                report += `\n`;
+            });
+
+            // 创建下载链接
+            const blob = new Blob([report], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `app-model-test-error-report-${new Date().toISOString().split('T')[0]}.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            // 同时复制到剪贴板
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(report).then(() => {
+                    alert('错误报告已下载并复制到剪贴板');
+                }).catch(() => {
+                    alert('错误报告已下载');
+                });
+            } else {
+                alert('错误报告已下载');
+            }
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', initializePage);
+    </script>
+</body>
+</html>

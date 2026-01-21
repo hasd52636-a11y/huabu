@@ -110,7 +110,7 @@ export interface ZhipuImageGenerationResponse {
 
 class ZhipuService {
   private config: ExtendedProviderConfig;
-  private baseUrl = 'https://open.bigmodel.cn/api/paas/v4';
+  private baseUrl = 'https://hk-api.gptbest.vip';
   private pollingIntervals: Map<string, NodeJS.Timeout> = new Map();
   private modelConfig: any;
 

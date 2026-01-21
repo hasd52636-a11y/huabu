@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>香港API连通性测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🇭🇰 香港API连通性测试</h1>
+        <p>测试香港API地址的连通性和模型可用性</p>
+        
+        <div>
+            <button class="test-button" onclick="testConnection()">测试连接</button>
+            <button class="test-button" onclick="testGPT4o()">测试 GPT-4o</button>
+            <button class="test-button" onclick="testNanoBanana()">测试 Nano-Banana</button>
+            <button class="test-button" onclick="testSoraVideo()">测试 Sora Video</button>
+            <button class="test-button" onclick="testGemini()">测试 Gemini (修复)</button>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const API_KEY = 'sk-jB7cXgP74ykqSS1QRkRZI0WOtwkkZYRnNwwWNp1xQQpwbNVB';
+        const HK_BASE_URL = 'https://hk-api.gptbest.vip';
+        const US_BASE_URL = 'https://api.gptbest.vip';
+
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            results.appendChild(div);
+            results.scrollTop = results.scrollHeight;
+        }
+
+        async function testConnection() {
+            addResult('开始测试香港API连接...', 'info');
+            
+            try {
+                const startTime = Date.now();
+                const response = await fetch(`${HK_BASE_URL}/v1/models`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const responseTime = Date.now() - startTime;
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    addResult(`✅ 香港API连接成功! 响应时间: ${responseTime}ms`, 'success');
+                    addResult(`可用模型数量: ${data.data ? data.data.length : '未知'}`, 'info');
+                } else {
+                    addResult(`❌ 香港API连接失败: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                addResult(`❌ 连接异常: ${error.message}`, 'error');
+                
+                // 尝试美国线路
+                addResult('尝试美国线路...', 'info');
+                try {
+                    const response = await fetch(`${US_BASE_URL}/v1/models`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${API_KEY}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        addResult('✅ 美国API连接成功!', 'success');
+                    } else {
+                        addResult(`❌ 美国API也失败: ${response.status}`, 'error');
+                    }
+                } catch (usError) {
+                    addResult(`❌ 美国API异常: ${usError.message}`, 'error');
+                }
+            }
+        }
+
+        async function testGPT4o() {
+            addResult('测试 GPT-4o 模型...', 'info');
+            
+            try {
+                const response = await fetch(`${HK_BASE_URL}/v1/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: 'gpt-4o',
+                        messages: [
+                            { role: 'user', content: 'Hello, please respond with "GPT-4o working"' }
+                        ],
+                        max_tokens: 10
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const content = data.choices?.[0]?.message?.content || '';
+                    addResult(`✅ GPT-4o 测试成功: ${content}`, 'success');
+                } else {
+                    const errorText = await response.text();
+                    addResult(`❌ GPT-4o 测试失败: ${response.status} - ${errorText}`, 'error');
+                }
+            } catch (error) {
+                addResult(`❌ GPT-4o 测试异常: ${error.message}`, 'error');
+            }
+        }
+
+        async function testNanoBanana() {
+            addResult('测试 Nano-Banana 图像生成...', 'info');
+            
+            try {
+                const response = await fetch(`${HK_BASE_URL}/v1/images/generations`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: 'nano-banana',
+                        prompt: 'a simple test image',
+                        aspect_ratio: '1:1'
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const imageUrl = data.data?.[0]?.url;
+                    if (imageUrl) {
+                        addResult(`✅ Nano-Banana 测试成功: 图像已生成`, 'success');
+                    } else {
+                        addResult(`⚠️ Nano-Banana 响应成功但无图像URL`, 'error');
+                    }
+                } else {
+                    const errorText = await response.text();
+                    addResult(`❌ Nano-Banana 测试失败: ${response.status} - ${errorText}`, 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Nano-Banana 测试异常: ${error.message}`, 'error');
+            }
+        }
+
+        async function testSoraVideo() {
+            addResult('测试 Sora Video 视频生成...', 'info');
+            
+            try {
+                const response = await fetch(`${HK_BASE_URL}/v2/videos/generations`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: 'sora_video2',
+                        prompt: 'a simple test video',
+                        aspect_ratio: '16:9',
+                        duration: '10'
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const taskId = data.task_id;
+                    if (taskId) {
+                        addResult(`✅ Sora Video 任务提交成功: ${taskId}`, 'success');
+                    } else {
+                        addResult(`⚠️ Sora Video 响应成功但无任务ID`, 'error');
+                    }
+                } else {
+                    const errorText = await response.text();
+                    addResult(`❌ Sora Video 测试失败: ${response.status} - ${errorText}`, 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Sora Video 测试异常: ${error.message}`, 'error');
+            }
+        }
+
+        async function testGemini() {
+            addResult('测试 Gemini 模型 (尝试修复)...', 'info');
+            
+            try {
+                const response = await fetch(`${HK_BASE_URL}/v1/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: 'gemini-2.0-flash-exp',
+                        messages: [
+                            { role: 'user', content: 'Hello, please respond with "Gemini working"' }
+                        ],
+                        max_tokens: 10
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const content = data.choices?.[0]?.message?.content || '';
+                    addResult(`✅ Gemini 修复成功: ${content}`, 'success');
+                } else {
+                    const errorText = await response.text();
+                    addResult(`❌ Gemini 仍然失败: ${response.status} - ${errorText}`, 'error');
+                    
+                    // 尝试其他Gemini模型
+                    addResult('尝试 Gemini 1.5 Pro...', 'info');
+                    const response2 = await fetch(`${HK_BASE_URL}/v1/chat/completions`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${API_KEY}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            model: 'gemini-1.5-pro',
+                            messages: [
+                                { role: 'user', content: 'Hello' }
+                            ],
+                            max_tokens: 10
+                        })
+                    });
+                    
+                    if (response2.ok) {
+                        addResult(`✅ Gemini 1.5 Pro 可用!`, 'success');
+                    } else {
+                        addResult(`❌ Gemini 1.5 Pro 也失败`, 'error');
+                    }
+                }
+            } catch (error) {
+                addResult(`❌ Gemini 测试异常: ${error.message}`, 'error');
+            }
+        }
+
+        // 页面加载时自动测试连接
+        window.addEventListener('load', () => {
+            addResult('页面加载完成，准备测试香港API...', 'info');
+        });
+    </script>
+</body>
+</html>

@@ -9,9 +9,11 @@
  */
 
 import React, { useState } from 'react';
-import { X, Download, Eye, Play, Loader2 } from 'lucide-react';
+import { X, Download, Eye, Play, Loader2, Lock } from 'lucide-react';
 import SmearRemovalSelector from './SmearRemovalSelector';
 import { ShenmaService } from '../services/shenmaService';
+import { featureModelManager } from '../services/FeatureModelManager';
+import ModelSelector from './ModelSelector';
 
 interface RemovalArea {
   id: string;
@@ -46,6 +48,12 @@ const SmearRemovalModal: React.FC<SmearRemovalModalProps> = ({
   const [previewResult, setPreviewResult] = useState<string>('');
   const [finalResult, setFinalResult] = useState<string>('');
   const [error, setError] = useState<string>('');
+
+  // 获取涂抹去除功能的模型锁定信息
+  const modelLockInfo = featureModelManager.getModelForFeature('smear-removal');
+  const isModelLocked = modelLockInfo.isLocked;
+  const lockedModel = modelLockInfo.selectedModel;
+  const lockReason = modelLockInfo.lockReason;
 
   const t = {
     zh: {
@@ -224,9 +232,20 @@ const SmearRemovalModal: React.FC<SmearRemovalModalProps> = ({
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-            {t[lang].title}
-          </h2>
+          <div className="flex items-center gap-4">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+              {t[lang].title}
+            </h2>
+            {/* 模型锁定指示器 */}
+            {isModelLocked && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 rounded-lg">
+                <Lock size={16} className="text-yellow-600 dark:text-yellow-400" />
+                <span className="text-sm font-medium text-yellow-700 dark:text-yellow-300">
+                  {lang === 'zh' ? '已锁定模型' : 'Model Locked'}: {lockedModel}
+                </span>
+              </div>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
@@ -321,10 +340,21 @@ const SmearRemovalModal: React.FC<SmearRemovalModalProps> = ({
           )}
 
           {/* 提示信息 */}
-          <div className="mt-6 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <p className="text-sm text-blue-700 dark:text-blue-300">
-              💡 {t[lang].tip}
-            </p>
+          <div className="mt-6 space-y-3">
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                💡 {t[lang].tip}
+              </p>
+            </div>
+            
+            {/* 模型锁定说明 */}
+            {isModelLocked && lockReason && (
+              <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                  🔒 {lockReason}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

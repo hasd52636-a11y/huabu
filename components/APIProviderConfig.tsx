@@ -48,8 +48,8 @@ const APIProviderConfig: React.FC<APIProviderConfigProps> = ({
   const defaultModels: Record<ProviderType, { text: string; image: string; video: string }> = {
     google: {
       text: 'gemini-2.0-flash-exp',
-      image: 'imagen-3.0-generate-001',
-      video: 'veo-3.1-fast-generate-preview'
+      image: 'nano-banana-hd',
+      video: 'sora_video2'
     },
     'openai-compatible': {
       text: 'gpt-4o',

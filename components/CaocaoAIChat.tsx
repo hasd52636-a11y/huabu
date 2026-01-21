@@ -57,7 +57,37 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
     {
       id: `caocao-init-${Date.now()}`,
       role: 'caocao',
-      content: '# 你好呀！我是曹操画布智能助手——曹冲\n\n## 🧠 家族遗传，聪明过人\n作为曹操后裔，我继承了先祖的雄才大略，却专注于多媒体创作领域，为您提供：\n- 📝 文本创作：文案、脚本、课件信手拈来\n- 🎨 图像处理：生成、修图、分镜不在话下\n- 🎬 视频制作：动画、剪辑、批量生产样样精通\n\n## 🔧 三头六臂，能力全面\n为助力残障人士，我加装了：\n- 🎤 语音识别：听懂您的每一句指令\n- ✋ 手势控制：看懂您的每一个动作\n- 🧩 72种模块化能力：按需调用，灵活组合\n\n## 📈 勤学苦练，日益精进\n正如先祖所言：「老骥伏枥，志在千里」，我亦如此——\n持续使用我一个月，您将见证我从「初识」到「贴心」的成长，\n成为您创作路上最懂你的「左膀右臂」！\n\n说曹操，曹操到！您有什么创作需求，尽管吩咐~',
+      content: `# 你好呀！我是曹操画布智能助手——曹冲
+
+## 🧠 家族遗传，聪明过人
+
+作为曹操后裔，我继承了先祖的雄才大略，却专注于多媒体创作领域，为您提供：
+
+• 📝 **文本创作**：文案、脚本、课件信手拈来
+• 🎨 **图像处理**：生成、修图、分镜不在话下  
+• 🎬 **视频制作**：动画、剪辑、批量生产样样精通
+
+---
+
+## 🔧 三头六臂，能力全面
+
+为助力残障人士，我加装了：
+
+• 🎤 **语音识别**：听懂您的每一句指令
+• ✋ **手势控制**：看懂您的每一个动作
+• 🧩 **72种模块化能力**：按需调用，灵活组合
+
+---
+
+## 📈 勤学苦练，日益精进
+
+正如先祖所言：**「老骥伏枥，志在千里」**，我亦如此——
+
+持续使用我一个月，您将见证我从 **「初识」** 到 **「贴心」** 的成长，成为您创作路上最懂你的 **「左膀右臂」**！
+
+---
+
+⚡ **说曹操，曹操到！您有什么创作需求，尽管吩咐~**`,
       timestamp: new Date(),
       type: 'system'
     }
@@ -119,6 +149,80 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
   };
 
   const currentLang = t[lang];
+
+  // 渲染消息内容，支持简单的Markdown格式
+  const renderMessageContent = (content: string) => {
+    // 分割成行
+    const lines = content.split('\n');
+    
+    return lines.map((line, index) => {
+      const trimmedLine = line.trim();
+      
+      // 处理标题
+      if (trimmedLine.startsWith('# ')) {
+        return (
+          <div key={index} className="text-lg font-bold text-purple-400 mb-3 mt-2">
+            {trimmedLine.substring(2)}
+          </div>
+        );
+      }
+      
+      if (trimmedLine.startsWith('## ')) {
+        return (
+          <div key={index} className="text-base font-bold text-blue-400 mb-2 mt-3">
+            {trimmedLine.substring(3)}
+          </div>
+        );
+      }
+      
+      // 处理分割线
+      if (trimmedLine === '---') {
+        return (
+          <div key={index} className="border-t border-gray-600 my-4 opacity-30"></div>
+        );
+      }
+      
+      // 处理列表项
+      if (trimmedLine.startsWith('• ')) {
+        const listContent = trimmedLine.substring(2);
+        return (
+          <div key={index} className="flex items-start gap-2 mb-2 ml-2">
+            <span className="text-amber-400 mt-1">•</span>
+            <span className="flex-1">{renderInlineFormatting(listContent)}</span>
+          </div>
+        );
+      }
+      
+      // 处理普通段落
+      if (trimmedLine) {
+        return (
+          <div key={index} className="mb-2 leading-relaxed">
+            {renderInlineFormatting(trimmedLine)}
+          </div>
+        );
+      }
+      
+      // 空行
+      return <div key={index} className="h-2"></div>;
+    });
+  };
+
+  // 渲染行内格式
+  const renderInlineFormatting = (text: string) => {
+    // 处理粗体 **text**
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    
+    return parts.map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return (
+          <strong key={index} className="font-bold text-yellow-300">
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+      return part;
+    });
+  };
 
   // 处理外部消息
   useEffect(() => {
@@ -413,7 +517,9 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
                     ? 'bg-blue-500 text-white'
                     : 'bg-green-500 text-white'
               }`}>
-                <p className="text-sm">{message.content}</p>
+                <div className="text-sm whitespace-pre-line">
+                  {renderMessageContent(message.content)}
+                </div>
                 {message.status && (
                   <div className="flex items-center gap-1 mt-1 text-xs opacity-75">
                     {message.status === 'executing' && (

@@ -1,0 +1,2330 @@
+Client events
+session.update
+开发中
+wss://api.openai.com/v1/realtime
+Send this event to update the session’s default configuration.
+请求参数
+Query 参数
+event_id
+string 
+可选
+Optional client-generated ID used to identify this event.
+示例:
+event_123
+type
+string 
+可选
+The event type, must be "session.update".
+示例:
+session.update
+session
+string 
+可选
+object类型，以下参数为其中参数。Session configuration to update.
+modalities
+array[string]
+可选
+The set of modalities the model can respond with. To disable audio, set this to ["text"].
+示例:
+[" [\"text\", \"audio\"]"]
+instructions
+string 
+可选
+The default system instructions prepended to model calls.
+示例:
+Your knowledge cutoff is 2023-10. You are a helpful assistant.
+voice
+string 
+可选
+The voice the model uses to respond - one of alloy, echo, or shimmer. Cannot be changed once the model has responded with audio at least once.
+示例:
+alloy
+input_audio_format
+string 
+可选
+The format of input audio. Options are "pcm16", "g711_ulaw", or "g711_alaw".
+示例:
+pcm16
+output_audio_format
+string 
+可选
+The format of output audio. Options are "pcm16", "g711_ulaw", or "g711_alaw".
+示例:
+pcm16
+input_audio_transcription
+string 
+可选
+object类型，以下model为其中参数。
+model
+string 
+可选
+The model to use for transcription (e.g., "whisper-1").
+示例:
+whisper-1
+turn_detection
+string 
+可选
+object类型，以下type、threshold、prefix_padding_ms、silence_duration_ms为其中参数。
+type1
+string 
+可选
+为type,Type of turn detection, only "server_vad" is currently supported.
+示例:
+server_vad
+threshold
+number 
+可选
+Activation threshold for VAD (0.0 to 1.0).
+示例:
+0.5
+prefix_padding_ms
+integer 
+可选
+Amount of audio to include before speech starts (in milliseconds).
+示例:
+300
+silence_duration_ms
+integer 
+可选
+Duration of silence to detect speech stop (in milliseconds).
+示例:
+200
+tools
+array[string]
+可选
+Tools (functions) available to the model.
+示例:
+["type","name","description","parameters",""]
+tool_choice
+string 
+可选
+How the model chooses tools. Options are "auto", "none", "required", or specify a function.
+示例:
+auto
+temperature
+string 
+可选
+Sampling temperature for the model.
+示例:
+0.8
+max_output_tokens
+string 
+可选
+Maximum number of output tokens for a single assistant response, inclusive of tool calls. Provide an integer between 1 and 4096 to limit output tokens, or "inf" for the maximum available tokens for a given model. Defaults to "inf".
+示例:
+null
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+
+
+******
+Client events
+input_audio_buffer.append
+开发中
+wss://api.openai.com/v1/realtime
+Send this event to append audio bytes to the input audio buffer.
+请求参数
+Query 参数
+    event_id
+string 
+可选
+Optional client-generated ID used to identify this event.
+示例:
+event_456
+    type
+string 
+可选
+The event type, must be "input_audio_buffer.append".
+示例:
+input_audio_buffer.append
+    audio
+string 
+可选
+Base64-encoded audio bytes.
+示例:
+Base64EncodedAudioData
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+
+******
+Client events
+input_audio_buffer.commit
+开发中
+wss://api.openai.com/v1/realtime
+Send this event to commit audio bytes to a user message.
+请求参数
+Query 参数
+    event_id
+string 
+可选
+Optional client-generated ID used to identify this event.
+示例:
+event_789
+    type
+string 
+可选
+The event type, must be "input_audio_buffer.commit".
+示例:
+input_audio_buffer.commit
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+******
+Client events
+input_audio_buffer.clear
+开发中
+wss://api.openai.com/v1/realtime
+Send this event to clear the audio bytes in the buffer.
+请求参数
+Query 参数
+    event_id
+string 
+可选
+Optional client-generated ID used to identify this event.
+示例:
+event_012
+    type
+string 
+可选
+The event type, must be "input_audio_buffer.clear".
+示例:
+input_audio_buffer.clear
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+******
+Client events
+conversation.item.create
+开发中
+wss://api.openai.com/v1/realtime
+Send this event when adding an item to the conversation.
+请求参数
+Query 参数
+event_id
+string 
+可选
+Optional client-generated ID used to identify this event.
+示例:
+event_345
+type
+string 
+可选
+The event type, must be "conversation.item.create".
+示例:
+conversation.item.create
+previous_item_id
+string 
+可选
+The ID of the preceding item after which the new item will be inserted.
+示例:
+null
+item
+string 
+可选
+这是一个object，The item to add to the conversation.
+id
+string 
+可选
+The unique ID of the item.
+type1
+string 
+可选
+这个参数是type，The type of the item ("message", "function_call", "function_call_output").The status of the item ("completed", "in_progress", "incomplete").
+status
+string 
+可选
+The status of the item ("completed", "in_progress", "incomplete").
+role
+string 
+可选
+The role of the message sender ("user", "assistant", "system").
+content
+array[string]
+可选
+The content of the message.
+示例:
+["type","text","audio","transcript"]
+call_id
+string 
+可选
+The ID of the function call (for "function_call" items).
+name
+string 
+可选
+The name of the function being called (for "function_call" items).
+arguments
+string 
+可选
+The arguments of the function call (for "function_call" items).
+output
+string 
+可选
+The output of the function call (for "function_call_output" items).
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+
+******
+Client events
+conversation.item.truncate
+开发中
+wss://api.openai.com/v1/realtime
+Send this event when you want to truncate a previous assistant message’s audio.
+请求参数
+Query 参数
+event_id
+string 
+可选
+Optional client-generated ID used to identify this event.
+示例:
+event_678
+type
+string 
+可选
+The event type, must be "conversation.item.truncate".
+示例:
+conversation.item.truncate
+item_id
+string 
+可选
+The ID of the assistant message item to truncate.
+示例:
+msg_002
+content_index
+integer 
+可选
+The index of the content part to truncate.
+示例:
+0
+audio_end_ms
+integer 
+可选
+Inclusive duration up to which audio is truncated, in milliseconds.
+示例:
+1500
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+******
+Client events
+conversation.item.delete
+开发中
+wss://api.openai.com/v1/realtime
+Send this event when you want to remove any item from the conversation history.
+请求参数
+Query 参数
+event_id
+string 
+可选
+Optional client-generated ID used to identify this event.
+示例:
+event_901
+type
+string 
+可选
+The event type, must be "conversation.item.delete".
+示例:
+conversation.item.delete
+item_id
+string 
+可选
+The ID of the item to delete.
+示例:
+msg_003
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+******
+Client events
+response.create
+开发中
+wss://api.openai.com/v1/realtime
+Send this event to trigger a response generation.
+请求参数
+Query 参数
+event_id
+string 
+可选
+Optional client-generated ID used to identify this event
+示例:
+event_234
+type
+string 
+可选
+The event type, must be "response.create".
+示例:
+response.create
+response
+string 
+可选
+object类型，以下参数为其中参数。Configuration for the response.
+modalities
+string 
+可选
+The modalities for the response.
+示例:
+["text", "audio"]
+instructions
+string 
+可选
+Instructions for the model.
+示例:
+Please assist the user.
+voice
+string 
+可选
+The voice the model uses to respond - one of alloy, echo, or shimmer.
+示例:
+alloy
+output_audio_format
+string 
+可选
+The format of output audio.
+示例:
+pcm16
+tools
+array[string]
+可选
+Tools (functions) available to the model.
+示例:
+["type","name","description","parameters"]
+tool_choice
+string 
+可选
+How the model chooses tools.
+示例:
+auto
+temperature
+number 
+可选
+Sampling temperature.
+示例:
+0.7
+max_output_tokens
+integer 
+可选
+Maximum number of output tokens for a single assistant response, inclusive of tool calls. Provide an integer between 1 and 4096 to limit output tokens, or "inf" for the maximum available tokens for a given model. Defaults to "inf".
+示例:
+150
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+******
+Client events
+response.cancel
+开发中
+wss://api.openai.com/v1/realtime
+Send this event to cancel an in-progress response.
+请求参数
+Query 参数
+event_id
+string 
+可选
+Optional client-generated ID used to identify this event.
+示例:
+event_567
+type
+string 
+可选
+The event type, must be "response.cancel".
+示例:
+response.cancel
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+*****
+Server events
+error
+开发中
+wss://api.openai.com/v1/realtime
+Returned when an error occurs.
+请求参数
+Query 参数
+event_id
+array[string]
+可选
+The unique ID of the server event.
+示例:
+["event_890"]
+type
+string 
+可选
+The event type, must be "error".
+示例:
+error
+error
+string 
+可选
+object,以下参数皆为object下参数，Details of the error.
+type1
+string 
+可选
+type1为type，The type of error (e.g., "invalid_request_error", "server_error").
+示例:
+invalid_request_error
+code
+string 
+可选
+Error code, if any.
+示例:
+invalid_event
+message
+string 
+可选
+A human-readable error message.
+示例:
+The 'type' field is missing.
+param
+string 
+可选
+Parameter related to the error, if any.
+示例:
+null
+event_id1
+string 
+可选
+event_id1为event_id
+示例:
+event_567
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+******
+Server events
+conversation.item.input_audio_transcription.completed
+开发中
+wss://api.openai.com/v1/realtime
+Returned when input audio transcription is enabled and a transcription succeeds.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_2122
+type
+string 
+可选
+The event type, must be "conversation.item.input_audio_transcription.completed".
+示例:
+conversation.item.input_audio_transcription.completed
+item_id
+string 
+可选
+The ID of the user message item.
+示例:
+msg_003
+content_index
+integer 
+可选
+The index of the content part containing the audio.
+示例:
+0
+transcript
+string 
+可选
+The transcribed text.
+示例:
+Hello, how are you?
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+
+******
+Server events
+conversation.item.input_audio_transcription.failed
+开发中
+wss://api.openai.com/v1/realtime
+Returned when input audio transcription is configured, and a transcription request for a user message failed.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_2324
+type
+array[string]
+可选
+The event type, must be "conversation.item.input_audio_transcription.completed".
+示例:
+["conversation.item.input_audio_transcription.failed"]
+item_id
+string 
+可选
+The ID of the user message item.
+示例:
+msg_003
+content_index
+integer 
+可选
+The index of the content part containing the audio.
+示例:
+0
+error
+string 
+可选
+object类型，以为其中参数，
+type1
+string 
+可选
+为type,The type of error.
+示例:
+"transcription_error
+code
+string 
+可选
+Error code, if any.
+示例:
+audio_unintelligible
+message
+string 
+可选
+A human-readable error message.
+示例:
+The audio could not be transcribed.
+param
+string 
+可选
+Parameter related to the error, if any.
+示例:
+null
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+*********
+Server events
+conversation.item.truncated
+开发中
+wss://api.openai.com/v1/realtime
+Returned when an earlier assistant audio message item is truncated by the client.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_2526
+type
+string 
+可选
+The event type, must be "conversation.item.truncated".
+示例:
+conversation.item.truncated
+item_id
+string 
+可选
+The ID of the assistant message item that was truncated.
+示例:
+msg_004
+content_index
+integer 
+可选
+The index of the content part that was truncated.
+示例:
+0
+audio_end_ms
+integer 
+可选
+The duration up to which the audio was truncated, in milliseconds.
+示例:
+1500
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+******
+Server events
+conversation.item.deleted
+开发中
+wss://api.openai.com/v1/realtime
+Returned when an item in the conversation is deleted.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_2728
+type
+string 
+可选
+The event type, must be "conversation.item.deleted".
+示例:
+conversation.item.deleted
+item_id
+string 
+可选
+The ID of the item that was deleted.
+示例:
+msg_005
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+******
+Server events
+input_audio_buffer.committed
+开发中
+wss://api.openai.com/v1/realtime
+Returned when an input audio buffer is committed, either by the client or automatically in server VAD mode.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_1121
+type
+string 
+可选
+The event type, must be "input_audio_buffer.committed".
+示例:
+input_audio_buffer.committed
+previous_item_id
+string 
+可选
+The ID of the preceding item after which the new item will be inserted.
+示例:
+msg_001
+item_id
+string 
+可选
+The ID of the user message item that will be created.
+示例:
+msg_002
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+*******
+Server events
+input_audio_buffer.cleared
+开发中
+wss://api.openai.com/v1/realtime
+Returned when the input audio buffer is cleared by the client.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_1314
+type
+string 
+可选
+The event type, must be "input_audio_buffer.cleared".
+示例:
+input_audio_buffer.cleared
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+
+******
+Server events
+input_audio_buffer.speech_started
+开发中
+wss://api.openai.com/v1/realtime
+Returned in server turn detection mode when speech is detected.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_1516
+type
+string 
+可选
+The event type, must be "input_audio_buffer.speech_started".
+示例:
+input_audio_buffer.speech_started
+audio_start_ms
+integer 
+可选
+Milliseconds since the session started when speech was detected.
+示例:
+1000
+item_id
+string 
+可选
+The ID of the user message item that will be created when speech stops.
+示例:
+msg_003
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+******
+Server events
+input_audio_buffer.speech_stopped
+开发中
+wss://api.openai.com/v1/realtime
+Returned in server turn detection mode when speech stops.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_1718
+type
+string 
+可选
+The event type, must be "input_audio_buffer.speech_stopped".
+示例:
+input_audio_buffer.speech_stopped
+audio_start_ms
+integer 
+可选
+Milliseconds since the session started when speech stopped.
+示例:
+2000
+item_id
+string 
+可选
+The ID of the user message item that will be created.
+示例:
+msg_003
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+
+******
+Server events
+response.created
+开发中
+wss://api.openai.com/v1/realtime
+Returned when a new Response is created. The first event of response creation, where the response is in an initial state of "in_progress".
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_2930
+type
+string 
+可选
+The event type, must be "response.created".
+示例:
+response.created
+response
+string 
+可选
+object类型，以下为其中参数，The response resource.
+id
+string 
+可选
+The unique ID of the response.
+示例:
+resp_001
+object
+string 
+可选
+The object type, must be "realtime.response".
+示例:
+realtime.response
+status
+string 
+可选
+The status of the response ("in_progress").
+示例:
+in_progress
+status_details
+string 
+可选
+object类型，Additional details about the status.
+示例:
+null
+output
+array[string]
+可选
+The list of output items generated by the response.
+示例:
+["[]"]
+usage
+string 
+可选
+object类型，Usage statistics for the response.
+示例:
+null
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+******
+Server events
+response.done
+开发中
+wss://api.openai.com/v1/realtime
+Returned when a Response is done streaming. Always emitted, no matter the final state.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_3132
+type
+string 
+可选
+The event type, must be "response.done".
+示例:
+response.done
+response
+string 
+可选
+object类型，以下为其中参数，The response resource.
+id
+string 
+可选
+The unique ID of the response.
+示例:
+resp_001
+object
+string 
+可选
+The object type, must be "realtime.response".
+示例:
+realtime.response
+status
+string 
+可选
+The final status of the response ("completed", "cancelled", "failed", "incomplete").
+示例:
+in_progress
+status_details
+string 
+可选
+object类型，Additional details about the status.
+示例:
+null
+output
+array[string]
+可选
+The list of output items generated by the response.
+示例:
+["[\r\n {\r\n \"id\": \"msg_006\",\r\n \"object\": \"realtime.item\",\r\n \"type\": \"message\",\r\n \"status\": \"completed\",\r\n \"role\": \"assistant\",\r\n \"content\": [\r\n {\r\n \"type\": \"text\",\r\n \"text\": \"Sure, how can I assist you today?\"\r\n }\r\n ]\r\n }\r\n ]"]
+usage
+string 
+可选
+object类型，Usage statistics for the response.
+示例:
+{ "total_tokens": 50, "input_tokens": 20, "output_tokens": 30 }
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+******
+Server events
+response.output_item.added
+开发中
+wss://api.openai.com/v1/realtime
+Returned when a new Item is created during response generation.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_3334
+type
+string 
+可选
+The event type, must be "response.output_item.added".
+示例:
+response.output_item.added
+response_id
+string 
+可选
+The ID of the response to which the item belongs.
+示例:
+resp_001
+output_index
+string 
+可选
+The index of the output item in the response.
+示例:
+0
+item
+string 
+可选
+object类型，以下为其中参数
+id
+string 
+可选
+The unique ID of the item.
+示例:
+msg_007
+object
+string 
+可选
+The object type, must be "realtime.item".
+示例:
+realtime.item
+type1
+string 
+可选
+为type,The type of the item ("message", "function_call", "function_call_output").
+示例:
+message
+status
+string 
+可选
+The status of the item ("in_progress", "completed").
+示例:
+in_progress
+role
+string 
+可选
+The role associated with the item ("assistant").
+示例:
+assistant
+content
+array[string]
+可选
+The content of the item.
+示例:
+["type","text","audio","transcript"]
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+
+******
+Server events
+response.output_item.done
+开发中
+wss://api.openai.com/v1/realtime
+Returned when an Item is done streaming. Also emitted when a Response is interrupted, incomplete, or cancelled.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_3536
+type
+string 
+可选
+The event type, must be "response.output_item.done".
+示例:
+response.output_item.donene
+response_id
+string 
+可选
+The ID of the response to which the item belongs.
+示例:
+resp_001
+output_index
+string 
+可选
+The index of the output item in the response.
+示例:
+0
+item
+string 
+可选
+object类型，以下为其中参数
+id
+string 
+可选
+The unique ID of the item.
+示例:
+msg_007
+object
+string 
+可选
+The object type, must be "realtime.item".
+示例:
+realtime.item
+type1
+string 
+可选
+为type,The type of the item ("message", "function_call", "function_call_output").
+示例:
+message
+status
+string 
+可选
+The final status of the item ("completed", "incomplete").
+示例:
+completed
+role
+string 
+可选
+The role associated with the item ("assistant").
+示例:
+assistant
+content
+array[string]
+可选
+The content of the item.
+示例:
+["type","text","audio","transcript"]
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+
+***********
+Server events
+response.content_part.added
+开发中
+wss://api.openai.com/v1/realtime
+Returned when a new content part is added to an assistant message item during response generation.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_3738
+type
+string 
+可选
+The event type, must be "response.content_part.added".
+示例:
+response.content_part.added
+response_id
+string 
+可选
+The ID of the response.
+示例:
+resp_001
+item_id
+string 
+可选
+The ID of the item to which the content part was added.
+示例:
+msg_007
+output_index
+integer 
+可选
+The index of the output item in the response.
+示例:
+0
+content_index
+integer 
+可选
+The index of the content part in the item's content array.
+示例:
+0
+part
+string 
+可选
+object类型，以下为其中参数。The content part that was added.
+type1
+string 
+可选
+The content type ("text", "audio").
+text
+string 
+可选
+The text content (if type is "text").
+audio
+string 
+可选
+Base64-encoded audio data (if type is "audio").
+transcript
+string 
+可选
+The transcript of the audio (if type is "audio").
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+*******
+Server events
+response.content_part.done
+开发中
+wss://api.openai.com/v1/realtime
+Returned when a content part is done streaming in an assistant message item. Also emitted when a Response is interrupted, incomplete, or cancelled.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_3940
+type
+string 
+可选
+The event type, must be "response.content_part.done".
+示例:
+response.content_part.done
+response_id
+string 
+可选
+The ID of the response.
+示例:
+resp_001
+item_id
+string 
+可选
+The ID of the item to which the content part was added.
+示例:
+msg_007
+output_index
+integer 
+可选
+The index of the output item in the response.
+示例:
+0
+content_index
+integer 
+可选
+The index of the content part in the item's content array.
+示例:
+0
+part
+string 
+可选
+object类型，以下为其中参数。The content part that was added.
+type1
+string 
+可选
+The content type ("text", "audio").
+text
+string 
+可选
+The text content (if type is "text").
+audio
+string 
+可选
+Base64-encoded audio data (if type is "audio").
+transcript
+string 
+可选
+The transcript of the audio (if type is "audio").
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+*********
+Server events
+response.text.delta
+开发中
+wss://api.openai.com/v1/realtime
+Returned when the text value of a "text" content part is updated.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_4142
+type
+string 
+可选
+The event type, must be "response.text.delta".
+示例:
+response.text.delta
+response_id
+string 
+可选
+The ID of the response.
+示例:
+resp_001
+item_id
+string 
+可选
+The ID of the item.
+示例:
+msg_007
+output_index
+integer 
+可选
+The index of the output item in the response.
+示例:
+0
+content_index
+integer 
+可选
+The index of the content part in the item's content array.
+示例:
+0
+delta
+string 
+可选
+The text delta.
+示例:
+Sure, I can h
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+**********
+Server events
+response.text.done
+开发中
+wss://api.openai.com/v1/realtime
+Returned when the text value of a "text" content part is done streaming. Also emitted when a Response is interrupted, incomplete, or cancelled.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_4344
+type
+string 
+可选
+The event type, must be "response.text.done".
+示例:
+response.text.done
+response_id
+string 
+可选
+The ID of the response.
+示例:
+resp_001
+item_id
+string 
+可选
+The ID of the item.
+示例:
+msg_007
+output_index
+integer 
+可选
+The index of the output item in the response.
+示例:
+0
+content_index
+integer 
+可选
+The index of the content part in the item's content array.
+示例:
+0
+delta
+string 
+可选
+The text delta.
+示例:
+Sure, I can help with that.
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+*************
+Server events
+response.audio_transcript.delta
+开发中
+wss://api.openai.com/v1/realtime
+Returned when the model-generated transcription of audio output is updated.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_4546
+type
+string 
+可选
+The event type, must be "response.audio_transcript.delta".
+示例:
+response.audio_transcript.delta
+response_id
+string 
+可选
+The ID of the response.
+示例:
+resp_001
+item_id
+string 
+可选
+The ID of the item.
+示例:
+msg_008
+output_index
+integer 
+可选
+The index of the output item in the response.
+示例:
+0
+content_index
+integer 
+可选
+The index of the content part in the item's content array.
+示例:
+0
+delta
+string 
+可选
+The text delta.
+示例:
+Hello, how can I a
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+******
+
+Server events
+response.audio_transcript.done
+开发中
+wss://api.openai.com/v1/realtime
+Returned when the model-generated transcription of audio output is done streaming. Also emitted when a Response is interrupted, incomplete, or cancelled.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_4748
+type
+string 
+可选
+The event type, must be "response.audio_transcript.done".
+示例:
+response.audio_transcript.done
+response_id
+string 
+可选
+The ID of the response.
+示例:
+resp_001
+item_id
+string 
+可选
+The ID of the item.
+示例:
+msg_008
+output_index
+integer 
+可选
+The index of the output item in the response.
+示例:
+0
+content_index
+integer 
+可选
+The index of the content part in the item's content array.
+示例:
+0
+transcript
+string 
+可选
+The final transcript of the audio.
+示例:
+Hello, how can I assist you today?
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+
+*********
+Server events
+response.audio.delta
+开发中
+wss://api.openai.com/v1/realtime
+Returned when the model-generated audio is updated.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_4950
+type
+string 
+可选
+The event type, must be "response.audio.delta".
+示例:
+response.audio.delta
+response_id
+string 
+可选
+The ID of the response.
+示例:
+resp_001
+item_id
+string 
+可选
+The ID of the item.
+示例:
+msg_008
+output_index
+integer 
+可选
+The index of the output item in the response.
+示例:
+0
+content_index
+integer 
+可选
+The index of the content part in the item's content array.
+示例:
+0
+delta
+string 
+可选
+Base64-encoded audio data delta.
+示例:
+Base64EncodedAudioDelta
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+*******
+
+Server events
+response.audio.done
+开发中
+wss://api.openai.com/v1/realtime
+Returned when the model-generated audio is done. Also emitted when a Response is interrupted, incomplete, or cancelled.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_5152
+type
+string 
+可选
+The event type, must be "response.audio.done".
+示例:
+response.audio.done
+response_id
+string 
+可选
+The ID of the response.
+示例:
+resp_001
+item_id
+string 
+可选
+The ID of the item.
+示例:
+msg_008
+output_index
+integer 
+可选
+The index of the output item in the response.
+示例:
+0
+content_index
+integer 
+可选
+The index of the content part in the item's content array.
+示例:
+0
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+**********
+
+Server events
+response.function_call_arguments.delta
+开发中
+wss://api.openai.com/v1/realtime
+Returned when the model-generated function call arguments are updated.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_5354
+type
+string 
+可选
+The event type, must be "response.function_call_arguments.delta".
+示例:
+response.function_call_arguments.delta
+response_id
+string 
+可选
+The ID of the response.
+示例:
+resp_002
+item_id
+string 
+可选
+The ID of the item.
+示例:
+fc_001
+output_index
+integer 
+可选
+The index of the output item in the response.
+示例:
+0
+call_id
+string 
+可选
+The ID of the function call.
+示例:
+call_001
+delta
+string 
+可选
+The arguments delta as a JSON string.
+示例:
+{\"location\": \"San\"
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+
+*********
+Server events
+response.function_call_arguments.done
+开发中
+wss://api.openai.com/v1/realtime
+Returned when the model-generated function call arguments are done streaming. Also emitted when a Response is interrupted, incomplete, or cancelled.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_5556
+type
+string 
+可选
+The event type, must be "response.function_call_arguments.done".
+示例:
+response.function_call_arguments.done
+response_id
+string 
+可选
+The ID of the response.
+示例:
+resp_002
+item_id
+string 
+可选
+The ID of the item.
+示例:
+fc_001
+output_index
+integer 
+可选
+The index of the output item in the response.
+示例:
+0
+call_id
+string 
+可选
+The ID of the function call.
+示例:
+call_001
+arguments
+string 
+可选
+The final arguments as a JSON string.
+示例:
+{\"location\": \"San Francisco\"}
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+
+**********
+rate_limits.updated
+开发中
+wss://api.openai.com/v1/realtime
+Emitted after every "response.done" event to indicate the updated rate limits.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_5758
+type
+string 
+可选
+The event type, must be "rate_limits.updated".
+示例:
+rate_limits.updated
+rate_limits
+array[string]
+可选
+List of rate limit information.
+示例:
+["name","limit","remaining","reset_seconds"]
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+
+******
+conversation.created
+开发中
+wss://api.openai.com/v1/realtime
+Returned when a conversation is created. Emitted right after session creation.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_9101
+type
+string 
+可选
+The event type, must be "conversation.created".
+示例:
+conversation.created
+conversation
+string 
+可选
+object类型，以下参数为其中参数，The conversation resource.
+id
+string 
+可选
+The unique ID of the conversation.
+示例:
+conv_001
+object
+string 
+可选
+The object type, must be "realtime.conversation".
+示例:
+realtime.conversation
+Header 参数
+
+
+********
+Server events
+conversation.item.created
+开发中
+wss://api.openai.com/v1/realtime
+Returned when a conversation item is created.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_1920
+type
+string 
+可选
+The event type, must be "conversation.item.created".
+示例:
+conversation.item.created
+previous_item_id
+string 
+可选
+The ID of the preceding item.
+示例:
+msg_002
+item
+string 
+可选
+object类型，以为皆为其中参数
+id
+string 
+可选
+The unique ID of the item.
+示例:
+msg_003
+object
+string 
+可选
+The object type, must be "realtime.item".
+示例:
+realtime.item
+type1
+string 
+可选
+为type，The type of the item ("message", "function_call", "function_call_output").
+示例:
+message
+status
+string 
+可选
+The status of the item ("completed", "in_progress", "incomplete").
+示例:
+completed
+role
+string 
+可选
+The role associated with the item ("user", "assistant", "system").
+示例:
+user
+content
+array[string]
+可选
+The content of the item.
+示例:
+["type","text","audio","transcript"]
+call_id
+string 
+可选
+The ID of the function call (for "function_call" items).
+name
+string 
+可选
+The name of the function being called.
+arguments
+string 
+可选
+The arguments of the function call.
+output
+string 
+可选
+The output of the function call (for "function_call_output" items).
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+
+******
+Server events
+session.created
+开发中
+wss://api.openai.com/v1/realtime
+Returned when a session is created. Emitted automatically when a new connection is established.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_1234
+type
+string 
+可选
+The event type, must be "session.created".
+示例:
+session.created
+session
+string 
+可选
+object类型，以下皆为其中参数
+id
+string 
+可选
+The unique ID of the session.
+object
+string 
+可选
+The object type, must be "realtime.session".
+model
+string 
+可选
+The default model used for this session.
+modalities
+array[string]
+可选
+The set of modalities the model can respond with.
+示例:
+[""]
+instructions
+string 
+可选
+The default system instructions.
+voice
+string 
+可选
+The voice the model uses to respond - one of alloy, echo, or shimmer.
+input_audio_format
+string 
+可选
+The format of input audio.
+output_audio_format
+string 
+可选
+The format of output audio.
+input_audio_transcription
+string 
+可选
+object类型，enabled、model都为其参数，Configuration for input audio transcription.
+enabled
+boolean 
+可选
+Whether input audio transcription is enabled.
+model1
+string 
+可选
+为model，The model used for transcription.
+turn_detection
+string 
+可选
+object类型，type、threshold、prefix_padding_ms、silence_duration_ms都为其参数
+type2
+string 
+可选
+The type of turn detection ("server_vad" or "none").
+threshold
+number 
+可选
+Activation threshold for VAD.
+prefix_padding_ms
+integer 
+可选
+Audio included before speech starts (in milliseconds).
+silence_duration_ms
+integer 
+可选
+Duration of silence to detect speech stop (in milliseconds).
+tools
+array[string]
+可选
+Tools (functions) available to the model.
+示例:
+["type","name","description","parameters"]
+tool_choice
+string 
+可选
+How the model chooses tools.
+temperature
+number 
+可选
+Sampling temperature.
+max_output_tokens
+integer 
+可选
+Maximum number of output tokens.
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1
+
+
+*********
+Server events
+session.updated
+开发中
+wss://api.openai.com/v1/realtime
+Returned when a session is updated.
+请求参数
+Query 参数
+event_id
+string 
+可选
+The unique ID of the server event.
+示例:
+event_5678
+type
+string 
+可选
+The event type, must be "session.updated".
+示例:
+session.updated
+session
+string 
+可选
+object类型，以下皆为其中参数，The updated session resource.
+id
+string 
+可选
+The unique ID of the session.
+object
+string 
+可选
+The object type, must be "realtime.session".
+model
+string 
+可选
+The default model used for this session.
+modalities
+array[string]
+可选
+The set of modalities the model can respond with.
+示例:
+[""]
+instructions
+string 
+可选
+The default system instructions.
+voice
+string 
+可选
+The voice the model uses to respond - one of alloy, echo, or shimmer.
+input_audio_format
+string 
+可选
+The format of input audio.
+output_audio_format
+string 
+可选
+The format of output audio.
+input_audio_transcription
+string 
+可选
+object类型，enabled、model都为其参数，Configuration for input audio transcription.
+enabled
+boolean 
+可选
+Whether input audio transcription is enabled.
+model1
+string 
+可选
+为model，The model used for transcription.
+turn_detection
+string 
+可选
+object类型，type、threshold、prefix_padding_ms、silence_duration_ms都为其参数
+type2
+string 
+可选
+The type of turn detection ("server_vad" or "none").
+threshold
+number 
+可选
+Activation threshold for VAD.
+prefix_padding_ms
+integer 
+可选
+Audio included before speech starts (in milliseconds).
+silence_duration_ms
+integer 
+可选
+Duration of silence to detect speech stop (in milliseconds).
+tools
+array[string]
+可选
+Tools (functions) available to the model.
+示例:
+["type","name","description","parameters"]
+tool_choice
+string 
+可选
+How the model chooses tools.
+temperature
+number 
+可选
+Sampling temperature.
+max_output_tokens
+integer 
+可选
+Maximum number of output tokens.
+Header 参数
+Authorization
+string 
+可选
+示例:
+Bearer YOUR_API_KEY
+OpenAI-Beta
+string 
+可选
+示例:
+realtime=v1

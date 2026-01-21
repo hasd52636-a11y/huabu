@@ -1472,8 +1472,8 @@ export class BatchProcessor {
     };
     
     const defaultSettings: ProviderSettings = {
-      provider: 'google',
-      modelId: 'veo-3.1-fast-generate-preview'
+      provider: 'shenma',
+      modelId: 'sora_video2'
     };
     
     this.startProcessingInterval(config, defaultSettings);

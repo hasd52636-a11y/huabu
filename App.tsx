@@ -61,6 +61,8 @@ import BatchInputConfigModal from './components/BatchInputConfigModal';
 import TokenConsumptionDisplay from './components/TokenConsumptionDisplay';
 import CharacterPanel from './components/CharacterPanel';
 import FeatureAssemblyPanel from './components/FeatureAssemblyPanel';
+import ModelSelector from './components/ModelSelector';
+import ParameterPanel from './components/ParameterPanel';
 import { characterService } from './services/CharacterService';
 import { aiService } from './services/geminiService';
 import { MultiProviderAIService } from './adapters/AIServiceAdapter';
@@ -114,6 +116,7 @@ const App: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sidebarInput, setSidebarInput] = useState('');
   const [chatMode, setChatMode] = useState<BlockType>('text');
+  const [selectedTextModel, setSelectedTextModel] = useState<string>('gemini-3-flash-preview-nothinking'); // 当前选择的文本模型
   const [isAssistantMode, setIsAssistantMode] = useState(false);
   const [assistantGuideContent, setAssistantGuideContent] = useState('');
   
@@ -201,6 +204,9 @@ const App: React.FC = () => {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showBatchVideoModal, setShowBatchVideoModal] = useState(false);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
+  const [showParameterPanel, setShowParameterPanel] = useState(false);
+  const [parameterPanelType, setParameterPanelType] = useState<'image' | 'video'>('image');
+  const [parameterPanelModel, setParameterPanelModel] = useState<string>('');
   const [batchState, setBatchState] = useState<BatchGenerationState | undefined>();
   const [isProgressMinimized, setIsProgressMinimized] = useState(false);
   const [aiServiceAdapter] = useState(() => new MultiProviderAIService());
@@ -251,8 +257,8 @@ const App: React.FC = () => {
   const [modelConfig, setModelConfig] = useState<NewModelConfig>({
     providers: {},
     text: { provider: 'google', modelId: 'gemini-3-flash-preview' },
-    image: { provider: 'google', modelId: 'gemini-3-pro-image-preview' },
-    video: { provider: 'google', modelId: 'veo-3.1-fast-generate-preview' },
+    image: { provider: 'shenma', modelId: 'nano-banana-hd' },
+    video: { provider: 'shenma', modelId: 'sora_video2' },
     _meta: {
       version: '2.0',
       lastSaved: Date.now()
@@ -1158,6 +1164,25 @@ const App: React.FC = () => {
     } else {
       console.log('[App] No saved configuration found, using defaults');
     }
+    
+    // 加载用户模型偏好设置
+    import('./utils/ModelPreferencesStorage').then(({ ModelPreferencesStorage }) => {
+      const preferences = ModelPreferencesStorage.getPreferences();
+      console.log('[App] ✓ User model preferences loaded:', preferences);
+      
+      // 更新模型配置以反映用户偏好
+      setModelConfig(prev => ({
+        ...prev,
+        image: { ...prev.image, modelId: preferences.defaultImageModel },
+        video: { ...prev.video, modelId: preferences.defaultVideoModel },
+        text: { ...prev.text, modelId: preferences.defaultTextModel }
+      }));
+      
+      // 更新选中的文本模型
+      setSelectedTextModel(preferences.defaultTextModel);
+    }).catch(error => {
+      console.warn('[App] Failed to load user preferences:', error);
+    });
     
     // Initialize preset prompts
     const { prompts, selectedIndex } = loadPresetPrompts();
@@ -2314,7 +2339,19 @@ ${inputText || "Generate from attachment"}
     }
     
     try {
-      const settings = currentMode === 'text' ? legacyConfig.text : currentMode === 'image' ? legacyConfig.image : legacyConfig.video;
+      // 对于文本模式，使用用户选择的模型；其他模式使用配置中的默认模型
+      let settings: ProviderSettings;
+      if (currentMode === 'text') {
+        // 创建临时配置以使用选择的文本模型
+        const tempConfig = {
+          ...modelConfig,
+          text: { provider: modelConfig.text.provider, modelId: selectedTextModel }
+        };
+        settings = getProviderSettings(tempConfig, 'text');
+      } else {
+        settings = currentMode === 'image' ? legacyConfig.image : legacyConfig.video;
+      }
+      
       let result = '';
       
       const parts: any[] = [];
@@ -3256,6 +3293,60 @@ Canvas 智能创作平台
 
   const handleClosePresetPromptModal = () => {
     setShowPresetPromptModal(false);
+  };
+
+  // Parameter Panel handlers
+  const handleOpenParameterPanel = (type: 'image' | 'video', modelId?: string) => {
+    setParameterPanelType(type);
+    setParameterPanelModel(modelId || (type === 'image' ? modelConfig.image.modelId : modelConfig.video.modelId));
+    setShowParameterPanel(true);
+  };
+
+  const handleCloseParameterPanel = () => {
+    setShowParameterPanel(false);
+  };
+
+  const handleParametersChange = async (parameters: any) => {
+    try {
+      // 在画布中心创建新块
+      const centerX = -pan.x / zoom + (window.innerWidth * 0.7) / (2 * zoom);
+      const centerY = -pan.y / zoom + window.innerHeight / (2 * zoom);
+
+      const newBlock = addBlock(parameterPanelType, '', centerX, centerY);
+      
+      if (newBlock) {
+        // 应用参数到新块
+        setBlocks(prev => prev.map(b => 
+          b.id === newBlock.id 
+            ? { 
+                ...b, 
+                aspectRatio: parameters.aspectRatio || (parameterPanelType === 'image' ? '16:9' : '16:9'),
+                duration: parameters.duration || (parameterPanelType === 'video' ? '10' : undefined),
+                originalPrompt: parameters.prompt || ''
+              }
+            : b
+        ));
+
+        // 如果有提示词，立即开始生成
+        if (parameters.prompt && parameters.prompt.trim()) {
+          await handleGenerate(newBlock.id, parameters.prompt);
+        }
+
+        showSuccess(
+          lang === 'zh' ? '参数已应用' : 'Parameters Applied',
+          lang === 'zh' ? `已创建${parameterPanelType === 'image' ? '图像' : '视频'}模块并应用参数` : `Created ${parameterPanelType} module with parameters`
+        );
+      }
+
+      // 关闭参数面板
+      setShowParameterPanel(false);
+    } catch (error) {
+      console.error('Failed to apply parameters:', error);
+      showError(
+        lang === 'zh' ? '参数应用失败' : 'Parameter Application Failed',
+        error instanceof Error ? error.message : '未知错误'
+      );
+    }
   };
 
   const handleSavePresetPrompts = (prompts: PresetPrompt[]) => {
@@ -4220,6 +4311,128 @@ ${block.content}
           {/* Chat Input Area */}
           {sidebarTab === 'chat' && (
             <div className="p-8 border-t-2 border-black/5 bg-slate-50 dark:bg-black/20">
+            
+            {/* Model Selectors */}
+            <div className="mb-4 space-y-3">
+              {/* Text Model Selector */}
+              {chatMode === 'text' && (
+                <div>
+                  <div className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">
+                    {lang === 'zh' ? '文本模型' : 'Text Model'}
+                  </div>
+                  <ModelSelector
+                    generationType="text"
+                    modelConfig={modelConfig}
+                    selectedModelId={selectedTextModel}
+                    onModelSelect={setSelectedTextModel}
+                    theme={theme}
+                    lang={lang}
+                    className="w-full"
+                  />
+                </div>
+              )}
+              
+              {/* Image Model Selector */}
+              {chatMode === 'image' && (
+                <div>
+                  <div className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">
+                    {lang === 'zh' ? '图像模型' : 'Image Model'}
+                  </div>
+                  <div className="flex gap-2">
+                    {/* 模型选择器 - 占用三分之二宽度 */}
+                    <div className="flex-[2]">
+                      <ModelSelector
+                        generationType="image"
+                        modelConfig={modelConfig}
+                        selectedModelId={modelConfig.image.modelId}
+                        onModelSelect={(modelId) => {
+                          setModelConfig(prev => ({
+                            ...prev,
+                            image: { ...prev.image, modelId }
+                          }));
+                          // 保存到用户偏好，带错误处理
+                          import('./utils/ModelPreferencesStorage').then(({ ModelPreferencesStorage }) => {
+                            const success = ModelPreferencesStorage.setImageModelPreference(modelId);
+                            if (!success) {
+                              import('./services/ModelErrorHandler').then(({ ModelErrorHandler }) => {
+                                const fallbackResult = ModelErrorHandler.handleStorageFailure('save', lang);
+                                console.warn('[App] Image model preference save failed:', fallbackResult.reason);
+                              });
+                            }
+                          });
+                        }}
+                        theme={theme}
+                        lang={lang}
+                        className="w-full"
+                      />
+                    </div>
+                    
+                    {/* 参数设置按钮 - 占用三分之一宽度 */}
+                    <div className="flex-1">
+                      <button
+                        onClick={() => handleOpenParameterPanel('image', modelConfig.image.modelId)}
+                        className="w-full h-[44px] p-2 bg-violet-500 hover:bg-violet-600 text-white rounded-lg transition-colors flex items-center justify-center gap-1 text-xs font-medium"
+                        title={lang === 'zh' ? '图像参数设置' : 'Image Parameters'}
+                      >
+                        <Settings size={14} />
+                        <span className="hidden sm:inline">{lang === 'zh' ? '参数' : 'Params'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Video Model Selector */}
+              {chatMode === 'video' && (
+                <div>
+                  <div className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">
+                    {lang === 'zh' ? '视频模型' : 'Video Model'}
+                  </div>
+                  <div className="flex gap-2">
+                    {/* 模型选择器 - 占用三分之二宽度 */}
+                    <div className="flex-[2]">
+                      <ModelSelector
+                        generationType="video"
+                        modelConfig={modelConfig}
+                        selectedModelId={modelConfig.video.modelId}
+                        onModelSelect={(modelId) => {
+                          setModelConfig(prev => ({
+                            ...prev,
+                            video: { ...prev.video, modelId }
+                          }));
+                          // 保存到用户偏好，带错误处理
+                          import('./utils/ModelPreferencesStorage').then(({ ModelPreferencesStorage }) => {
+                            const success = ModelPreferencesStorage.setVideoModelPreference(modelId);
+                            if (!success) {
+                              import('./services/ModelErrorHandler').then(({ ModelErrorHandler }) => {
+                                const fallbackResult = ModelErrorHandler.handleStorageFailure('save', lang);
+                                console.warn('[App] Video model preference save failed:', fallbackResult.reason);
+                              });
+                            }
+                          });
+                        }}
+                        theme={theme}
+                        lang={lang}
+                        className="w-full"
+                      />
+                    </div>
+                    
+                    {/* 参数设置按钮 - 占用三分之一宽度 */}
+                    <div className="flex-1">
+                      <button
+                        onClick={() => handleOpenParameterPanel('video', modelConfig.video.modelId)}
+                        className="w-full h-[44px] p-2 bg-violet-500 hover:bg-violet-600 text-white rounded-lg transition-colors flex items-center justify-center gap-1 text-xs font-medium"
+                        title={lang === 'zh' ? '视频参数设置' : 'Video Parameters'}
+                      >
+                        <Settings size={14} />
+                        <span className="hidden sm:inline">{lang === 'zh' ? '参数' : 'Params'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
             {/* Attachment Previews */}
             <div className="flex gap-4 mb-4 flex-wrap">
               {pendingChatImage && (
@@ -4374,6 +4587,19 @@ ${block.content}
           onClose={handleCloseTemplateManager}
           currentCanvas={getCurrentCanvasState()}
           onLoadTemplate={handleLoadTemplate}
+          lang={lang}
+        />
+      )}
+
+      {/* Parameter Panel Modal */}
+      {showParameterPanel && (
+        <ParameterPanel
+          isOpen={showParameterPanel}
+          onClose={handleCloseParameterPanel}
+          selectedModel={parameterPanelModel}
+          generationType={parameterPanelType}
+          onParametersChange={handleParametersChange}
+          theme={theme}
           lang={lang}
         />
       )}

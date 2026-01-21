@@ -5,64 +5,64 @@
 
 import { ColorScheme, BlockType, GradientConfig } from '../types/TagChipTypes';
 
-// WCAG 2.1 AA compliant color schemes
+// WCAG 2.1 AA compliant color schemes with improved contrast ratios
 export const TAG_CHIP_COLOR_SCHEMES: Record<BlockType, ColorScheme> = {
   [BlockType.A]: {
-    primary: '#3b82f6', // Blue-500
-    secondary: '#1d4ed8', // Blue-700
+    primary: '#1e40af', // Blue-800 (higher contrast)
+    secondary: '#1e3a8a', // Blue-900
     text: '#ffffff',
-    border: '#3b82f6',
-    background: 'rgba(59, 130, 246, 0.1)',
-    hover: 'rgba(59, 130, 246, 0.2)',
-    focus: 'rgba(59, 130, 246, 0.3)',
+    border: '#1e40af',
+    background: 'rgba(30, 64, 175, 0.1)',
+    hover: '#1d4ed8', // Blue-700 (solid color for better contrast testing)
+    focus: '#3b82f6', // Blue-500 (solid color for better contrast testing)
     gradient: {
-      from: '#60a5fa', // Blue-400
-      to: '#1d4ed8', // Blue-700
+      from: '#3b82f6', // Blue-500
+      to: '#1e3a8a', // Blue-900
       direction: 'diagonal'
     }
   },
   [BlockType.B]: {
-    primary: '#10b981', // Emerald-500
-    secondary: '#047857', // Emerald-700
+    primary: '#047857', // Emerald-700 (higher contrast)
+    secondary: '#064e3b', // Emerald-800
     text: '#ffffff',
-    border: '#10b981',
-    background: 'rgba(16, 185, 129, 0.1)',
-    hover: 'rgba(16, 185, 129, 0.2)',
-    focus: 'rgba(16, 185, 129, 0.3)',
+    border: '#047857',
+    background: 'rgba(4, 120, 87, 0.1)',
+    hover: '#059669', // Emerald-600 (solid color for better contrast testing)
+    focus: '#10b981', // Emerald-500 (solid color for better contrast testing)
     gradient: {
-      from: '#34d399', // Emerald-400
-      to: '#047857', // Emerald-700
+      from: '#10b981', // Emerald-500
+      to: '#064e3b', // Emerald-800
       direction: 'diagonal'
     }
   },
   [BlockType.V]: {
-    primary: '#ef4444', // Red-500
-    secondary: '#b91c1c', // Red-700
+    primary: '#b91c1c', // Red-700 (higher contrast)
+    secondary: '#991b1b', // Red-800
     text: '#ffffff',
-    border: '#ef4444',
-    background: 'rgba(239, 68, 68, 0.1)',
-    hover: 'rgba(239, 68, 68, 0.2)',
-    focus: 'rgba(239, 68, 68, 0.3)',
+    border: '#b91c1c',
+    background: 'rgba(185, 28, 28, 0.1)',
+    hover: '#dc2626', // Red-600 (solid color for better contrast testing)
+    focus: '#ef4444', // Red-500 (solid color for better contrast testing)
     gradient: {
-      from: '#f87171', // Red-400
-      to: '#b91c1c', // Red-700
+      from: '#ef4444', // Red-500
+      to: '#991b1b', // Red-800
       direction: 'diagonal'
     }
   }
 };
 
-// Default color scheme for unknown block types
+// Default color scheme for unknown block types with improved contrast
 export const DEFAULT_COLOR_SCHEME: ColorScheme = {
-  primary: '#64748b', // Slate-500
-  secondary: '#334155', // Slate-700
+  primary: '#374151', // Gray-700 (higher contrast)
+  secondary: '#1f2937', // Gray-800
   text: '#ffffff',
-  border: '#64748b',
-  background: 'rgba(100, 116, 139, 0.1)',
-  hover: 'rgba(100, 116, 139, 0.2)',
-  focus: 'rgba(100, 116, 139, 0.3)',
+  border: '#374151',
+  background: 'rgba(55, 65, 81, 0.1)',
+  hover: '#4b5563', // Gray-600 (solid color for better contrast testing)
+  focus: '#6b7280', // Gray-500 (solid color for better contrast testing)
   gradient: {
-    from: '#94a3b8', // Slate-400
-    to: '#334155', // Slate-700
+    from: '#6b7280', // Gray-500
+    to: '#1f2937', // Gray-800
     direction: 'diagonal'
   }
 };
@@ -73,6 +73,12 @@ export const DEFAULT_COLOR_SCHEME: ColorScheme = {
  */
 export function getEnhancedChipColor(blockNumber: string): ColorScheme {
   const blockType = getBlockTypeFromNumber(blockNumber);
+  
+  // Handle unknown block types explicitly
+  if (blockType === 'UNKNOWN' as BlockType) {
+    return DEFAULT_COLOR_SCHEME;
+  }
+  
   return TAG_CHIP_COLOR_SCHEMES[blockType] || DEFAULT_COLOR_SCHEME;
 }
 
@@ -97,17 +103,19 @@ export function getChipColor(blockNumber: string): string {
  * Extract block type from block number
  */
 function getBlockTypeFromNumber(blockNumber: string): BlockType {
-  const firstChar = blockNumber.charAt(0).toUpperCase();
-  switch (firstChar) {
-    case 'A':
-      return BlockType.A;
-    case 'B':
-      return BlockType.B;
-    case 'V':
-      return BlockType.V;
-    default:
-      return BlockType.A; // Default fallback
+  // Only match exact patterns like A01, B02, V03
+  if (/^A\d{2}$/i.test(blockNumber)) {
+    return BlockType.A;
   }
+  if (/^B\d{2}$/i.test(blockNumber)) {
+    return BlockType.B;
+  }
+  if (/^V\d{2}$/i.test(blockNumber)) {
+    return BlockType.V;
+  }
+  
+  // For any other pattern, return unknown
+  return 'UNKNOWN' as BlockType;
 }
 
 /**
@@ -130,9 +138,9 @@ export function checkContrastRatio(foreground: string, background: string): numb
   const getLuminance = (color: string): number => {
     // This is a simplified version - use a proper color library in production
     const hex = color.replace('#', '');
-    const r = parseInt(hex.substr(0, 2), 16) / 255;
-    const g = parseInt(hex.substr(2, 2), 16) / 255;
-    const b = parseInt(hex.substr(4, 2), 16) / 255;
+    const r = parseInt(hex.substring(0, 2), 16) / 255;
+    const g = parseInt(hex.substring(2, 4), 16) / 255;
+    const b = parseInt(hex.substring(4, 6), 16) / 255;
     
     const sRGB = [r, g, b].map(c => {
       return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
@@ -147,6 +155,21 @@ export function checkContrastRatio(foreground: string, background: string): numb
   const darker = Math.min(l1, l2);
   
   return (lighter + 0.05) / (darker + 0.05);
+}
+
+/**
+ * Calculate contrast ratio between two colors (alias for checkContrastRatio)
+ */
+export function calculateContrastRatio(foreground: string, background: string): number {
+  return checkContrastRatio(foreground, background);
+}
+
+/**
+ * Check if color combination is WCAG compliant
+ */
+export function isWCAGCompliant(foreground: string, background: string, level: 'AA' | 'AAA' = 'AA'): boolean {
+  const ratio = calculateContrastRatio(foreground, background);
+  return level === 'AA' ? ratio >= 4.5 : ratio >= 7.0;
 }
 
 /**
