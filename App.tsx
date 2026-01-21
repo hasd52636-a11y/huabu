@@ -13,8 +13,10 @@ import { Block, Connection, BlockType, ModelConfig, ProviderType, ProviderSettin
 import { useShareMode } from './hooks/useShareMode';
 import ViewerMode from './components/ViewerMode';
 import SimpleViewerMode from './components/SimpleViewerMode';
+import SimpleViewerPage from './components/SimpleViewerPage';
 import SharePanel from './components/SharePanel';
 import ShareToolbarButton from './components/ShareToolbarButton';
+import SimpleShareButton from './components/SimpleShareButton';
 import { p2pShareService } from './services/P2PShareService';
 
 // 简单音效播放函数
@@ -122,8 +124,8 @@ const App: React.FC = () => {
   
   // 如果是观看模式，显示观看界面
   if (shareMode.isViewer) {
-    console.log('[App] Rendering SimpleViewerMode with shareId:', shareMode.shareId);
-    return <SimpleViewerMode shareId={shareMode.shareId} />;
+    console.log('[App] Rendering SimpleViewerPage with shareId:', shareMode.shareId);
+    return <SimpleViewerPage shareId={shareMode.shareId} />;
   }
 
   const [blocks, setBlocks] = useState<Block[]>([]);
@@ -3970,7 +3972,7 @@ ${block.content}
         
         <div className="w-12 h-px bg-slate-300/30" />
         
-        <ShareToolbarButton />
+        <SimpleShareButton />
         
         <div className="w-12 h-px bg-slate-300/30" />
         
