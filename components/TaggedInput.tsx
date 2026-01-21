@@ -671,90 +671,93 @@ const TaggedInput = React.forwardRef<any, TaggedInputProps>(({
     }
   }, [onTagHover, enableEnhancedChips]);
 
-  // 插入标签 - 简化版本，修复光标问题
+  // 插入标签 - 简化版本，修复光标和重复标签问题
   const insertTag = (blockNumber: string) => {
     if (!containerRef.current || isComposing) return;
     
-    // 获取当前光标位置
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) {
-      // 如果没有选区，在末尾插入
-      const currentText = containerRef.current.textContent || '';
-      const newText = currentText + `[${blockNumber}] `;
-      containerRef.current.textContent = newText;
-      onChange(newText);
-      
-      // 设置光标到末尾
-      const range = document.createRange();
-      range.selectNodeContents(containerRef.current);
-      range.collapse(false);
-      selection.removeAllRanges();
-      selection.addRange(range);
+    // 防止重复插入 - 检查是否正在处理插入操作
+    if (containerRef.current.dataset.inserting === 'true') {
       return;
     }
     
-    const range = selection.getRangeAt(0);
+    // 标记正在插入
+    containerRef.current.dataset.inserting = 'true';
     
-    // 清除占位符
-    const placeholder = containerRef.current.querySelector('.text-gray-400');
-    if (placeholder) {
-      containerRef.current.innerHTML = '';
-      const newRange = document.createRange();
-      newRange.selectNodeContents(containerRef.current);
-      newRange.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(newRange);
-    }
-    
-    // 获取当前文本内容
-    const currentText = containerRef.current.textContent || '';
-    
-    // 计算光标在纯文本中的位置
-    let textPosition = 0;
-    const walker = document.createTreeWalker(
-      containerRef.current,
-      NodeFilter.SHOW_TEXT,
-      null
-    );
-    
-    let node;
-    while (node = walker.nextNode()) {
-      if (node === range.startContainer) {
-        textPosition += range.startOffset;
-        break;
-      } else {
-        textPosition += node.textContent?.length || 0;
+    try {
+      // 清除占位符
+      const placeholder = containerRef.current.querySelector('.text-gray-400');
+      if (placeholder) {
+        containerRef.current.innerHTML = '';
       }
-    }
-    
-    // 插入标签文本
-    const tagText = `[${blockNumber}]`;
-    const beforeText = currentText.substring(0, textPosition);
-    const afterText = currentText.substring(textPosition);
-    const newText = beforeText + tagText + ' ' + afterText;
-    
-    // 更新内容
-    containerRef.current.textContent = newText;
-    onChange(newText);
-    
-    // 设置光标位置到标签后面
-    const newCursorPosition = textPosition + tagText.length + 1;
-    
-    // 重新创建选区
-    const newRange = document.createRange();
-    const textNode = containerRef.current.firstChild;
-    
-    if (textNode && textNode.nodeType === Node.TEXT_NODE) {
-      const maxOffset = Math.min(newCursorPosition, textNode.textContent?.length || 0);
-      newRange.setStart(textNode, maxOffset);
-      newRange.setEnd(textNode, maxOffset);
       
-      selection.removeAllRanges();
-      selection.addRange(newRange);
+      // 获取当前纯文本内容
+      const currentText = containerRef.current.textContent || '';
+      
+      // 获取光标位置
+      const selection = window.getSelection();
+      let cursorPosition = currentText.length; // 默认在末尾
+      
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        // 简化光标位置计算
+        if (range.startContainer.nodeType === Node.TEXT_NODE) {
+          cursorPosition = range.startOffset;
+          // 如果光标在容器内的其他位置，需要计算偏移
+          let walker = range.startContainer.previousSibling;
+          while (walker) {
+            if (walker.nodeType === Node.TEXT_NODE) {
+              cursorPosition += walker.textContent?.length || 0;
+            }
+            walker = walker.previousSibling;
+          }
+        }
+      }
+      
+      // 插入标签文本
+      const tagText = `[${blockNumber}]`;
+      const beforeText = currentText.substring(0, cursorPosition);
+      const afterText = currentText.substring(cursorPosition);
+      const newText = beforeText + tagText + ' ' + afterText;
+      
+      // 直接设置文本内容，避免复杂的DOM操作
+      containerRef.current.textContent = newText;
+      
+      // 触发onChange
+      onChange(newText);
+      
+      // 设置光标位置到标签后面
+      const newCursorPosition = cursorPosition + tagText.length + 1;
+      
+      // 重新设置光标
+      setTimeout(() => {
+        if (containerRef.current) {
+          const range = document.createRange();
+          const textNode = containerRef.current.firstChild;
+          
+          if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+            const maxOffset = Math.min(newCursorPosition, textNode.textContent?.length || 0);
+            range.setStart(textNode, maxOffset);
+            range.setEnd(textNode, maxOffset);
+            
+            const selection = window.getSelection();
+            if (selection) {
+              selection.removeAllRanges();
+              selection.addRange(range);
+            }
+          }
+          
+          containerRef.current.focus();
+        }
+      }, 0);
+      
+    } finally {
+      // 清除插入标记
+      setTimeout(() => {
+        if (containerRef.current) {
+          containerRef.current.dataset.inserting = 'false';
+        }
+      }, 100);
     }
-    
-    // 确保焦点在输入框上
-    containerRef.current.focus();
   };
 
   // Insert enhanced tag
@@ -1053,18 +1056,20 @@ const TaggedInput = React.forwardRef<any, TaggedInputProps>(({
     }
   };
 
-  // 处理输入 - Optimized version
+  // 处理输入 - 简化版本，修复中文输入法问题
   const handleInput = useCallback(() => {
-    // 如果正在输入法组合中，不处理更新
-    if (isComposing) {
+    // 如果正在输入法组合中或正在插入标签，不处理更新
+    if (isComposing || containerRef.current?.dataset.inserting === 'true') {
       return;
     }
     
+    // 防抖更新
     if (performanceOptimizer) {
-      const optimizedUpdate = performanceOptimizer.debounce('input-update', updateValue, 16);
+      const optimizedUpdate = performanceOptimizer.debounce('input-update', updateValue, 50);
       optimizedUpdate();
     } else {
-      updateValue();
+      // 简单防抖
+      setTimeout(updateValue, 50);
     }
   }, [performanceOptimizer, isComposing]);
 
@@ -1084,13 +1089,15 @@ const TaggedInput = React.forwardRef<any, TaggedInputProps>(({
     setIsComposing(false);
     // 延迟更新，确保输入法完全结束
     setTimeout(() => {
-      if (performanceOptimizer) {
-        const optimizedUpdate = performanceOptimizer.debounce('composition-update', updateValue, 16);
-        optimizedUpdate();
-      } else {
-        updateValue();
+      if (containerRef.current?.dataset.inserting !== 'true') {
+        if (performanceOptimizer) {
+          const optimizedUpdate = performanceOptimizer.debounce('composition-update', updateValue, 50);
+          optimizedUpdate();
+        } else {
+          updateValue();
+        }
       }
-    }, 0);
+    }, 100); // 增加延迟确保输入法完全结束
   }, [performanceOptimizer]);
 
   // 处理键盘事件
