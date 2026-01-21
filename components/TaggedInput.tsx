@@ -56,6 +56,10 @@ const TaggedInput = React.forwardRef<any, TaggedInputProps>(({
   const [accessibilityManager, setAccessibilityManager] = useState<AccessibilityManager | null>(null);
   const [performanceOptimizer, setPerformanceOptimizer] = useState<PerformanceOptimizer | null>(null);
   const [containerWidth, setContainerWidth] = useState<number>(0);
+  
+  // 添加输入法状态管理
+  const [isComposing, setIsComposing] = useState(false);
+  const [lastCursorPosition, setLastCursorPosition] = useState<number>(0);
 
   // Initialize all managers and systems
   useEffect(() => {
@@ -667,15 +671,90 @@ const TaggedInput = React.forwardRef<any, TaggedInputProps>(({
     }
   }, [onTagHover, enableEnhancedChips]);
 
-  // 插入标签 - 优化的光标处理逻辑
+  // 插入标签 - 简化版本，修复光标问题
   const insertTag = (blockNumber: string) => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || isComposing) return;
     
-    if (enableEnhancedChips) {
-      insertEnhancedTag(blockNumber);
-    } else {
-      insertLegacyTag(blockNumber);
+    // 获取当前光标位置
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      // 如果没有选区，在末尾插入
+      const currentText = containerRef.current.textContent || '';
+      const newText = currentText + `[${blockNumber}] `;
+      containerRef.current.textContent = newText;
+      onChange(newText);
+      
+      // 设置光标到末尾
+      const range = document.createRange();
+      range.selectNodeContents(containerRef.current);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return;
     }
+    
+    const range = selection.getRangeAt(0);
+    
+    // 清除占位符
+    const placeholder = containerRef.current.querySelector('.text-gray-400');
+    if (placeholder) {
+      containerRef.current.innerHTML = '';
+      const newRange = document.createRange();
+      newRange.selectNodeContents(containerRef.current);
+      newRange.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(newRange);
+    }
+    
+    // 获取当前文本内容
+    const currentText = containerRef.current.textContent || '';
+    
+    // 计算光标在纯文本中的位置
+    let textPosition = 0;
+    const walker = document.createTreeWalker(
+      containerRef.current,
+      NodeFilter.SHOW_TEXT,
+      null
+    );
+    
+    let node;
+    while (node = walker.nextNode()) {
+      if (node === range.startContainer) {
+        textPosition += range.startOffset;
+        break;
+      } else {
+        textPosition += node.textContent?.length || 0;
+      }
+    }
+    
+    // 插入标签文本
+    const tagText = `[${blockNumber}]`;
+    const beforeText = currentText.substring(0, textPosition);
+    const afterText = currentText.substring(textPosition);
+    const newText = beforeText + tagText + ' ' + afterText;
+    
+    // 更新内容
+    containerRef.current.textContent = newText;
+    onChange(newText);
+    
+    // 设置光标位置到标签后面
+    const newCursorPosition = textPosition + tagText.length + 1;
+    
+    // 重新创建选区
+    const newRange = document.createRange();
+    const textNode = containerRef.current.firstChild;
+    
+    if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+      const maxOffset = Math.min(newCursorPosition, textNode.textContent?.length || 0);
+      newRange.setStart(textNode, maxOffset);
+      newRange.setEnd(textNode, maxOffset);
+      
+      selection.removeAllRanges();
+      selection.addRange(newRange);
+    }
+    
+    // 确保焦点在输入框上
+    containerRef.current.focus();
   };
 
   // Insert enhanced tag
@@ -976,12 +1055,42 @@ const TaggedInput = React.forwardRef<any, TaggedInputProps>(({
 
   // 处理输入 - Optimized version
   const handleInput = useCallback(() => {
+    // 如果正在输入法组合中，不处理更新
+    if (isComposing) {
+      return;
+    }
+    
     if (performanceOptimizer) {
       const optimizedUpdate = performanceOptimizer.debounce('input-update', updateValue, 16);
       optimizedUpdate();
     } else {
       updateValue();
     }
+  }, [performanceOptimizer, isComposing]);
+
+  // 处理输入法开始
+  const handleCompositionStart = useCallback(() => {
+    setIsComposing(true);
+    // 保存当前光标位置
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      setLastCursorPosition(range.startOffset);
+    }
+  }, []);
+
+  // 处理输入法结束
+  const handleCompositionEnd = useCallback(() => {
+    setIsComposing(false);
+    // 延迟更新，确保输入法完全结束
+    setTimeout(() => {
+      if (performanceOptimizer) {
+        const optimizedUpdate = performanceOptimizer.debounce('composition-update', updateValue, 16);
+        optimizedUpdate();
+      } else {
+        updateValue();
+      }
+    }, 0);
   }, [performanceOptimizer]);
 
   // 处理键盘事件
@@ -1115,6 +1224,8 @@ const TaggedInput = React.forwardRef<any, TaggedInputProps>(({
       ref={containerRef}
       contentEditable
       onInput={handleInput}
+      onCompositionStart={handleCompositionStart}
+      onCompositionEnd={handleCompositionEnd}
       onKeyDown={handleKeyDown}
       onFocus={handleFocus}
       onBlur={handleBlur}
