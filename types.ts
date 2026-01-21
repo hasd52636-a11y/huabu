@@ -695,6 +695,7 @@ export interface PresetPrompt {
   id: string;
   title: string;
   content: string;
+  customTitle?: string; // 用户自定义标题，最多8个字符
   createdAt: Date;
   updatedAt: Date;
 }

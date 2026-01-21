@@ -25,6 +25,7 @@ const PresetPromptModal: React.FC<PresetPromptModalProps> = ({
 }) => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
+  const [editingCustomTitle, setEditingCustomTitle] = useState<string>('');
   const [localPrompts, setLocalPrompts] = useState<PresetPrompt[]>(prompts);
   const [characterCount, setCharacterCount] = useState<number>(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -34,23 +35,27 @@ const PresetPromptModal: React.FC<PresetPromptModalProps> = ({
     zh: {
       title: '我的提示词库',
       placeholder: '点击编辑提示词内容...',
+      customTitlePlaceholder: '自定义标题(最多8字符)',
       characterCount: '字符计数',
       save: '保存',
       cancel: '取消',
       emptySlot: '空槽位',
       promptSlot: '提示词槽位',
       tooLong: '提示词内容不能超过3000字符',
+      titleTooLong: '标题不能超过8个字符',
       selectPrompt: '激活使用'
     },
     en: {
       title: 'My Prompt Library',
       placeholder: 'Click to edit prompt content...',
+      customTitlePlaceholder: 'Custom title (max 8 chars)',
       characterCount: 'Character Count',
       save: 'Save',
       cancel: 'Cancel',
       emptySlot: 'Empty Slot',
       promptSlot: 'Prompt Slot',
       tooLong: 'Prompt content cannot exceed 3000 characters',
+      titleTooLong: 'Title cannot exceed 8 characters',
       selectPrompt: 'Select Prompt'
     }
   }[lang];
@@ -94,6 +99,7 @@ const PresetPromptModal: React.FC<PresetPromptModalProps> = ({
     onSave(localPrompts);
     setEditingIndex(null);
     setEditingContent('');
+    setEditingCustomTitle('');
     setCharacterCount(0);
     onClose();
   };
@@ -113,6 +119,7 @@ const PresetPromptModal: React.FC<PresetPromptModalProps> = ({
     const prompt = localPrompts[index];
     setEditingIndex(index);
     setEditingContent(prompt.content);
+    setEditingCustomTitle(prompt.customTitle || '');
     setCharacterCount(prompt.content.length);
   };
 
@@ -126,6 +133,14 @@ const PresetPromptModal: React.FC<PresetPromptModalProps> = ({
     setCharacterCount(content.length);
   };
 
+  const handleCustomTitleChange = (title: string) => {
+    // Enforce 8 character limit
+    if (title.length > 8) {
+      return;
+    }
+    setEditingCustomTitle(title);
+  };
+
   const saveCurrentEdit = () => {
     if (editingIndex === null) return;
 
@@ -133,6 +148,7 @@ const PresetPromptModal: React.FC<PresetPromptModalProps> = ({
     updatedPrompts[editingIndex] = {
       ...updatedPrompts[editingIndex],
       content: editingContent,
+      customTitle: editingCustomTitle.trim() || undefined,
       title: editingContent.slice(0, 50) || t.emptySlot,
       updatedAt: new Date()
     };
@@ -140,6 +156,7 @@ const PresetPromptModal: React.FC<PresetPromptModalProps> = ({
     setLocalPrompts(updatedPrompts);
     setEditingIndex(null);
     setEditingContent('');
+    setEditingCustomTitle('');
     setCharacterCount(0);
   };
 
@@ -215,7 +232,7 @@ const PresetPromptModal: React.FC<PresetPromptModalProps> = ({
                     <span className={`text-xs font-black uppercase tracking-wider ${
                       theme === 'dark' ? 'text-white/60' : 'text-black/60'
                     }`}>
-                      P{index + 1} - {t.promptSlot} {index + 1}
+                      P{index + 1} - {prompt.customTitle || `${t.promptSlot} ${index + 1}`}
                     </span>
                     {editingIndex === index && (
                       <Edit3 size={14} className="text-blue-500" />
@@ -243,6 +260,34 @@ const PresetPromptModal: React.FC<PresetPromptModalProps> = ({
                 <div className="flex-1 flex flex-col">
                   {editingIndex === index ? (
                     <div className="flex-1 flex flex-col">
+                      {/* Custom Title Input */}
+                      <div className="mb-3">
+                        <input
+                          type="text"
+                          value={editingCustomTitle}
+                          onChange={(e) => handleCustomTitleChange(e.target.value)}
+                          placeholder={t.customTitlePlaceholder}
+                          className={`
+                            w-full p-3 rounded-xl border-2 text-sm font-medium
+                            ${theme === 'dark'
+                              ? 'bg-white/10 border-purple-400 text-white placeholder-white/50'
+                              : 'bg-white border-purple-500 text-black placeholder-black/50'
+                            }
+                            focus:outline-none focus:ring-2 focus:ring-purple-500
+                          `}
+                          maxLength={8}
+                        />
+                        <div className={`mt-1 text-xs flex justify-between items-center ${
+                          editingCustomTitle.length > 7 ? 'text-red-500' : theme === 'dark' ? 'text-white/60' : 'text-black/60'
+                        }`}>
+                          <span>{lang === 'zh' ? '标题长度' : 'Title Length'}: {editingCustomTitle.length}/8</span>
+                          {editingCustomTitle.length > 8 && (
+                            <span className="text-red-500 font-bold">{t.titleTooLong}</span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Content Textarea */}
                       <textarea
                         ref={textareaRef}
                         value={editingContent}
@@ -341,6 +386,7 @@ const PresetPromptModal: React.FC<PresetPromptModalProps> = ({
                 onClick={() => {
                   setEditingIndex(null);
                   setEditingContent('');
+                  setEditingCustomTitle('');
                   setCharacterCount(0);
                 }}
                 className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold uppercase text-sm tracking-wider hover:scale-105 active:scale-95 transition-all ${
