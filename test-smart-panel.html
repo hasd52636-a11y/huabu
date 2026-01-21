@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能面板交互测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+        }
+        .test-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .test-description {
+            color: #666;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+        .test-steps {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+        .test-steps ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .test-steps li {
+            margin-bottom: 8px;
+        }
+        .expected-result {
+            background: #e8f5e8;
+            padding: 10px;
+            border-radius: 6px;
+            border-left: 4px solid #28a745;
+        }
+        .toolbar-simulation {
+            display: flex;
+            gap: 10px;
+            padding: 20px;
+            background: #2a2a2a;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .toolbar-button {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            color: #94a3b8;
+            background: transparent;
+        }
+        .toolbar-button:hover {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+        }
+        .toolbar-button.active {
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+        }
+        .status-indicator {
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+        .status-connected {
+            background: #22c55e;
+            animation: pulse 2s infinite;
+        }
+        .status-disconnected {
+            background: #ef4444;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .viewer-count {
+            position: absolute;
+            bottom: -2px;
+            right: -2px;
+            background: #3b82f6;
+            color: white;
+            font-size: 10px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>智能面板交互测试</h1>
+        <p>测试同屏分享按钮的智能面板交互功能</p>
+
+        <div class="test-section">
+            <div class="test-title">1. 图标颜色状态测试</div>
+            <div class="test-description">
+                验证同屏分享图标根据状态显示不同颜色
+            </div>
+            <div class="test-steps">
+                <strong>测试步骤：</strong>
+                <ol>
+                    <li>观察初始状态下图标颜色（应为灰色）</li>
+                    <li>点击图标开启同屏分享</li>
+                    <li>观察分享状态下图标颜色（应为绿色）</li>
+                    <li>再次点击图标停止分享</li>
+                    <li>观察图标恢复为灰色</li>
+                </ol>
+            </div>
+            <div class="expected-result">
+                <strong>预期结果：</strong> 图标颜色正确反映分享状态（灰色=未分享，绿色=分享中）
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">2. 智能面板显示测试</div>
+            <div class="test-description">
+                验证面板的智能显示和隐藏逻辑
+            </div>
+            <div class="test-steps">
+                <strong>测试步骤：</strong>
+                <ol>
+                    <li>点击图标开启同屏分享（面板应立即显示）</li>
+                    <li>将鼠标移出面板区域（面板应在300ms后隐藏）</li>
+                    <li>将鼠标悬停在分享图标上（面板应重新显示）</li>
+                    <li>将鼠标移入面板内（面板应保持显示）</li>
+                    <li>将鼠标移出面板（面板应延迟隐藏）</li>
+                </ol>
+            </div>
+            <div class="expected-result">
+                <strong>预期结果：</strong> 面板根据鼠标位置智能显示/隐藏，分享功能持续运行
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">3. 连接状态指示器测试</div>
+            <div class="test-description">
+                验证连接状态指示器和观众计数显示
+            </div>
+            <div class="test-steps">
+                <strong>测试步骤：</strong>
+                <ol>
+                    <li>开启同屏分享后观察连接状态指示器（绿色圆点，带脉动动画）</li>
+                    <li>模拟连接中断（红色圆点）</li>
+                    <li>观察观众计数显示（蓝色圆圈中的数字）</li>
+                </ol>
+            </div>
+            <div class="expected-result">
+                <strong>预期结果：</strong> 状态指示器准确显示连接状态，观众计数实时更新
+            </div>
+        </div>
+
+        <div class="toolbar-simulation">
+            <div style="position: relative;">
+                <button class="toolbar-button" id="shareButton">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                        <polyline points="16,6 12,2 8,6"/>
+                        <line x1="12" y1="2" x2="12" y2="15"/>
+                    </svg>
+                </button>
+                <div class="status-indicator status-connected" id="statusIndicator" style="display: none;"></div>
+                <div class="viewer-count" id="viewerCount" style="display: none;">3</div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">4. 完整交互流程测试</div>
+            <div class="test-description">
+                验证完整的用户交互流程
+            </div>
+            <div class="test-steps">
+                <strong>测试步骤：</strong>
+                <ol>
+                    <li>点击上方模拟按钮开始"分享"</li>
+                    <li>观察按钮状态变化（颜色、指示器、计数）</li>
+                    <li>再次点击停止"分享"</li>
+                    <li>验证所有状态正确重置</li>
+                </ol>
+            </div>
+            <div class="expected-result">
+                <strong>预期结果：</strong> 交互流程顺畅，状态变化清晰，用户体验良好
+            </div>
+        </div>
+
+        <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+            <h3>测试说明</h3>
+            <ul>
+                <li><strong>图标颜色：</strong> 灰色表示未分享，绿色表示正在分享</li>
+                <li><strong>面板行为：</strong> 鼠标悬停显示，离开后延迟隐藏</li>
+                <li><strong>状态指示：</strong> 绿色脉动表示连接正常，红色表示连接中断</li>
+                <li><strong>观众计数：</strong> 蓝色圆圈显示当前观众数量</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // 模拟分享按钮交互
+        let isSharing = false;
+        const shareButton = document.getElementById('shareButton');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const viewerCount = document.getElementById('viewerCount');
+
+        shareButton.addEventListener('click', () => {
+            isSharing = !isSharing;
+            
+            if (isSharing) {
+                // 开始分享状态
+                shareButton.classList.add('active');
+                shareButton.style.color = '#22c55e';
+                shareButton.style.background = 'rgba(34, 197, 94, 0.1)';
+                statusIndicator.style.display = 'block';
+                viewerCount.style.display = 'flex';
+                shareButton.title = '停止同屏分享';
+            } else {
+                // 停止分享状态
+                shareButton.classList.remove('active');
+                shareButton.style.color = '#94a3b8';
+                shareButton.style.background = 'transparent';
+                statusIndicator.style.display = 'none';
+                viewerCount.style.display = 'none';
+                shareButton.title = '开启同屏分享';
+            }
+        });
+
+        // 模拟连接状态变化
+        let connectionToggle = true;
+        setInterval(() => {
+            if (isSharing) {
+                connectionToggle = !connectionToggle;
+                statusIndicator.className = connectionToggle ? 
+                    'status-indicator status-connected' : 
+                    'status-indicator status-disconnected';
+            }
+        }, 5000);
+
+        // 模拟观众数量变化
+        let viewerNumber = 1;
+        setInterval(() => {
+            if (isSharing) {
+                viewerNumber = Math.floor(Math.random() * 9) + 1;
+                viewerCount.textContent = viewerNumber;
+            }
+        }, 3000);
+    </script>
+</body>
+</html>

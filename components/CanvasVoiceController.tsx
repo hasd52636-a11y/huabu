@@ -9,6 +9,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Mic, MicOff, Loader2 } from 'lucide-react';
 import { Block } from '../types';
 import { voiceCanvasReporter, VoiceModuleCommand } from '../services/VoiceCanvasReporter';
+import { voiceSettingsService } from '../services/VoiceSettingsService';
 
 // 神马API Realtime WebSocket接口 - 基于完整文档规范
 interface RealtimeSession {
@@ -986,38 +987,8 @@ const CanvasVoiceController: React.FC<CanvasVoiceControllerProps> = ({
 
   // 播放文本转语音（备用方案）
   const playTextToSpeech = (text: string) => {
-    if ('speechSynthesis' in window) {
-      // 停止当前播放的语音
-      window.speechSynthesis.cancel();
-      
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = lang === 'zh' ? 'zh-CN' : 'en-US';
-      utterance.rate = 0.9;
-      utterance.pitch = 1.0;
-      utterance.volume = 0.8;
-      
-      utterance.onstart = () => {
-        console.log('[CanvasVoiceController] 开始播放TTS语音:', text.substring(0, 50));
-      };
-      
-      utterance.onend = () => {
-        console.log('[CanvasVoiceController] TTS语音播放完成');
-      };
-      
-      utterance.onerror = (event) => {
-        console.error('[CanvasVoiceController] TTS播放失败:', event.error);
-      };
-      
-      // 确保语音合成器处于正确状态
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
-      
-      window.speechSynthesis.speak(utterance);
-      console.log('[CanvasVoiceController] TTS语音已加入播放队列');
-    } else {
-      console.warn('[CanvasVoiceController] 浏览器不支持语音合成');
-    }
+    // 使用新的语音设置服务
+    voiceSettingsService.speak(text);
   };
 
   // 停止音频录制

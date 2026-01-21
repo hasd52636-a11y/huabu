@@ -5,7 +5,7 @@ import {
   MessageSquare, LayoutGrid, X, Key, Upload, Cpu, HelpCircle, Save, FilePlus, Paperclip, Eraser, Copy, Check,
   Trash2, Layers, Languages, Globe, RotateCcw, MonitorX, Send, Play, Download, Hand, Brain,
   Type as TextIcon, BrainCircuit, Sparkles, ChevronLeft, ChevronRight, ImagePlus, FileText, Info, Loader2, ArrowUpRight,
-  ChevronDown, Database, Sliders, ExternalLink, ShieldCheck, ListOrdered, FolderOpen, User, PanelLeft, PanelRight, Share2
+  ChevronDown, Database, Sliders, ExternalLink, ShieldCheck, ListOrdered, FolderOpen, User, PanelLeft, PanelRight, Share2, Volume2
 } from 'lucide-react';
 import { Block, Connection, BlockType, ModelConfig, ProviderType, ProviderSettings, BatchConfig, BatchGenerationState, ExportLayout, FrameData, PresetPrompt, CanvasState, BatchInputSource, Character, NewModelConfig, getProviderSettings, convertLegacyToNewConfig, convertNewToLegacyConfig, MenuConfig } from './types';
 
@@ -16,7 +16,7 @@ import SimpleViewerMode from './components/SimpleViewerMode';
 import RealtimeViewerPage from './components/RealtimeViewerPage';
 import SharePanel from './components/SharePanel';
 import ShareToolbarButton from './components/ShareToolbarButton';
-import SimpleShareButton from './components/RealtimeShareButton';
+import RealtimeShareButton from './components/RealtimeShareButton';
 import { p2pShareService } from './services/P2PShareService';
 
 // 简单音效播放函数
@@ -103,6 +103,8 @@ import CanvasToast from './components/CanvasToast';
 import CanvasConfirmDialog from './components/CanvasConfirmDialog';
 import { useToast } from './hooks/useToast';
 import { useSystemMonitoring, useFeatureTracking } from './hooks/useSystemMonitoring';
+import VoiceSettingsModal from './components/VoiceSettingsModal';
+import { voiceSettingsService } from './services/VoiceSettingsService';
 
 interface ChatMessage {
   id: string;
@@ -271,6 +273,9 @@ const App: React.FC = () => {
     message: '',
     onConfirm: () => {}
   });
+  
+  // Voice Settings State
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
   
   // 获取token context
   const { updateConsumption, checkTokenLimit, showTokenLimitModal } = useTokenContext();
@@ -1138,41 +1143,9 @@ const App: React.FC = () => {
 
   // 播放文本转语音功能
   const playTextToSpeech = (text: string) => {
-    if ('speechSynthesis' in window) {
-      // 停止当前播放的语音
-      window.speechSynthesis.cancel();
-      
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = lang === 'zh' ? 'zh-CN' : 'en-US';
-      utterance.rate = 0.9;
-      utterance.pitch = 1.0;
-      utterance.volume = 0.8;
-      
-      utterance.onstart = () => {
-        console.log('[TTS] 开始播放语音:', text.substring(0, 50));
-      };
-      
-      utterance.onend = () => {
-        console.log('[TTS] 语音播放完成');
-        setWasVoiceInput(false); // 播放完成后重置状态
-      };
-      
-      utterance.onerror = (event) => {
-        console.error('[TTS] 语音播放失败:', event.error);
-        setWasVoiceInput(false); // 出错时也重置状态
-      };
-      
-      // 确保语音合成器处于正确状态
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
-      
-      window.speechSynthesis.speak(utterance);
-      console.log('[TTS] 语音已加入播放队列');
-    } else {
-      console.warn('[TTS] 浏览器不支持语音合成');
-      setWasVoiceInput(false); // 不支持时重置状态
-    }
+    // 使用新的语音设置服务
+    voiceSettingsService.speak(text);
+    setWasVoiceInput(false); // 重置语音输入状态
   };
 
   // Load saved config from localStorage
@@ -3963,33 +3936,43 @@ ${block.content}
       )}
 
       {/* Toolbar (Left) */}
-      <aside className={`fixed left-12 top-1/2 -translate-y-1/2 w-24 flex flex-col items-center py-12 gap-6 z-[300] border-2 border-purple-400/50 rounded-[3rem] shadow-3xl backdrop-blur-3xl ${theme === 'dark' ? 'bg-slate-900/80' : 'bg-white/95'}`}>
+      <aside className={`fixed left-12 top-1/2 -translate-y-1/2 w-24 flex flex-col items-center py-6 gap-3 z-[300] border-2 border-purple-400/50 rounded-[3rem] shadow-3xl backdrop-blur-3xl ${theme === 'dark' ? 'bg-slate-900/80' : 'bg-white/95'}`}>
         <button 
           onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')} 
-          className="w-14 h-14 bg-amber-500 text-white rounded-2xl shadow-2xl hover:scale-110 active:scale-90 transition-all border-2 border-white/20 flex items-center justify-center font-black text-base"
+          className="w-12 h-12 bg-amber-500 text-white rounded-xl shadow-2xl hover:scale-110 active:scale-90 transition-all border-2 border-white/20 flex items-center justify-center font-black text-sm"
           title={lang === 'zh' ? 'Switch to English' : '切换为中文'}
         >
           {lang === 'zh' ? 'EN' : '中'}
         </button>
 
-        <div className="w-12 h-px bg-slate-300/30" />
+        <div className="w-8 h-px bg-slate-300/30" />
         
-        <button onClick={() => addBlock('text')} className="p-4 text-blue-500 hover:bg-blue-500/10 rounded-2xl transition-all" title={t.addText}><TextIcon size={24} /></button>
-        <button onClick={() => addBlock('image')} className="p-4 text-emerald-500 hover:bg-emerald-500/10 rounded-2xl transition-all" title={t.addImage}><ImageIcon size={24} /></button>
-        <button onClick={() => addBlock('video')} className="p-4 text-red-500 hover:bg-red-500/10 rounded-2xl transition-all" title={t.addVideo}><Video size={24} /></button>
+        <button onClick={() => addBlock('text')} className="p-3 text-blue-500 hover:bg-blue-500/10 rounded-xl transition-all" title={t.addText}><TextIcon size={20} /></button>
+        <button onClick={() => addBlock('image')} className="p-3 text-emerald-500 hover:bg-emerald-500/10 rounded-xl transition-all" title={t.addImage}><ImageIcon size={20} /></button>
+        <button onClick={() => addBlock('video')} className="p-3 text-red-500 hover:bg-red-500/10 rounded-xl transition-all" title={t.addVideo}><Video size={20} /></button>
         
-        <div className="w-12 h-px bg-slate-300/30" />
+        <div className="w-8 h-px bg-slate-300/30" />
         
-        <SimpleShareButton 
+        <button 
+          onClick={() => setShowVoiceSettings(true)} 
+          className="p-3 text-purple-500 hover:bg-purple-500/10 rounded-xl transition-all" 
+          title="语音设置"
+        >
+          <Volume2 size={20} />
+        </button>
+        
+        <div className="w-8 h-px bg-slate-300/30" />
+        
+        <RealtimeShareButton 
           blocks={blocks}
           connections={connections}
           zoom={zoom}
           pan={pan}
         />
         
-        <div className="w-12 h-px bg-slate-300/30" />
+        <div className="w-8 h-px bg-slate-300/30" />
         
-        <button onClick={() => { setZoom(0.5); setPan({ x: 0, y: 0 }); }} className="p-4 text-slate-400 hover:text-amber-500 transition-all" title={t.ctxReset}><RotateCcw size={24} /></button>
+        <button onClick={() => { setZoom(0.5); setPan({ x: 0, y: 0 }); }} className="p-3 text-slate-400 hover:text-amber-500 transition-all" title={t.ctxReset}><RotateCcw size={20} /></button>
       </aside>
 
       <main className="flex-1 h-full pt-28 pl-40" style={{ marginRight: showSidebar ? `${sidebarWidth}px` : 0 }}>
@@ -4814,6 +4797,13 @@ ${block.content}
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
         theme={theme}
+      />
+
+      {/* Voice Settings Modal */}
+      <VoiceSettingsModal
+        isOpen={showVoiceSettings}
+        onClose={() => setShowVoiceSettings(false)}
+        currentLang={lang}
       />
 
     </div>

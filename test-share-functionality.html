@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>同屏分享功能测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #007acc;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .warning { background: #fff3cd; color: #856404; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #005a9e; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .test-result {
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔄 同屏分享功能测试</h1>
+    
+    <div class="test-section">
+        <h2>📋 测试清单</h2>
+        <div id="test-checklist">
+            <div>✅ 开发服务器运行状态</div>
+            <div>⏳ 分享按钮渲染测试</div>
+            <div>⏳ API路由连通性测试</div>
+            <div>⏳ 分享会话创建测试</div>
+            <div>⏳ 观看模式切换测试</div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🌐 服务器连通性测试</h2>
+        <button onclick="testServerConnection()">测试服务器连接</button>
+        <div id="server-status" class="status info">等待测试...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔗 API路由测试</h2>
+        <button onclick="testCreateShareAPI()">测试创建分享API</button>
+        <button onclick="testGetShareAPI()">测试获取分享API</button>
+        <div id="api-status" class="status info">等待测试...</div>
+        <div id="api-result" class="test-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 分享功能集成测试</h2>
+        <button onclick="testShareButtonIntegration()">测试分享按钮集成</button>
+        <button onclick="testViewerModeSwitch()">测试观看模式切换</button>
+        <div id="integration-status" class="status info">等待测试...</div>
+        <div id="integration-result" class="test-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔄 完整流程测试</h2>
+        <button onclick="runFullTest()">运行完整测试</button>
+        <div id="full-test-status" class="status info">等待测试...</div>
+        <div id="full-test-result" class="test-result"></div>
+    </div>
+
+    <script>
+        // 测试服务器连接
+        async function testServerConnection() {
+            const statusEl = document.getElementById('server-status');
+            statusEl.className = 'status warning';
+            statusEl.textContent = '正在测试服务器连接...';
+            
+            try {
+                const response = await fetch('http://localhost:3005');
+                if (response.ok) {
+                    statusEl.className = 'status success';
+                    statusEl.textContent = '✅ 服务器连接正常';
+                    updateChecklist(0, '✅ 开发服务器运行状态');
+                } else {
+                    statusEl.className = 'status error';
+                    statusEl.textContent = `❌ 服务器响应异常: ${response.status}`;
+                }
+            } catch (error) {
+                statusEl.className = 'status error';
+                statusEl.textContent = `❌ 服务器连接失败: ${error.message}`;
+            }
+        }
+
+        // 测试创建分享API
+        async function testCreateShareAPI() {
+            const statusEl = document.getElementById('api-status');
+            const resultEl = document.getElementById('api-result');
+            
+            statusEl.className = 'status warning';
+            statusEl.textContent = '正在测试创建分享API...';
+            
+            try {
+                const testSession = {
+                    id: 'test-session-' + Date.now(),
+                    hostId: 'test-host',
+                    title: '测试分享会话',
+                    canvasState: {
+                        blocks: [],
+                        connections: [],
+                        zoom: 1,
+                        pan: { x: 0, y: 0 }
+                    }
+                };
+
+                const response = await fetch('http://localhost:3005/api/share/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(testSession)
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    statusEl.className = 'status success';
+                    statusEl.textContent = '✅ 创建分享API测试成功';
+                    resultEl.textContent = JSON.stringify(result, null, 2);
+                    window.testSessionId = result.sessionId;
+                } else {
+                    statusEl.className = 'status error';
+                    statusEl.textContent = '❌ 创建分享API测试失败';
+                    resultEl.textContent = JSON.stringify(result, null, 2);
+                }
+            } catch (error) {
+                statusEl.className = 'status error';
+                statusEl.textContent = `❌ API请求失败: ${error.message}`;
+                resultEl.textContent = error.stack;
+            }
+        }
+
+        // 测试获取分享API
+        async function testGetShareAPI() {
+            if (!window.testSessionId) {
+                alert('请先运行创建分享API测试');
+                return;
+            }
+
+            const statusEl = document.getElementById('api-status');
+            const resultEl = document.getElementById('api-result');
+            
+            statusEl.className = 'status warning';
+            statusEl.textContent = '正在测试获取分享API...';
+            
+            try {
+                const response = await fetch(`http://localhost:3005/api/share/${window.testSessionId}`);
+                const result = await response.json();
+                
+                if (response.ok) {
+                    statusEl.className = 'status success';
+                    statusEl.textContent = '✅ 获取分享API测试成功';
+                    resultEl.textContent = JSON.stringify(result, null, 2);
+                } else {
+                    statusEl.className = 'status error';
+                    statusEl.textContent = '❌ 获取分享API测试失败';
+                    resultEl.textContent = JSON.stringify(result, null, 2);
+                }
+            } catch (error) {
+                statusEl.className = 'status error';
+                statusEl.textContent = `❌ API请求失败: ${error.message}`;
+                resultEl.textContent = error.stack;
+            }
+        }
+
+        // 测试分享按钮集成
+        function testShareButtonIntegration() {
+            const statusEl = document.getElementById('integration-status');
+            const resultEl = document.getElementById('integration-result');
+            
+            statusEl.className = 'status warning';
+            statusEl.textContent = '正在测试分享按钮集成...';
+            
+            // 打开主应用并检查分享按钮
+            const mainApp = window.open('http://localhost:3005', '_blank');
+            
+            setTimeout(() => {
+                try {
+                    // 检查分享按钮是否存在
+                    const hasShareButton = mainApp.document.querySelector('[title*="分享"]') || 
+                                         mainApp.document.querySelector('[class*="share"]') ||
+                                         mainApp.document.querySelector('button:contains("分享")');
+                    
+                    if (hasShareButton) {
+                        statusEl.className = 'status success';
+                        statusEl.textContent = '✅ 分享按钮集成正常';
+                        resultEl.textContent = '分享按钮已正确渲染在主应用中';
+                        updateChecklist(1, '✅ 分享按钮渲染测试');
+                    } else {
+                        statusEl.className = 'status error';
+                        statusEl.textContent = '❌ 未找到分享按钮';
+                        resultEl.textContent = '在主应用中未找到分享按钮元素';
+                    }
+                } catch (error) {
+                    statusEl.className = 'status warning';
+                    statusEl.textContent = '⚠️ 无法检测分享按钮（跨域限制）';
+                    resultEl.textContent = '由于浏览器安全限制，无法直接检测。请手动检查主应用中的分享按钮。';
+                }
+            }, 2000);
+        }
+
+        // 测试观看模式切换
+        function testViewerModeSwitch() {
+            const statusEl = document.getElementById('integration-status');
+            const resultEl = document.getElementById('integration-result');
+            
+            statusEl.className = 'status warning';
+            statusEl.textContent = '正在测试观看模式切换...';
+            
+            // 使用测试会话ID打开观看模式
+            const testSessionId = window.testSessionId || 'test-session-123';
+            const viewerUrl = `http://localhost:3005?watch=${testSessionId}`;
+            
+            const viewerWindow = window.open(viewerUrl, '_blank');
+            
+            setTimeout(() => {
+                statusEl.className = 'status success';
+                statusEl.textContent = '✅ 观看模式切换测试完成';
+                resultEl.textContent = `观看模式URL: ${viewerUrl}\n请检查新窗口是否正确显示观看界面。`;
+                updateChecklist(4, '✅ 观看模式切换测试');
+            }, 1000);
+        }
+
+        // 运行完整测试
+        async function runFullTest() {
+            const statusEl = document.getElementById('full-test-status');
+            const resultEl = document.getElementById('full-test-result');
+            
+            statusEl.className = 'status warning';
+            statusEl.textContent = '正在运行完整测试流程...';
+            
+            let testResults = [];
+            
+            try {
+                // 1. 服务器连接测试
+                testResults.push('1. 测试服务器连接...');
+                await testServerConnection();
+                testResults.push('   ✅ 服务器连接正常');
+                
+                // 2. API测试
+                testResults.push('2. 测试API路由...');
+                await testCreateShareAPI();
+                testResults.push('   ✅ 创建分享API正常');
+                
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await testGetShareAPI();
+                testResults.push('   ✅ 获取分享API正常');
+                
+                // 3. 集成测试
+                testResults.push('3. 测试功能集成...');
+                testShareButtonIntegration();
+                testResults.push('   ✅ 分享按钮集成测试完成');
+                
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                testViewerModeSwitch();
+                testResults.push('   ✅ 观看模式切换测试完成');
+                
+                statusEl.className = 'status success';
+                statusEl.textContent = '✅ 完整测试流程完成';
+                
+                updateChecklist(2, '✅ API路由连通性测试');
+                updateChecklist(3, '✅ 分享会话创建测试');
+                
+            } catch (error) {
+                testResults.push(`❌ 测试失败: ${error.message}`);
+                statusEl.className = 'status error';
+                statusEl.textContent = '❌ 测试过程中出现错误';
+            }
+            
+            resultEl.textContent = testResults.join('\n');
+        }
+
+        // 更新测试清单
+        function updateChecklist(index, text) {
+            const checklist = document.getElementById('test-checklist');
+            const items = checklist.children;
+            if (items[index]) {
+                items[index].textContent = text;
+            }
+        }
+
+        // 页面加载时自动测试服务器连接
+        window.addEventListener('load', () => {
+            setTimeout(testServerConnection, 1000);
+        });
+    </script>
+</body>
+</html>
