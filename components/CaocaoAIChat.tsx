@@ -9,6 +9,7 @@ import {
   Bot, CheckCircle, AlertCircle, Brain, 
   Activity, Loader2
 } from 'lucide-react';
+import CaocaoAvatar from './CaocaoAvatar';
 
 interface ChatMessage {
   id: string;
@@ -477,15 +478,17 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
             }`}
           >
             {/* 头像 */}
-            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-              message.role === 'caocao' 
-                ? 'bg-purple-500' 
-                : message.type === 'voice'
+            {message.role === 'caocao' ? (
+              <CaocaoAvatar size={32} />
+            ) : (
+              <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                message.type === 'voice'
                   ? 'bg-blue-500'
                   : 'bg-green-500'
-            }`}>
-              {getMessageIcon(message)}
-            </div>
+              }`}>
+                {getMessageIcon(message)}
+              </div>
+            )}
             
             {/* 消息内容 */}
             <div className={`flex-1 max-w-[80%] ${message.role === 'user' ? 'text-right' : ''}`}>
