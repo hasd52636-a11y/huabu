@@ -57,37 +57,18 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
     {
       id: `caocao-init-${Date.now()}`,
       role: 'caocao',
-      content: `# 你好呀！我是曹操画布智能助手——曹冲
+      content: `你好！我是曹操画布智能助手——曹冲
 
-## 🧠 家族遗传，聪明过人
+作为曹操后裔，我专注于多媒体创作，为您提供：
+• **文本创作**：文案、脚本、课件
+• **图像处理**：生成、修图、分镜  
+• **视频制作**：动画、剪辑、批量生产
 
-作为曹操后裔，我继承了先祖的雄才大略，却专注于多媒体创作领域，为您提供：
+为助力用户，我配备了：
+• **语音识别**：听懂您的每句指令
+• **手势控制**：看懂您的每个动作
 
-• 📝 **文本创作**：文案、脚本、课件信手拈来
-• 🎨 **图像处理**：生成、修图、分镜不在话下  
-• 🎬 **视频制作**：动画、剪辑、批量生产样样精通
-
----
-
-## 🔧 三头六臂，能力全面
-
-为助力残障人士，我加装了：
-
-• 🎤 **语音识别**：听懂您的每一句指令
-• ✋ **手势控制**：看懂您的每一个动作
-• 🧩 **72种模块化能力**：按需调用，灵活组合
-
----
-
-## 📈 勤学苦练，日益精进
-
-正如先祖所言：**「老骥伏枥，志在千里」**，我亦如此——
-
-持续使用我一个月，您将见证我从 **「初识」** 到 **「贴心」** 的成长，成为您创作路上最懂你的 **「左膀右臂」**！
-
----
-
-⚡ **说曹操，曹操到！您有什么创作需求，尽管吩咐~**`,
+说曹操，曹操到！有什么创作需求尽管吩咐~`,
       timestamp: new Date(),
       type: 'system'
     }
@@ -187,7 +168,7 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
         const listContent = trimmedLine.substring(2);
         return (
           <div key={index} className="flex items-start gap-2 mb-2 ml-2">
-            <span className="text-amber-400 mt-1">•</span>
+            <span className="text-purple-400 mt-1">•</span>
             <span className="flex-1">{renderInlineFormatting(listContent)}</span>
           </div>
         );
@@ -215,7 +196,7 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
     return parts.map((part, index) => {
       if (part.startsWith('**') && part.endsWith('**')) {
         return (
-          <strong key={index} className="font-bold text-yellow-300">
+          <strong key={index} className="font-bold text-purple-400">
             {part.slice(2, -2)}
           </strong>
         );
@@ -406,7 +387,7 @@ const CaocaoAIChat: React.FC<CaocaoAIChatProps> = ({
   const getStatusColor = () => {
     switch (systemStatus) {
       case 'listening': return 'text-blue-500';
-      case 'processing': return 'text-yellow-500';
+      case 'processing': return 'text-purple-500';
       default: return 'text-green-500';
     }
   };
