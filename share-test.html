@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分享功能测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .step {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background: #d4edda;
+            border-left-color: #28a745;
+            color: #155724;
+        }
+        .warning {
+            background: #fff3cd;
+            border-left-color: #ffc107;
+            color: #856404;
+        }
+        .code {
+            background: #f1f3f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .url-box {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            word-break: break-all;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎨 曹操画布分享功能测试</h1>
+    
+    <div class="step success">
+        <h3>✅ 修复完成</h3>
+        <p>分享功能已经修复，现在支持：</p>
+        <ul>
+            <li>实时画布内容同步</li>
+            <li>自动刷新观看模式</li>
+            <li>完整的模块和连接线显示</li>
+            <li>状态指示器和缩放支持</li>
+        </ul>
+    </div>
+
+    <div class="step">
+        <h3>📋 测试步骤</h3>
+        <ol>
+            <li>打开主应用：<button onclick="openMain()">打开曹操画布</button></li>
+            <li>在画布上添加一些模块（文本、图片、视频）</li>
+            <li>点击左侧工具栏的分享按钮 📤</li>
+            <li>复制分享链接</li>
+            <li>在新标签页中打开分享链接</li>
+            <li>验证观众可以看到实时的画布内容</li>
+        </ol>
+    </div>
+
+    <div class="step">
+        <h3>🔧 快速测试</h3>
+        <p>点击下面的按钮快速测试分享功能：</p>
+        <button onclick="createTestShare()">创建测试分享</button>
+        <button onclick="viewTestShare()">查看测试分享</button>
+        <div id="testResult"></div>
+    </div>
+
+    <div class="step warning">
+        <h3>⚠️ 注意事项</h3>
+        <ul>
+            <li>分享功能使用 localStorage，只在同一浏览器中有效</li>
+            <li>这是简化版本，适合本地测试和演示</li>
+            <li>观众端每2秒自动刷新一次内容</li>
+            <li>可以暂停/恢复自动刷新</li>
+        </ul>
+    </div>
+
+    <div class="step">
+        <h3>🚀 部署状态</h3>
+        <p>代码已推送到 GitHub，可以通过以下方式访问：</p>
+        <ul>
+            <li><strong>本地开发：</strong> <span class="code">http://localhost:5173</span></li>
+            <li><strong>GitHub Pages：</strong> 需要配置部署</li>
+            <li><strong>Vercel：</strong> 自动部署已配置</li>
+        </ul>
+    </div>
+
+    <script>
+        function openMain() {
+            window.open('http://localhost:5173', '_blank');
+        }
+
+        function createTestShare() {
+            // 创建测试数据
+            const testShareId = 'test-' + Date.now();
+            const testData = {
+                shareId: testShareId,
+                timestamp: Date.now(),
+                canvasState: {
+                    blocks: [
+                        {
+                            id: 'test-block-1',
+                            type: 'text',
+                            x: 100,
+                            y: 100,
+                            width: 300,
+                            height: 150,
+                            content: '这是一个测试文本模块\n\n分享功能正常工作！\n\n当前时间: ' + new Date().toLocaleTimeString(),
+                            status: 'idle',
+                            number: 'A01'
+                        },
+                        {
+                            id: 'test-block-2',
+                            type: 'image',
+                            x: 500,
+                            y: 100,
+                            width: 400,
+                            height: 300,
+                            content: '',
+                            status: 'idle',
+                            number: 'B01'
+                        },
+                        {
+                            id: 'test-block-3',
+                            type: 'text',
+                            x: 100,
+                            y: 300,
+                            width: 350,
+                            height: 120,
+                            content: '测试模块 #3\n\n这个分享功能现在应该可以正常工作了！',
+                            status: 'idle',
+                            number: 'A02'
+                        }
+                    ],
+                    connections: [
+                        {
+                            id: 'test-conn-1',
+                            fromId: 'test-block-1',
+                            toId: 'test-block-2',
+                            instruction: '测试连接'
+                        }
+                    ],
+                    zoom: 1,
+                    pan: { x: 0, y: 0 }
+                },
+                status: 'active',
+                message: '测试分享已创建',
+                lastUpdate: Date.now()
+            };
+
+            localStorage.setItem(`canvas-share-${testShareId}`, JSON.stringify(testData));
+            
+            const testUrl = `http://localhost:5173?watch=${testShareId}`;
+            document.getElementById('testResult').innerHTML = `
+                <div class="success" style="margin-top: 15px;">
+                    <h4>✅ 测试分享已创建</h4>
+                    <p>分享ID: <span class="code">${testShareId}</span></p>
+                    <p>包含 ${testData.canvasState.blocks.length} 个模块和 ${testData.canvasState.connections.length} 个连接</p>
+                    <div class="url-box">${testUrl}</div>
+                    <button onclick="window.open('${testUrl}', '_blank')">打开测试分享</button>
+                    <button onclick="updateTestShare('${testShareId}')">更新测试内容</button>
+                </div>
+            `;
+        }
+
+        function updateTestShare(shareId) {
+            const existingData = JSON.parse(localStorage.getItem(`canvas-share-${shareId}`) || '{}');
+            if (existingData.canvasState) {
+                // 更新第一个文本块的内容
+                existingData.canvasState.blocks[0].content = '内容已更新！\n\n更新时间: ' + new Date().toLocaleTimeString() + '\n\n这证明了实时同步功能正常工作！';
+                existingData.lastUpdate = Date.now();
+                
+                localStorage.setItem(`canvas-share-${shareId}`, JSON.stringify(existingData));
+                
+                document.getElementById('testResult').innerHTML += `
+                    <div style="margin-top: 10px; padding: 10px; background: #d1ecf1; border-radius: 5px; border-left: 4px solid #bee5eb;">
+                        <p><strong>✅ 内容已更新</strong> - 观众端应该会在2秒内看到更新</p>
+                    </div>
+                `;
+            }
+        }
+
+        function viewTestShare() {
+            // 查找最新的测试分享
+            const keys = Object.keys(localStorage).filter(key => key.startsWith('canvas-share-test-'));
+            if (keys.length === 0) {
+                document.getElementById('testResult').innerHTML = `
+                    <div class="warning" style="margin-top: 15px;">
+                        <p>❌ 没有找到测试分享，请先创建一个</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const latestKey = keys.sort().pop();
+            const shareId = latestKey.replace('canvas-share-', '');
+            const testUrl = `http://localhost:5173?watch=${shareId}`;
+            
+            window.open(testUrl, '_blank');
+        }
+
+        // 页面加载时显示当前状态
+        window.onload = function() {
+            const shareCount = Object.keys(localStorage).filter(key => key.startsWith('canvas-share-')).length;
+            if (shareCount > 0) {
+                document.getElementById('testResult').innerHTML = `
+                    <div style="margin-top: 15px; padding: 10px; background: #e3f2fd; border-radius: 5px;">
+                        <p>📊 当前有 ${shareCount} 个分享记录</p>
+                    </div>
+                `;
+            }
+        };
+    </script>
+</body>
+</html>

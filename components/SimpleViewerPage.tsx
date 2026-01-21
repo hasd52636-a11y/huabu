@@ -79,13 +79,18 @@ const SimpleViewerPage: React.FC<SimpleViewerPageProps> = ({ shareId }) => {
   };
 
   const renderBlock = (block: any, index: number) => {
+    if (!block || !block.id) {
+      console.warn('Invalid block data:', block);
+      return null;
+    }
+
     const blockStyle = {
       position: 'absolute' as const,
-      left: `${block.x}px`,
-      top: `${block.y}px`,
-      width: `${block.width}px`,
-      height: `${block.height}px`,
-      transform: shareData ? `scale(${shareData.canvasState.zoom})` : 'scale(1)',
+      left: `${block.x || 0}px`,
+      top: `${block.y || 0}px`,
+      width: `${block.width || 300}px`,
+      height: `${block.height || 200}px`,
+      transform: shareData ? `scale(${shareData.canvasState.zoom || 1})` : 'scale(1)',
       transformOrigin: 'top left'
     };
 

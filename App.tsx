@@ -3980,7 +3980,12 @@ ${block.content}
         
         <div className="w-12 h-px bg-slate-300/30" />
         
-        <SimpleShareButton />
+        <SimpleShareButton 
+          blocks={blocks}
+          connections={connections}
+          zoom={zoom}
+          pan={pan}
+        />
         
         <div className="w-12 h-px bg-slate-300/30" />
         

@@ -1,41 +1,44 @@
 import React, { useState } from 'react';
 import { Share2, Copy, Check } from 'lucide-react';
 
-const SimpleShareButton: React.FC = () => {
+interface SimpleShareButtonProps {
+  blocks?: any[];
+  connections?: any[];
+  zoom?: number;
+  pan?: { x: number; y: number };
+}
+
+const SimpleShareButton: React.FC<SimpleShareButtonProps> = ({ 
+  blocks = [], 
+  connections = [], 
+  zoom = 1, 
+  pan = { x: 200, y: 100 } 
+}) => {
   const [shareUrl, setShareUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
 
   const handleStartShare = () => {
     // 生成一个简单的分享ID
-    const shareId = 'share-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
+    const shareId = 'share-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8);
     const url = `${window.location.origin}${window.location.pathname}?watch=${shareId}`;
     
     setShareUrl(url);
     setIsSharing(true);
     
-    // 获取当前画布状态（从父组件传递）
+    // 获取当前画布状态
     const getCurrentCanvasState = () => {
-      // 尝试从全局状态获取画布数据
-      const appElement = document.querySelector('[data-canvas-state]');
-      if (appElement) {
-        try {
-          return JSON.parse(appElement.getAttribute('data-canvas-state') || '{}');
-        } catch (e) {
-          console.warn('Failed to parse canvas state from DOM');
-        }
-      }
-      
-      // 如果无法获取，返回默认状态
       return {
-        blocks: [],
-        connections: [],
-        zoom: 1,
-        pan: { x: 200, y: 100 }
+        blocks: blocks || [],
+        connections: connections || [],
+        zoom: zoom || 1,
+        pan: pan || { x: 200, y: 100 }
       };
     };
     
     const canvasState = getCurrentCanvasState();
+    
+    console.log('[SimpleShareButton] Creating share with canvas state:', canvasState);
     
     // 在localStorage中保存完整的画布状态
     const shareData = {
@@ -63,10 +66,14 @@ const SimpleShareButton: React.FC = () => {
       };
       
       localStorage.setItem(`canvas-share-${shareId}`, JSON.stringify(updatedData));
+      console.log('[SimpleShareButton] Updated canvas state:', currentState);
     }, 1000); // 每秒更新一次
     
     // 存储更新间隔ID以便后续清理
     (window as any).shareUpdateInterval = updateInterval;
+    
+    // 显示分享成功提示
+    alert(`分享已开始！\n\n分享链接：\n${url}\n\n请复制链接分享给观众\n\n当前画布有 ${blocks.length} 个模块`);
   };
 
   const handleCopyUrl = async () => {
