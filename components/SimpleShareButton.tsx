@@ -14,18 +14,59 @@ const SimpleShareButton: React.FC = () => {
     setShareUrl(url);
     setIsSharing(true);
     
-    // 在localStorage中保存当前画布状态，供观众访问
-    const canvasData = {
-      shareId: shareId,
-      timestamp: Date.now(),
-      // 这里可以添加画布数据
-      message: '分享功能已启用，观众可以通过此链接查看'
+    // 获取当前画布状态（从父组件传递）
+    const getCurrentCanvasState = () => {
+      // 尝试从全局状态获取画布数据
+      const appElement = document.querySelector('[data-canvas-state]');
+      if (appElement) {
+        try {
+          return JSON.parse(appElement.getAttribute('data-canvas-state') || '{}');
+        } catch (e) {
+          console.warn('Failed to parse canvas state from DOM');
+        }
+      }
+      
+      // 如果无法获取，返回默认状态
+      return {
+        blocks: [],
+        connections: [],
+        zoom: 1,
+        pan: { x: 200, y: 100 }
+      };
     };
     
-    localStorage.setItem(`canvas-share-${shareId}`, JSON.stringify(canvasData));
+    const canvasState = getCurrentCanvasState();
     
-    // 显示分享链接
-    alert(`分享已开始！\n\n分享链接：\n${url}\n\n请复制链接分享给观众\n\n注意：这是一个简化版本，观众可以看到分享页面但不会实时同步`);
+    // 在localStorage中保存完整的画布状态
+    const shareData = {
+      shareId: shareId,
+      timestamp: Date.now(),
+      canvasState: canvasState,
+      status: 'active',
+      message: '分享功能已启用，观众可以实时查看画布内容'
+    };
+    
+    localStorage.setItem(`canvas-share-${shareId}`, JSON.stringify(shareData));
+    
+    // 启动定期更新画布状态
+    const updateInterval = setInterval(() => {
+      if (!isSharing) {
+        clearInterval(updateInterval);
+        return;
+      }
+      
+      const currentState = getCurrentCanvasState();
+      const updatedData = {
+        ...shareData,
+        canvasState: currentState,
+        lastUpdate: Date.now()
+      };
+      
+      localStorage.setItem(`canvas-share-${shareId}`, JSON.stringify(updatedData));
+    }, 1000); // 每秒更新一次
+    
+    // 存储更新间隔ID以便后续清理
+    (window as any).shareUpdateInterval = updateInterval;
   };
 
   const handleCopyUrl = async () => {
@@ -50,6 +91,12 @@ const SimpleShareButton: React.FC = () => {
     setIsSharing(false);
     setShareUrl('');
     setCopied(false);
+    
+    // 清理更新间隔
+    if ((window as any).shareUpdateInterval) {
+      clearInterval((window as any).shareUpdateInterval);
+      (window as any).shareUpdateInterval = null;
+    }
   };
 
   return (

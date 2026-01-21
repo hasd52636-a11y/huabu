@@ -3625,7 +3625,15 @@ ${block.content}
   };
 
   return (
-    <div className={`flex h-screen w-screen overflow-hidden ${theme === 'dark' ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'}`}>
+    <div 
+      className={`flex h-screen w-screen overflow-hidden ${theme === 'dark' ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'}`}
+      data-canvas-state={JSON.stringify({
+        blocks,
+        connections,
+        zoom,
+        pan
+      })}
+    >
       <input type="file" ref={chatImageInputRef} className="hidden" accept="image/*" onChange={e => {
         const file = e.target.files?.[0];
         if (file) {
