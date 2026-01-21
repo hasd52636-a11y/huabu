@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { p2pShareService } from '../services/P2PShareService';
 
 export interface ShareModeState {
   isViewer: boolean;
@@ -59,12 +58,12 @@ export const useShareMode = () => {
     try {
       setState(prev => ({ ...prev, isConnecting: true, connectionError: null }));
       
-      console.log('[useShareMode] Calling p2pShareService.joinViewing...');
-      const success = await p2pShareService.joinViewing(shareId);
-      console.log('[useShareMode] joinViewing result:', success);
+      // 对于简化版分享，直接检查localStorage中是否有分享数据
+      console.log('[useShareMode] Checking localStorage for share data...');
+      const shareData = localStorage.getItem(`canvas-share-${shareId}`);
       
-      if (success) {
-        console.log('[useShareMode] Connection successful');
+      if (shareData) {
+        console.log('[useShareMode] Share data found in localStorage');
         setState(prev => ({
           ...prev,
           isConnecting: false,
@@ -72,12 +71,12 @@ export const useShareMode = () => {
           connectionError: null
         }));
       } else {
-        console.log('[useShareMode] Connection failed');
+        console.log('[useShareMode] No share data found in localStorage');
         setState(prev => ({
           ...prev,
           isConnecting: false,
           isConnected: false,
-          connectionError: '无法连接到分享者，可能分享已结束或网络问题'
+          connectionError: '同屏分享不存在或已过期'
         }));
       }
     } catch (error) {
