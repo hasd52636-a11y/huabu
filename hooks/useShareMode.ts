@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { realtimeShareService } from '../services/RealtimeShareService';
 
 export interface ShareModeState {
   isViewer: boolean;
@@ -58,27 +59,16 @@ export const useShareMode = () => {
     try {
       setState(prev => ({ ...prev, isConnecting: true, connectionError: null }));
       
-      // 对于简化版分享，直接检查localStorage中是否有分享数据
-      console.log('[useShareMode] Checking localStorage for share data...');
-      const shareData = localStorage.getItem(`canvas-share-${shareId}`);
+      // 使用 RealtimeShareService 连接
+      await realtimeShareService.joinSession(shareId);
       
-      if (shareData) {
-        console.log('[useShareMode] Share data found in localStorage');
-        setState(prev => ({
-          ...prev,
-          isConnecting: false,
-          isConnected: true,
-          connectionError: null
-        }));
-      } else {
-        console.log('[useShareMode] No share data found in localStorage');
-        setState(prev => ({
-          ...prev,
-          isConnecting: false,
-          isConnected: false,
-          connectionError: '同屏分享不存在或已过期'
-        }));
-      }
+      console.log('[useShareMode] Successfully connected to share session');
+      setState(prev => ({
+        ...prev,
+        isConnecting: false,
+        isConnected: true,
+        connectionError: null
+      }));
     } catch (error) {
       console.error('[useShareMode] Connection error:', error);
       setState(prev => ({
