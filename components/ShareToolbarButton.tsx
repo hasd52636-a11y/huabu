@@ -17,12 +17,42 @@ const ShareToolbarButton: React.FC = () => {
 
   const handleStartShare = async () => {
     try {
+      console.log('[ShareToolbarButton] 开始分享...');
+      
+      // 检查PeerJS是否可用
+      if (typeof window.Peer === 'undefined') {
+        throw new Error('PeerJS库未加载，请刷新页面重试');
+      }
+      
       const url = p2pShareService.startSharing();
+      console.log('[ShareToolbarButton] 分享链接生成成功:', url);
+      
       setShareUrl(url);
       setShowPanel(true);
+      
+      // 显示成功提示
+      alert(`分享已开始！\n分享链接：${url}\n\n请复制链接分享给观众`);
+      
     } catch (error) {
-      console.error('开始分享失败:', error);
-      alert('开始分享失败，请检查网络连接后重试');
+      console.error('[ShareToolbarButton] 开始分享失败:', error);
+      
+      // 更详细的错误信息
+      let errorMessage = '开始分享失败：';
+      if (error instanceof Error) {
+        if (error.message.includes('PeerJS')) {
+          errorMessage += '\n• PeerJS服务连接失败，请检查网络连接';
+        } else if (error.message.includes('未准备就绪')) {
+          errorMessage += '\n• 服务正在初始化，请稍后重试';
+        } else {
+          errorMessage += `\n• ${error.message}`;
+        }
+      } else {
+        errorMessage += '\n• 未知错误，请刷新页面重试';
+      }
+      
+      errorMessage += '\n\n解决方案：\n1. 检查网络连接\n2. 刷新页面重试\n3. 尝试使用其他浏览器';
+      
+      alert(errorMessage);
     }
   };
 

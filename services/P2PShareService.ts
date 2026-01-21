@@ -110,14 +110,24 @@ export class P2PShareService {
 
   // 创建分享（创作者调用）
   public startSharing(): string {
-    if (!this.peer || !this.shareId) {
-      throw new Error('PeerJS未准备就绪，请稍后重试');
+    console.log('[P2PShareService] startSharing called');
+    console.log('[P2PShareService] peer:', this.peer);
+    console.log('[P2PShareService] shareId:', this.shareId);
+    
+    if (!this.peer) {
+      console.error('[P2PShareService] Peer is null');
+      throw new Error('PeerJS未初始化，请刷新页面重试');
+    }
+    
+    if (!this.shareId) {
+      console.error('[P2PShareService] ShareId is empty');
+      throw new Error('PeerJS未准备就绪，请稍后重试（通常需要2-5秒）');
     }
 
     this.isHost = true;
     const shareUrl = `${window.location.origin}${window.location.pathname}?watch=${this.shareId}`;
     
-    console.log('开始分享，链接:', shareUrl);
+    console.log('[P2PShareService] 开始分享，链接:', shareUrl);
     this.notifyStatusChange();
     
     return shareUrl;

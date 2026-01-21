@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>简单分享测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .button { 
+            background: #007bff; 
+            color: white; 
+            padding: 10px 20px; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            margin: 10px 0;
+        }
+        .info { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 5px; 
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>简单分享功能测试</h1>
+    
+    <div class="info">
+        <h3>当前状态：</h3>
+        <p id="status">准备就绪</p>
+    </div>
+    
+    <button class="button" onclick="testShare()">开始分享测试</button>
+    <button class="button" onclick="copyTestUrl()">复制测试链接</button>
+    
+    <div class="info">
+        <h3>测试链接：</h3>
+        <input type="text" id="testUrl" style="width: 100%; padding: 5px;" readonly>
+    </div>
+    
+    <div class="info">
+        <h3>说明：</h3>
+        <p>1. 点击"开始分享测试"生成测试链接</p>
+        <p>2. 复制链接在新标签页打开</p>
+        <p>3. 如果能看到观看页面，说明基本功能正常</p>
+    </div>
+
+    <script>
+        function testShare() {
+            // 生成一个简单的测试ID
+            const testId = 'test-' + Date.now();
+            const testUrl = `${window.location.origin}/localhost:3005/?watch=${testId}`;
+            
+            document.getElementById('testUrl').value = testUrl;
+            document.getElementById('status').textContent = `分享已开始，ID: ${testId}`;
+            
+            console.log('测试分享链接:', testUrl);
+        }
+        
+        function copyTestUrl() {
+            const urlInput = document.getElementById('testUrl');
+            if (urlInput.value) {
+                urlInput.select();
+                document.execCommand('copy');
+                alert('链接已复制到剪贴板！');
+            } else {
+                alert('请先点击"开始分享测试"生成链接');
+            }
+        }
+        
+        // 检查是否是观看模式
+        const urlParams = new URLSearchParams(window.location.search);
+        const watchId = urlParams.get('watch');
+        
+        if (watchId) {
+            document.body.innerHTML = `
+                <h1>观看模式测试成功！</h1>
+                <div class="info">
+                    <h3>观看信息：</h3>
+                    <p>分享ID: ${watchId}</p>
+                    <p>当前时间: ${new Date().toLocaleString()}</p>
+                    <p>URL: ${window.location.href}</p>
+                </div>
+                <p style="color: green; font-weight: bold;">✅ 基本分享功能正常工作！</p>
+                <button class="button" onclick="window.close()">关闭</button>
+            `;
+        }
+    </script>
+</body>
+</html>

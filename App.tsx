@@ -12,6 +12,7 @@ import { Block, Connection, BlockType, ModelConfig, ProviderType, ProviderSettin
 // 分享功能导入
 import { useShareMode } from './hooks/useShareMode';
 import ViewerMode from './components/ViewerMode';
+import SimpleViewerMode from './components/SimpleViewerMode';
 import SharePanel from './components/SharePanel';
 import ShareToolbarButton from './components/ShareToolbarButton';
 import { p2pShareService } from './services/P2PShareService';
@@ -116,9 +117,13 @@ const App: React.FC = () => {
   // 分享模式检测
   const shareMode = useShareMode();
   
+  // 调试信息
+  console.log('[App] ShareMode state:', shareMode);
+  
   // 如果是观看模式，显示观看界面
   if (shareMode.isViewer) {
-    return <ViewerMode shareId={shareMode.shareId} />;
+    console.log('[App] Rendering SimpleViewerMode with shareId:', shareMode.shareId);
+    return <SimpleViewerMode shareId={shareMode.shareId} />;
   }
 
   const [blocks, setBlocks] = useState<Block[]>([]);
