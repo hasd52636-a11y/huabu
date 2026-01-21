@@ -105,6 +105,7 @@ export class MultiProviderAIService implements AIServiceAdapter {
   private originalService: any = null;
   private tokenUpdateCallback: ((amount: number, type: 'text' | 'image' | 'video') => void) | null = null;
   private errorHandler: ErrorHandler;
+  private smartRoutingService: SmartRoutingService | null = null;
 
   constructor(originalService?: any) {
     this.originalService = originalService;
@@ -145,6 +146,23 @@ export class MultiProviderAIService implements AIServiceAdapter {
       baseUrl: settings.baseUrl,
       modelId: settings.modelId
     });
+
+    // 初始化SmartRoutingService（如果还没有初始化）
+    if (!this.smartRoutingService) {
+      // 创建一个基本的模型配置用于SmartRoutingService
+      const basicModelConfig = {
+        providers: {},
+        text: { provider: settings.provider as any, modelId: settings.modelId || 'gpt-4o' },
+        image: { provider: 'shenma' as any, modelId: 'nano-banana-hd' },
+        video: { provider: 'shenma' as any, modelId: 'sora_video2' },
+        _meta: {
+          version: '2.0' as const,
+          lastSaved: Date.now()
+        }
+      };
+      this.smartRoutingService = new SmartRoutingService(basicModelConfig);
+      console.log('[AIServiceAdapter] ✓ SmartRoutingService initialized');
+    }
 
     // 总是创建新实例以确保使用最新配置（解决API密钥更新问题）
     if (settings.provider === 'shenma') {
@@ -289,116 +307,102 @@ export class MultiProviderAIService implements AIServiceAdapter {
 
         this.initializeProviders(settings);
 
-        // 使用智能路由选择最佳模型
-        const smartSettings = smartRoutingService.getSmartProvider(contents, settings);
-
         // 计算输入内容的token消耗
         const prompt = this.convertContents(contents);
         const tokenAmount = TokenCalculator.calculateTextTokens(prompt, {
-          provider: smartSettings.provider
+          provider: settings.provider
         });
 
-        // 尊重用户选择的提供商，而不是硬编码使用神马提供商
-        const selectedProvider = smartSettings.provider;
+        // 使用用户选择的提供商
+        const selectedProvider = settings.provider;
         
         if (selectedProvider === 'shenma' && this.shenmaService) {
-          // 准备主提供商和备用提供商的配置
+          // 准备主提供商配置
           const primarySettings: ProviderSettings = {
             provider: selectedProvider,
             apiKey: settings.apiKey,
             baseUrl: settings.baseUrl,
-            modelId: smartSettings.modelId
+            modelId: settings.modelId || 'gpt-4o'
           };
 
-          const fallbackSettings: ProviderSettings = {
-            provider: selectedProvider,
-            apiKey: settings.apiKey,
-            baseUrl: settings.baseUrl,
-            modelId: 'gpt-4o'
-          };
+          try {
+            console.log('[AIServiceAdapter] Trying primary model: Gemini');
+            // 直接传递原始内容，不进行字符串转换，以支持多模态内容
+            const textContent = typeof contents === 'string' ? contents : 
+                               contents.parts?.[0]?.text || 
+                               contents.content || 
+                               JSON.stringify(contents);
+            
+            // 工具调用触发机制：检查是否包含工具调用指令
+            const shouldUseTools = textContent.includes('使用工具') || 
+                                   textContent.includes('调用函数') ||
+                                   textContent.includes('execute tool') ||
+                                   textContent.includes('call function') ||
+                                   // 支持@符号前缀的工具调用，如 @weather、@calculator
+                                   /@[a-zA-Z0-9_]+/.test(textContent);
+            
+            const generationOptions: any = {
+              temperature: 0.7,
+              maxTokens: 2000
+            };
+            
+            // 只有在需要工具调用时才传递工具参数
+            if (shouldUseTools) {
+              console.log('[AIServiceAdapter] Tool call requested, enabling tool support');
+              // 这里可以添加具体的工具定义
+              generationOptions.tools = []; // 暂时为空，等待具体工具实现
+              generationOptions.toolChoice = 'auto';
+            }
+            
+            const result = await this.shenmaService!.generateText(contents, generationOptions);
 
-          const result = await smartRoutingService.executeWithFallback(
-            // 主模型：Gemini
-            async () => {
-              console.log('[AIServiceAdapter] Trying primary model: Gemini');
-              // 直接传递原始内容，不进行字符串转换，以支持多模态内容
-              // 检查是否需要工具调用（当前实现：仅在明确请求工具时才传递工具参数）
-              // 未来可以扩展为基于内容自动判断是否需要工具
-              const textContent = typeof contents === 'string' ? contents : 
-                                 contents.parts?.[0]?.text || 
-                                 contents.content || 
-                                 JSON.stringify(contents);
-              
-              // 工具调用触发机制：检查是否包含工具调用指令
-              const shouldUseTools = textContent.includes('使用工具') || 
-                                     textContent.includes('调用函数') ||
-                                     textContent.includes('execute tool') ||
-                                     textContent.includes('call function') ||
-                                     // 支持@符号前缀的工具调用，如 @weather、@calculator
-                                     /@[a-zA-Z0-9_]+/.test(textContent);
-              
-              const generationOptions: any = {
-                temperature: 0.7,
-                maxTokens: 2000
-              };
-              
-              // 只有在需要工具调用时才传递工具参数
-              if (shouldUseTools) {
-                console.log('[AIServiceAdapter] Tool call requested, enabling tool support');
-                // 这里可以添加具体的工具定义
-                generationOptions.tools = []; // 暂时为空，等待具体工具实现
-                generationOptions.toolChoice = 'auto';
-              }
-              
-              return await this.shenmaService!.generateText(contents, generationOptions);
-            },
-            // 备用模型：GPT-4o
-            async () => {
-              console.log('[AIServiceAdapter] Trying fallback model: GPT-4o');
-              // 创建一个临时的ShenmaService实例用于GPT-4o
-              const fallbackService = new ShenmaService({
-                ...this.shenmaService!.config,
-                llmModel: 'gpt-4o'
-              });
-              
-              // 直接传递原始内容，不进行字符串转换
-              // 同样应用工具调用触发机制
-              const textContent = typeof contents === 'string' ? contents : 
-                                 contents.parts?.[0]?.text || 
-                                 contents.content || 
-                                 JSON.stringify(contents);
-              
-              const shouldUseTools = textContent.includes('使用工具') || 
-                                     textContent.includes('调用函数') ||
-                                     textContent.includes('execute tool') ||
-                                     textContent.includes('call function') ||
-                                     // 支持@符号前缀的工具调用，如 @weather、@calculator
-                                     /@[a-zA-Z0-9_]+/.test(textContent);
-              
-              const generationOptions: any = {
-                temperature: 0.7,
-                maxTokens: 2000
-              };
-              
-              if (shouldUseTools) {
-                console.log('[AIServiceAdapter] Tool call requested for fallback model');
-                generationOptions.tools = []; // 暂时为空，等待具体工具实现
-                generationOptions.toolChoice = 'auto';
-              }
-              
-              return await fallbackService.generateText(contents, generationOptions);
-            },
-            'text generation',
-            primarySettings,  // Task 6.1: 传递主提供商配置
-            fallbackSettings  // Task 6.1: 传递备用提供商配置
-          );
+            // 更新token消耗
+            if (this.tokenUpdateCallback) {
+              this.tokenUpdateCallback(tokenAmount, 'text');
+            }
 
-          // 更新token消耗
-          if (this.tokenUpdateCallback) {
-            this.tokenUpdateCallback(tokenAmount, 'text');
+            return result;
+          } catch (error) {
+            console.log('[AIServiceAdapter] Primary model failed, trying fallback model: GPT-4o');
+            // 创建一个临时的ShenmaService实例用于GPT-4o
+            const fallbackService = new ShenmaService({
+              ...this.shenmaService!.config,
+              llmModel: 'gpt-4o'
+            });
+            
+            // 直接传递原始内容，不进行字符串转换
+            const textContent = typeof contents === 'string' ? contents : 
+                               contents.parts?.[0]?.text || 
+                               contents.content || 
+                               JSON.stringify(contents);
+            
+            const shouldUseTools = textContent.includes('使用工具') || 
+                                   textContent.includes('调用函数') ||
+                                   textContent.includes('execute tool') ||
+                                   textContent.includes('call function') ||
+                                   // 支持@符号前缀的工具调用，如 @weather、@calculator
+                                   /@[a-zA-Z0-9_]+/.test(textContent);
+            
+            const generationOptions: any = {
+              temperature: 0.7,
+              maxTokens: 2000
+            };
+            
+            if (shouldUseTools) {
+              console.log('[AIServiceAdapter] Tool call requested for fallback model');
+              generationOptions.tools = []; // 暂时为空，等待具体工具实现
+              generationOptions.toolChoice = 'auto';
+            }
+            
+            const result = await fallbackService.generateText(contents, generationOptions);
+
+            // 更新token消耗
+            if (this.tokenUpdateCallback) {
+              this.tokenUpdateCallback(tokenAmount, 'text');
+            }
+
+            return result;
           }
-
-          return result;
         }
 
         if (settings.provider === 'zhipu' && this.zhipuService) {
