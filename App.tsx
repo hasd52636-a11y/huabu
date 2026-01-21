@@ -4499,7 +4499,7 @@ ${block.content}
                   {lang === 'zh' ? '预设提示词已激活' : 'PRESET PROMPT ACTIVE'}
                 </div>
               )}
-              <textarea rows={3} value={sidebarInput} onChange={e => setSidebarInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSidebarSend())} placeholder={t.inputPlaceholder} className="w-full p-4 bg-transparent outline-none text-lg font-bold resize-none scrollbar-hide pr-20 border-2 border-amber-500/30 rounded-[2rem] focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 transition-all duration-300" />
+              <textarea rows={5} value={sidebarInput} onChange={e => setSidebarInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSidebarSend())} placeholder={t.inputPlaceholder} className="w-full p-4 bg-transparent outline-none text-lg font-bold resize-none scrollbar-hide pr-20 border-2 border-amber-500/30 rounded-[2rem] focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 transition-all duration-300" />
               <div className="absolute bottom-4 right-4 flex items-center gap-2">
                  {/* Clear Chat Button */}
                  <button onClick={() => setMessages([])} className="p-3 text-slate-400 hover:text-red-500 transition-colors" title={t.ctxClear}><Eraser size={22} /></button>
