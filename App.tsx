@@ -5,7 +5,7 @@ import {
   MessageSquare, LayoutGrid, X, Key, Upload, Cpu, HelpCircle, Save, FilePlus, Paperclip, Eraser, Copy, Check,
   Trash2, Layers, Languages, Globe, RotateCcw, MonitorX, Send, Play, Download, Hand, Brain,
   Type as TextIcon, BrainCircuit, Sparkles, ChevronLeft, ChevronRight, ImagePlus, FileText, Info, Loader2, ArrowUpRight,
-  ChevronDown, Database, Sliders, ExternalLink, ShieldCheck, ListOrdered, FolderOpen, User, PanelLeft, PanelRight
+  ChevronDown, Database, Sliders, ExternalLink, ShieldCheck, ListOrdered, FolderOpen, User, PanelLeft, PanelRight, Share2
 } from 'lucide-react';
 import { Block, Connection, BlockType, ModelConfig, ProviderType, ProviderSettings, BatchConfig, BatchGenerationState, ExportLayout, FrameData, PresetPrompt, CanvasState, BatchInputSource, Character, NewModelConfig, getProviderSettings, convertLegacyToNewConfig, convertNewToLegacyConfig, MenuConfig } from './types';
 
@@ -13,6 +13,7 @@ import { Block, Connection, BlockType, ModelConfig, ProviderType, ProviderSettin
 import { useShareMode } from './hooks/useShareMode';
 import ViewerMode from './components/ViewerMode';
 import SharePanel from './components/SharePanel';
+import ShareToolbarButton from './components/ShareToolbarButton';
 import { p2pShareService } from './services/P2PShareService';
 
 // 简单音效播放函数
@@ -245,7 +246,7 @@ const App: React.FC = () => {
   const [selectedCharacter, setSelectedCharacter] = useState<Character | undefined>();
   
   // Feature Assembly State
-  const [sidebarTab, setSidebarTab] = useState<'chat' | 'caocao' | 'assembly' | 'share'>('chat');
+  const [sidebarTab, setSidebarTab] = useState<'chat' | 'caocao' | 'assembly'>('chat');
   const [currentMenuConfig, setCurrentMenuConfig] = useState<MenuConfig | undefined>();
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   
@@ -3964,6 +3965,10 @@ ${block.content}
         
         <div className="w-12 h-px bg-slate-300/30" />
         
+        <ShareToolbarButton />
+        
+        <div className="w-12 h-px bg-slate-300/30" />
+        
         <button onClick={() => { setZoom(0.5); setPan({ x: 0, y: 0 }); }} className="p-4 text-slate-400 hover:text-amber-500 transition-all" title={t.ctxReset}><RotateCcw size={24} /></button>
       </aside>
 
@@ -4214,13 +4219,6 @@ ${block.content}
                    曹操
                  </button>
                  <button
-                   onClick={() => setSidebarTab('share')}
-                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-black uppercase transition-all ${sidebarTab === 'share' ? (theme === 'dark' ? 'bg-slate-700 text-blue-400' : 'bg-blue-100 text-blue-600') : (theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-400 hover:text-slate-600')}`}
-                 >
-                   <Share2 size={16} />
-                   分享
-                 </button>
-                 <button
                    onClick={() => setSidebarTab('assembly')}
                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-black uppercase transition-all ${sidebarTab === 'assembly' ? (theme === 'dark' ? 'bg-slate-700 text-amber-400' : 'bg-amber-100 text-amber-600') : (theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-400 hover:text-slate-600')}`}
                  >
@@ -4298,22 +4296,6 @@ ${block.content}
               </div>
             ))}
           </div>
-          )}
-
-          {/* Share Panel */}
-          {sidebarTab === 'share' && (
-            <div className="flex-1 overflow-y-auto p-4">
-              <SharePanel
-                onShareStart={() => {
-                  console.log('分享已开始');
-                  showSuccess('分享已开始', '观众可以通过链接观看你的创作过程');
-                }}
-                onShareStop={() => {
-                  console.log('分享已停止');
-                  showInfo('分享已停止', '所有观众连接已断开');
-                }}
-              />
-            </div>
           )}
 
           {/* Feature Assembly Panel */}

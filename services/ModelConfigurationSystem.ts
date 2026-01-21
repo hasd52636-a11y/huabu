@@ -300,7 +300,7 @@ export class ModelConfigurationSystem implements UnifiedModelInterface {
     generationType: GenerationType,
     parameters: Record<string, any>
   ): Promise<Record<string, any>> {
-    const transformed = { ...parameters };
+    let transformed = { ...parameters };
 
     // Gemini-specific transformations
     if (apiModelId.includes('gemini')) {

@@ -605,12 +605,11 @@ export class ParameterFormatter implements IParameterFormatter {
       
       // Image defaults
       size: '1024x1024',
-      aspect_ratio: '1:1',
+      aspect_ratio: generationType === 'video' ? '16:9' : '1:1',
       quality: 'standard',
       n: 1,
       
       // Video defaults
-      aspect_ratio: generationType === 'video' ? '16:9' : undefined,
       duration: '10',
       hd: false
     };

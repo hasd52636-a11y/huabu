@@ -192,9 +192,32 @@ export class ShenmaService {
 
   /**
    * 初始化性能优化
+   * Requirements: 4.2 - 实现请求池和连接复用，添加智能负载均衡和限流，支持请求优先级和批处理
    */
   private initializePerformanceOptimizations(): void {
-    // 性能优化初始化逻辑
+    // Initialize connection pools for different endpoint types
+    this.connectionPool.set('text', { connections: [], maxConnections: 5 });
+    this.connectionPool.set('image', { connections: [], maxConnections: 8 });
+    this.connectionPool.set('video', { connections: [], maxConnections: 3 });
+    this.connectionPool.set('volcengine', { connections: [], maxConnections: 4 });
+
+    // Initialize load balancer endpoints
+    this.loadBalancer.endpoints.set(`${this.config.baseUrl}/v1/chat/completions`, {
+      weight: 1.0,
+      responseTime: 1000,
+      errorCount: 0
+    });
+    this.loadBalancer.endpoints.set(`${this.config.baseUrl}/v1/images/generations`, {
+      weight: 1.0,
+      responseTime: 2000,
+      errorCount: 0
+    });
+    this.loadBalancer.endpoints.set(`${this.config.baseUrl}/v2/videos/generations`, {
+      weight: 1.0,
+      responseTime: 5000,
+      errorCount: 0
+    });
+    
     console.log('[ShenmaService] Performance optimizations initialized');
   }
 
@@ -2984,35 +3007,6 @@ export class ShenmaService {
     endpoints: new Map<string, { weight: number; responseTime: number; errorCount: number }>(),
     currentIndex: 0
   };
-
-  /**
-   * 优化并发和极限调度性能
-   * Requirements: 4.2 - 实现请求池和连接复用，添加智能负载均衡和限流，支持请求优先级和批处理
-   */
-  private initializePerformanceOptimizations(): void {
-    // Initialize connection pools for different endpoint types
-    this.connectionPool.set('text', { connections: [], maxConnections: 5 });
-    this.connectionPool.set('image', { connections: [], maxConnections: 8 });
-    this.connectionPool.set('video', { connections: [], maxConnections: 3 });
-    this.connectionPool.set('volcengine', { connections: [], maxConnections: 4 });
-
-    // Initialize load balancer endpoints
-    this.loadBalancer.endpoints.set(`${this.config.baseUrl}/v1/chat/completions`, {
-      weight: 1.0,
-      responseTime: 1000,
-      errorCount: 0
-    });
-    this.loadBalancer.endpoints.set(`${this.config.baseUrl}/v1/images/generations`, {
-      weight: 1.0,
-      responseTime: 2000,
-      errorCount: 0
-    });
-    this.loadBalancer.endpoints.set(`${this.config.baseUrl}/v2/videos/generations`, {
-      weight: 1.0,
-      responseTime: 5000,
-      errorCount: 0
-    });
-  }
 
   /**
    * 获取或创建连接
