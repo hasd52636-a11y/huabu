@@ -32,8 +32,15 @@ const generateSafeTransform = (pan: any, zoom: any) => {
   const { pan: safePan, zoom: safeZoom } = validateCoordinates(pan, zoom);
   // 在分享页面中应用35%的缩小比例，保持左上角对齐
   const viewerScale = safeZoom * 0.65; // 缩小35%
-  // 不添加额外偏移，保持原始平移，这样内容会缩小但不会超出边界
-  return `translate(${safePan.x}px, ${safePan.y}px) scale(${viewerScale})`;
+  
+  // 添加偏移量：向右移动一个模块宽度(200px)，向下移动一个模块高度(150px)
+  // 大幅增加偏移量以确保内容不会太靠上和太靠左
+  const offsetX = 400; // 大幅增加向右偏移量
+  const offsetY = 350; // 大幅增加向下偏移量
+  const adjustedPanX = safePan.x + offsetX;
+  const adjustedPanY = safePan.y + offsetY;
+  
+  return `translate(${adjustedPanX}px, ${adjustedPanY}px) scale(${viewerScale})`;
 };
 
 // 添加画布网格样式（与主应用保持一致）
