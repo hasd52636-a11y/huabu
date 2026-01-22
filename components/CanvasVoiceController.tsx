@@ -274,7 +274,28 @@ const CanvasVoiceController: React.FC<CanvasVoiceControllerProps> = ({
         initializeBrowserSpeech();
       }
     } else if (!isActive && (isListening || realtimeSession.isConnected)) {
-      console.log('[CanvasVoiceController] 语音控制关闭，停止监听');
+      console.log('[CanvasVoiceController] 语音控制关闭，强制停止监听');
+      
+      // 立即设置状态
+      setIsListening(false);
+      setIsProcessing(false);
+      setError('');
+      
+      // 强制停止语音识别
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+          // 清除事件监听器，防止onend触发重启
+          recognitionRef.current.onend = null;
+          recognitionRef.current.onerror = null;
+          recognitionRef.current.onresult = null;
+          console.log('[CanvasVoiceController] 强制停止并清理语音识别');
+        } catch (error) {
+          console.error('[CanvasVoiceController] 强制停止语音识别时出错:', error);
+        }
+      }
+      
+      // 调用完整的停止函数
       stopListening();
     }
   }, [isActive]);
@@ -678,6 +699,14 @@ const CanvasVoiceController: React.FC<CanvasVoiceControllerProps> = ({
       recognition.onend = () => {
         console.log('[CanvasVoiceController] 语音识别结束');
         
+        // 检查是否仍然激活，如果不激活则直接退出
+        if (!isActive) {
+          console.log('[CanvasVoiceController] 语音控制已关闭，不重启监听');
+          setIsListening(false);
+          setIsProcessing(false);
+          return;
+        }
+        
         // 检查错误频率，防止无限重启
         const now = Date.now();
         if (now - lastErrorTime < 5000) { // 5秒内
@@ -696,10 +725,11 @@ const CanvasVoiceController: React.FC<CanvasVoiceControllerProps> = ({
           return;
         }
         
-        // 如果仍然处于激活状态且没有处理中，自动重启监听
+        // 双重检查：如果仍然处于激活状态且没有处理中，自动重启监听
         if (isActive && !isProcessing) {
           console.log('[CanvasVoiceController] 自动重启语音监听...');
           setTimeout(() => {
+            // 三重检查：确保在延迟后仍然激活
             if (isActive && recognitionRef.current && !isProcessing) {
               try {
                 recognitionRef.current.start();
@@ -708,9 +738,13 @@ const CanvasVoiceController: React.FC<CanvasVoiceControllerProps> = ({
                 setIsListening(false);
                 setIsProcessing(false);
               }
+            } else {
+              console.log('[CanvasVoiceController] 延迟检查发现语音控制已关闭，取消重启');
+              setIsListening(false);
             }
           }, 500); // 减少延迟到500ms
         } else {
+          console.log('[CanvasVoiceController] 语音控制未激活或正在处理中，不重启监听');
           setIsListening(false);
         }
       };
@@ -763,10 +797,20 @@ const CanvasVoiceController: React.FC<CanvasVoiceControllerProps> = ({
   };
 
   const stopListening = () => {
-    if (recognitionRef.current && isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-      console.log('[CanvasVoiceController] 语音识别已停止');
+    console.log('[CanvasVoiceController] 开始停止语音监听...');
+    
+    // 立即设置状态，防止重启
+    setIsListening(false);
+    setIsProcessing(false);
+    
+    // 停止浏览器语音识别
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+        console.log('[CanvasVoiceController] 浏览器语音识别已停止');
+      } catch (error) {
+        console.error('[CanvasVoiceController] 停止语音识别时出错:', error);
+      }
     }
     
     // 停止音频录制
@@ -787,6 +831,12 @@ const CanvasVoiceController: React.FC<CanvasVoiceControllerProps> = ({
         isConnected: false
       });
     }
+    
+    // 清理错误计数
+    setErrorCount(0);
+    setError('');
+    
+    console.log('[CanvasVoiceController] ✅ 语音监听已完全停止');
   };
 
   // 语音转录完成时，通过回调通知CaocaoAIChat

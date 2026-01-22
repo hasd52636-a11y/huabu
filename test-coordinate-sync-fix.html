@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>主屏幕与分享页面坐标同步修复测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 32px;
+            padding: 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+        }
+        .test-section h3 {
+            margin: 0 0 16px 0;
+            color: #1f2937;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            margin-left: 12px;
+        }
+        .status.fixed {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .status.testing {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 16px 0;
+        }
+        .feature-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #f3f4f6;
+            display: flex;
+            align-items: center;
+        }
+        .feature-list li:last-child {
+            border-bottom: none;
+        }
+        .check {
+            color: #10b981;
+            margin-right: 8px;
+            font-weight: bold;
+        }
+        .test-button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin: 8px 8px 8px 0;
+        }
+        .test-button:hover {
+            background: #2563eb;
+        }
+        .test-button.secondary {
+            background: #6b7280;
+        }
+        .test-button.secondary:hover {
+            background: #4b5563;
+        }
+        .instructions {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+        .instructions h4 {
+            margin: 0 0 8px 0;
+            color: #92400e;
+        }
+        .instructions p {
+            margin: 4px 0;
+            color: #78350f;
+        }
+        .problem-description {
+            background: #fee2e2;
+            border: 1px solid #ef4444;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+        .problem-description h4 {
+            margin: 0 0 8px 0;
+            color: #dc2626;
+        }
+        .problem-description p {
+            margin: 4px 0;
+            color: #991b1b;
+        }
+        .fix-description {
+            background: #d1fae5;
+            border: 1px solid #10b981;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+        .fix-description h4 {
+            margin: 0 0 8px 0;
+            color: #059669;
+        }
+        .fix-description p {
+            margin: 4px 0;
+            color: #047857;
+        }
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .comparison-item {
+            text-align: center;
+            padding: 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+        }
+        .comparison-item h4 {
+            margin: 0 0 10px 0;
+            color: #374151;
+        }
+        .comparison-item.wrong {
+            border-color: #ef4444;
+            background: #fef2f2;
+        }
+        .comparison-item.correct {
+            border-color: #10b981;
+            background: #f0fdf4;
+        }
+        .code-block {
+            background: #f3f4f6;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin: 8px 0;
+            overflow-x: auto;
+        }
+        .code-block.wrong {
+            background: #fef2f2;
+            border: 1px solid #ef4444;
+        }
+        .code-block.correct {
+            background: #f0fdf4;
+            border: 1px solid #10b981;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📐 主屏幕与分享页面坐标同步修复</h1>
+        <p>修复主屏幕内容和同屏分享内容显示坐标不一致的问题</p>
+
+        <div class="test-section">
+            <h3>🐛 问题分析 <span class="status fixed">✅ 已修复</span></h3>
+            <div class="problem-description">
+                <h4>用户报告的问题:</h4>
+                <p><strong>"主屏幕内容和同屏的内容显示的坐标似乎不一致"</strong></p>
+                
+                <h4>问题根因:</h4>
+                <p>• 主应用和分享页面使用了不同的坐标变换逻辑</p>
+                <p>• 分享页面的transform顺序错误：先scale后translate</p>
+                <p>• 正确的顺序应该是：先translate后scale</p>
+                <p>• 这导致模块在分享页面中显示位置偏移</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔧 修复方案 <span class="status fixed">✅ 已实施</span></h3>
+            <div class="fix-description">
+                <h4>修复内容:</h4>
+                <p><strong>文件：</strong> <code>components/ShareKitViewerPage.tsx</code></p>
+                
+                <div class="comparison">
+                    <div class="comparison-item wrong">
+                        <h4>修复前 - 错误的变换顺序</h4>
+                        <div class="code-block wrong">
+transform: `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`
+                        </div>
+                        <p style="color: #dc2626; font-size: 14px;">先缩放后平移，导致平移距离被缩放影响</p>
+                    </div>
+                    
+                    <div class="comparison-item correct">
+                        <h4>修复后 - 正确的变换顺序</h4>
+                        <div class="code-block correct">
+transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`
+                        </div>
+                        <p style="color: #059669; font-size: 14px;">先平移后缩放，保持坐标系统一致</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 变换原理解释</h3>
+            <h4>CSS Transform 执行顺序：</h4>
+            <ul class="feature-list">
+                <li><span class="check">1️⃣</span> <strong>错误方式</strong>：scale(2) translate(100px, 50px)</li>
+                <li style="margin-left: 32px; color: #dc2626;">→ 先放大2倍，再移动100px,50px</li>
+                <li style="margin-left: 32px; color: #dc2626;">→ 实际移动距离变成200px,100px（被放大了）</li>
+                <li><span class="check">2️⃣</span> <strong>正确方式</strong>：translate(100px, 50px) scale(2)</li>
+                <li style="margin-left: 32px; color: #059669;">→ 先移动100px,50px，再放大2倍</li>
+                <li style="margin-left: 32px; color: #059669;">→ 移动距离保持100px,50px不变</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>🧪 测试验证 <span class="status testing">🔄 准备测试</span></h3>
+            
+            <div class="instructions">
+                <h4>📝 详细测试步骤：</h4>
+                <p><strong>步骤1：</strong> 打开主应用并创建几个模块</p>
+                <p><strong>步骤2：</strong> 记住模块在主屏幕中的相对位置</p>
+                <p><strong>步骤3：</strong> 调整画布的缩放和平移（拖拽画布）</p>
+                <p><strong>步骤4：</strong> 点击分享按钮并复制链接</p>
+                <p><strong>步骤5：</strong> 在新标签页打开分享链接</p>
+                <p><strong>步骤6：</strong> 对比主屏幕和分享页面的模块位置</p>
+                <p><strong>步骤7：</strong> 验证模块位置是否完全一致</p>
+            </div>
+
+            <button class="test-button" onclick="openMainApp()">
+                🏠 打开主应用测试
+            </button>
+            
+            <button class="test-button secondary" onclick="openTestViewer()">
+                👁️ 打开测试观看页面
+            </button>
+        </div>
+
+        <div class="test-section">
+            <h3>✅ 预期修复效果</h3>
+            <ul class="feature-list">
+                <li><span class="check">📍</span> 模块在分享页面的位置与主屏幕完全一致</li>
+                <li><span class="check">🔍</span> 缩放级别在两个页面中保持同步</li>
+                <li><span class="check">↔️</span> 平移偏移在两个页面中保持同步</li>
+                <li><span class="check">📐</span> 模块的相对位置关系完全相同</li>
+                <li><span class="check">🎯</span> 观看者看到的内容与主持人完全一致</li>
+                <li><span class="check">🔄</span> 实时同步时坐标变化保持一致</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>🔍 技术细节</h3>
+            <h4>修改的关键代码：</h4>
+            <div class="code-block">
+<strong>文件：</strong> components/ShareKitViewerPage.tsx
+
+<strong>修改前：</strong>
+transform: `scale(${canvasData.zoom || 1}) translate(${(canvasData.pan?.x || 0)}px, ${(canvasData.pan?.y || 0)}px)`
+
+<strong>修改后：</strong>
+transform: `translate(${(canvasData.pan?.x || 0)}px, ${(canvasData.pan?.y || 0)}px) scale(${canvasData.zoom || 1})`
+            </div>
+            
+            <h4>为什么这样修复有效：</h4>
+            <ul class="feature-list">
+                <li><span class="check">🎯</span> <strong>变换顺序</strong>：CSS transform从右到左执行</li>
+                <li><span class="check">📐</span> <strong>坐标系统</strong>：先平移建立正确的坐标原点</li>
+                <li><span class="check">🔍</span> <strong>缩放影响</strong>：后缩放不会影响平移距离</li>
+                <li><span class="check">⚖️</span> <strong>一致性</strong>：与主应用的坐标系统保持一致</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>📋 验证清单</h3>
+            <p>测试时请确认以下各项：</p>
+            <ul class="feature-list">
+                <li><span class="check">□</span> 模块A在主屏幕左上角，分享页面也在左上角</li>
+                <li><span class="check">□</span> 模块B在主屏幕右下角，分享页面也在右下角</li>
+                <li><span class="check">□</span> 两个模块之间的距离在两个页面中相同</li>
+                <li><span class="check">□</span> 缩放后模块位置仍然保持一致</li>
+                <li><span class="check">□</span> 拖拽画布后模块位置仍然保持一致</li>
+                <li><span class="check">□</span> 实时更新时坐标变化同步</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>🎯 测试场景建议</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin: 16px 0;">
+                <div style="padding: 16px; border: 2px solid #e5e7eb; border-radius: 8px;">
+                    <h4 style="margin: 0 0 8px 0; color: #374151;">场景1：基础位置</h4>
+                    <p style="margin: 0; font-size: 14px; color: #6b7280;">创建2-3个模块，不做任何缩放和平移，验证基础坐标</p>
+                </div>
+                <div style="padding: 16px; border: 2px solid #e5e7eb; border-radius: 8px;">
+                    <h4 style="margin: 0 0 8px 0; color: #374151;">场景2：缩放测试</h4>
+                    <p style="margin: 0; font-size: 14px; color: #6b7280;">放大/缩小画布，验证模块位置是否保持相对一致</p>
+                </div>
+                <div style="padding: 16px; border: 2px solid #e5e7eb; border-radius: 8px;">
+                    <h4 style="margin: 0 0 8px 0; color: #374151;">场景3：平移测试</h4>
+                    <p style="margin: 0; font-size: 14px; color: #6b7280;">拖拽画布到不同位置，验证模块偏移是否同步</p>
+                </div>
+                <div style="padding: 16px; border: 2px solid #e5e7eb; border-radius: 8px;">
+                    <h4 style="margin: 0 0 8px 0; color: #374151;">场景4：组合测试</h4>
+                    <p style="margin: 0; font-size: 14px; color: #6b7280;">同时进行缩放和平移，验证复合变换的一致性</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openMainApp() {
+            // 打开主应用
+            window.open('http://localhost:3005/', '_blank');
+        }
+
+        function openTestViewer() {
+            // 打开测试观看页面（使用测试分享ID）
+            window.open('http://localhost:3005/?watch=test-share-123', '_blank');
+        }
+
+        // 页面加载完成后的状态检查
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('坐标同步修复测试页面已加载');
+            console.log('开发服务器地址: http://localhost:3005/');
+            console.log('测试观看页面: http://localhost:3005/?watch=test-share-123');
+        });
+    </script>
+</body>
+</html>

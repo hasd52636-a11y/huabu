@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logo实现验证测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 32px;
+            padding: 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+        }
+        .test-section h3 {
+            margin: 0 0 16px 0;
+            color: #1f2937;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            margin-left: 12px;
+        }
+        .status.completed {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .status.ready {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 16px 0;
+        }
+        .feature-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #f3f4f6;
+            display: flex;
+            align-items: center;
+        }
+        .feature-list li:last-child {
+            border-bottom: none;
+        }
+        .check {
+            color: #10b981;
+            margin-right: 8px;
+            font-weight: bold;
+        }
+        .test-button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin: 8px 8px 8px 0;
+        }
+        .test-button:hover {
+            background: #2563eb;
+        }
+        .test-button.secondary {
+            background: #6b7280;
+        }
+        .test-button.secondary:hover {
+            background: #4b5563;
+        }
+        .instructions {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+        .instructions h4 {
+            margin: 0 0 8px 0;
+            color: #92400e;
+        }
+        .instructions p {
+            margin: 4px 0;
+            color: #78350f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 观看页面Logo实现验证</h1>
+        <p>验证分享页面左上角logo和名称显示效果</p>
+
+        <div class="test-section">
+            <h3>📋 实现状态检查 <span class="status completed">✅ 已完成</span></h3>
+            <ul class="feature-list">
+                <li><span class="check">✓</span> Logo SVG图形已添加到观看页面</li>
+                <li><span class="check">✓</span> "曹操画布"品牌名称已添加</li>
+                <li><span class="check">✓</span> 位置布局与主应用保持一致</li>
+                <li><span class="check">✓</span> 使用简化灰色调设计</li>
+                <li><span class="check">✓</span> 响应式尺寸适配</li>
+                <li><span class="check">✓</span> 保持所有原有功能</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>🚀 功能测试 <span class="status ready">🔄 就绪测试</span></h3>
+            
+            <div class="instructions">
+                <h4>📝 测试步骤:</h4>
+                <p>1. 点击"打开主应用"按钮，查看原始logo设计</p>
+                <p>2. 在主应用中创建一些内容（文本、图片等）</p>
+                <p>3. 点击左侧工具栏的分享按钮开始分享</p>
+                <p>4. 复制分享链接，在新标签页中打开</p>
+                <p>5. 验证观看页面左上角的logo和名称显示</p>
+            </div>
+
+            <button class="test-button" onclick="openMainApp()">
+                🏠 打开主应用
+            </button>
+            
+            <button class="test-button secondary" onclick="openTestViewer()">
+                👁️ 打开测试观看页面
+            </button>
+        </div>
+
+        <div class="test-section">
+            <h3>🎯 验证要点</h3>
+            <ul class="feature-list">
+                <li><span class="check">👀</span> Logo形状是否与主应用相似</li>
+                <li><span class="check">📍</span> 位置是否在左上角</li>
+                <li><span class="check">🎨</span> 颜色是否为灰色调</li>
+                <li><span class="check">📝</span> "曹操画布"名称是否显示</li>
+                <li><span class="check">📱</span> 在不同屏幕尺寸下是否正常</li>
+                <li><span class="check">⚡</span> 是否不影响分享功能</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 技术实现详情</h3>
+            <p><strong>文件位置:</strong> <code>components/ShareKitViewerPage.tsx</code></p>
+            <p><strong>Logo类型:</strong> 内联SVG，简化灰色版本</p>
+            <p><strong>尺寸:</strong> 48x30px (比主应用缩小25%)</p>
+            <p><strong>颜色方案:</strong> 灰色调 (#374151, #6b7280, #1f2937)</p>
+            <p><strong>字体样式:</strong> 与主应用相同的font-black和tracking设置</p>
+            <p><strong>响应式:</strong> 适配不同屏幕尺寸</p>
+        </div>
+
+        <div class="test-section">
+            <h3>✅ 预期效果</h3>
+            <p>观看页面应该显示:</p>
+            <ul class="feature-list">
+                <li><span class="check">🎭</span> 灰色调的曹操头像logo</li>
+                <li><span class="check">📛</span> "曹操画布"品牌名称</li>
+                <li><span class="check">👁️</span> "观看模式"标识</li>
+                <li><span class="check">🔗</span> 连接状态指示器</li>
+                <li><span class="check">👥</span> 观众数量显示</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function openMainApp() {
+            // 打开主应用
+            window.open('http://localhost:3005/', '_blank');
+        }
+
+        function openTestViewer() {
+            // 打开测试观看页面（使用测试分享ID）
+            window.open('http://localhost:3005/?watch=test-share-123', '_blank');
+        }
+
+        // 页面加载完成后的状态检查
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Logo实现验证页面已加载');
+            console.log('开发服务器地址: http://localhost:3005/');
+            console.log('测试观看页面: http://localhost:3005/?watch=test-share-123');
+        });
+    </script>
+</body>
+</html>

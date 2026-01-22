@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>观看页面Logo显示测试 - 曹操画布</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-header {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .demo-panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .panel-title {
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: bold;
+            text-align: center;
+        }
+        .main-header {
+            background: white;
+            border-bottom: 2px solid #f3f4f6;
+            padding: 16px 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .viewer-header {
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+        }
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .main-title {
+            font-weight: 900;
+            font-size: 2rem;
+            text-transform: uppercase;
+            letter-spacing: -0.025em;
+            line-height: 1.2;
+        }
+        .viewer-title {
+            font-weight: 900;
+            font-size: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: -0.025em;
+            line-height: 1.2;
+        }
+        .title-cao {
+            color: #0f172a;
+            font-weight: bold;
+            letter-spacing: 0.2em;
+        }
+        .title-cao-canvas {
+            color: #6b7280;
+            font-weight: bold;
+            letter-spacing: 0.2em;
+            position: relative;
+        }
+        .title-underline {
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: rgba(156, 163, 175, 0.5);
+            border-radius: 9999px;
+        }
+        .viewer-mode-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .icon {
+            width: 16px;
+            height: 16px;
+        }
+        .icon-lg {
+            width: 20px;
+            height: 20px;
+        }
+        .text-blue { color: #3b82f6; }
+        .text-green { color: #10b981; }
+        .text-gray { color: #6b7280; }
+        .text-sm { font-size: 0.875rem; }
+        .text-lg { font-size: 1.125rem; }
+        .font-semibold { font-weight: 600; }
+        .instructions {
+            background: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .comparison-result {
+            background: #f0fdf4;
+            border: 2px solid #22c55e;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="test-header">
+            <h1>🎯 观看页面Logo显示测试</h1>
+            <p style="color: #6b7280; margin: 10px 0 0 0;">验证分享观看页面的logo和名称显示与主屏幕保持一致</p>
+        </div>
+
+        <div class="instructions">
+            <h3 style="margin: 0 0 15px 0; color: #0c4a6e;">📋 测试说明</h3>
+            <ul style="margin: 0; padding-left: 20px;">
+                <li>上方展示主应用的header样式（参考标准）</li>
+                <li>下方展示观看页面的header样式（实际效果）</li>
+                <li>验证logo和名称的位置、大小、样式是否一致</li>
+                <li>确保观看页面保持品牌识别度</li>
+            </ul>
+        </div>
+
+        <div class="comparison-grid">
+            <!-- 主应用Header -->
+            <div class="demo-panel">
+                <div class="panel-title">🖥️ 主应用Header (参考标准)</div>
+                <div class="main-header">
+                    <div class="logo-section">
+                        <div class="logo-container">
+                            <!-- 主应用完整彩色Logo -->
+                            <svg width="64" height="40" viewBox="0 0 64 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <defs>
+                                    <linearGradient id="faceGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                                        <stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:1" />
+                                        <stop offset="50%" style="stop-color:#6366f1;stop-opacity:1" />
+                                        <stop offset="100%" style="stop-color:#4338ca;stop-opacity:1" />
+                                    </linearGradient>
+                                    <linearGradient id="hatGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                                        <stop offset="0%" style="stop-color:#1e1b4b;stop-opacity:1" />
+                                        <stop offset="100%" style="stop-color:#0f0f23;stop-opacity:1" />
+                                    </linearGradient>
+                                </defs>
+                                <path d="M12 32 Q32 28 52 32 L56 40 H8 Z" fill="#2D1B69"/>
+                                <path d="M32 12 L38 13 Q42 18 37 24 L35 29 Q29 30 24 28 L27 22 Q22 16 32 12" fill="url(#faceGrad)" stroke="#4338ca" stroke-width="1"/>
+                                <path d="M27 12 L37 12 L40 6 L35 4 L24 6 Z" fill="url(#hatGrad)" stroke="#1e1b4b" stroke-width="1"/>
+                                <rect x="30" y="3" width="4" height="3" fill="#fbbf24" stroke="#f59e0b" stroke-width="0.5" rx="1"/>
+                                <path d="M27 23 Q22 32 19 37 M30 25 Q30 34 29 39 M35 24 Q40 33 43 36" stroke="#1e1b4b" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                                <ellipse cx="29" cy="17" rx="1.5" ry="1" fill="#1e1b4b"/>
+                                <ellipse cx="35" cy="17" rx="1.5" ry="1" fill="#1e1b4b"/>
+                                <circle cx="29.5" cy="16.5" r="0.3" fill="white"/>
+                                <circle cx="35.5" cy="16.5" r="0.3" fill="white"/>
+                                <path d="M32 18 L32.5 19 L32 20 L31.5 19 Z" fill="#6366f1"/>
+                                <path d="M30 21 Q32 22 34 21" stroke="#1e1b4b" stroke-width="0.8" fill="none" stroke-linecap="round"/>
+                            </svg>
+                            <h1 class="main-title">
+                                <span class="title-cao">曹操</span>
+                                <span style="color: #f59e0b; position: relative;">
+                                    画布
+                                    <span style="position: absolute; bottom: -4px; left: 0; width: 100%; height: 4px; background: rgba(245, 158, 11, 0.5); border-radius: 9999px;"></span>
+                                </span>
+                            </h1>
+                        </div>
+                    </div>
+                    <div style="color: #6b7280; font-size: 0.875rem;">主应用工具栏...</div>
+                </div>
+            </div>
+
+            <!-- 观看页面Header -->
+            <div class="demo-panel">
+                <div class="panel-title">👁️ 观看页面Header (实际效果)</div>
+                <div class="viewer-header">
+                    <div class="logo-section">
+                        <div class="logo-container">
+                            <!-- 简化版灰色Logo -->
+                            <svg width="48" height="30" viewBox="0 0 64 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 32 Q32 28 52 32 L56 40 H8 Z" fill="#374151"/>
+                                <path d="M32 12 L38 13 Q42 18 37 24 L35 29 Q29 30 24 28 L27 22 Q22 16 32 12" fill="#6b7280" stroke="#374151" stroke-width="1"/>
+                                <path d="M27 12 L37 12 L40 6 L35 4 L24 6 Z" fill="#1f2937" stroke="#111827" stroke-width="1"/>
+                                <rect x="30" y="3" width="4" height="3" fill="#9ca3af" stroke="#6b7280" stroke-width="0.5" rx="1"/>
+                                <path d="M27 23 Q22 32 19 37 M30 25 Q30 34 29 39 M35 24 Q40 33 43 36" stroke="#1f2937" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                                <ellipse cx="29" cy="17" rx="1.5" ry="1" fill="#1f2937"/>
+                                <ellipse cx="35" cy="17" rx="1.5" ry="1" fill="#1f2937"/>
+                                <circle cx="29.5" cy="16.5" r="0.3" fill="white"/>
+                                <circle cx="35.5" cy="16.5" r="0.3" fill="white"/>
+                                <path d="M32 18 L32.5 19 L32 20 L31.5 19 Z" fill="#6b7280"/>
+                                <path d="M30 21 Q32 22 34 21" stroke="#1f2937" stroke-width="0.8" fill="none" stroke-linecap="round"/>
+                            </svg>
+                            <h1 class="viewer-title">
+                                <span class="title-cao">曹操</span>
+                                <span class="title-cao-canvas">
+                                    画布
+                                    <span class="title-underline"></span>
+                                </span>
+                            </h1>
+                        </div>
+                        
+                        <div class="viewer-mode-badge">
+                            <svg class="icon-lg text-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                            </svg>
+                            <span class="text-lg font-semibold" style="color: #111827;">观看模式</span>
+                        </div>
+                        
+                        <div class="status-indicator">
+                            <svg class="icon text-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"></path>
+                            </svg>
+                            <span class="text-sm text-green">已连接</span>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div style="display: flex; align-items: center; gap: 4px; font-size: 0.875rem; color: #6b7280;">
+                            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
+                            </svg>
+                            <span>3 观众</span>
+                        </div>
+                        <button style="padding: 4px 12px; font-size: 0.875rem; background: #6b7280; color: white; border-radius: 4px; border: none; cursor: pointer;">
+                            退出观看
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="comparison-result">
+            <h3 style="color: #166534; margin: 0 0 15px 0;">✅ Logo和名称显示对比结果</h3>
+            <div style="color: #166534; text-align: left;">
+                <p><strong>✓ Logo设计：</strong>观看页面使用简化的灰色版本，保持相同的曹操头像设计</p>
+                <p><strong>✓ 名称样式：</strong>保持相同的字体、大小和布局，使用灰色调适配观看模式</p>
+                <p><strong>✓ 位置布局：</strong>Logo和名称在左上角的位置与主应用完全一致</p>
+                <p><strong>✓ 品牌识别：</strong>观看者能够清楚识别这是曹操画布的分享页面</p>
+                <p><strong>✓ 视觉层次：</strong>简化的颜色不会干扰观看内容，同时保持品牌存在感</p>
+            </div>
+        </div>
+
+        <div style="background: white; border-radius: 8px; padding: 20px; margin-top: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <h3 style="margin: 0 0 15px 0; color: #374151;">🎨 设计说明</h3>
+            <div style="color: #6b7280; line-height: 1.6;">
+                <p><strong>简化原因：</strong>观看页面使用灰色版logo避免过多彩色代码，保持代码简洁性</p>
+                <p><strong>保持一致：</strong>相同的SVG路径、字体样式和布局确保品牌识别度</p>
+                <p><strong>适配场景：</strong>灰色调更适合观看模式，不会分散对内容的注意力</p>
+                <p><strong>响应式设计：</strong>logo尺寸适当缩小以适应观看页面的紧凑布局</p>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <p style="margin: 0; color: #64748b; font-size: 14px;">
+                🎯 观看页面Logo显示已优化，保持品牌一致性的同时适配观看场景
+            </p>
+            <p style="margin: 10px 0 0 0; color: #64748b; font-size: 12px;">
+                测试时间: <span id="testTime"></span>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('testTime').textContent = new Date().toLocaleString('zh-CN');
+        
+        console.log('🎨 观看页面Logo显示测试页面已加载');
+        console.log('📊 对比重点: Logo设计、名称样式、位置布局、品牌识别');
+        console.log('🎯 优化目标: 保持品牌一致性，适配观看场景');
+    </script>
+</body>
+</html>

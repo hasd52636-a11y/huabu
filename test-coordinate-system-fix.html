@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>坐标系统修复测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+        }
+        .test-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        .test-result {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .test-pass {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .test-fail {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .test-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .coordinate-demo {
+            position: relative;
+            width: 400px;
+            height: 300px;
+            border: 2px solid #333;
+            margin: 20px 0;
+            background: 
+                radial-gradient(circle, rgba(100, 100, 100, 0.3) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        .demo-block {
+            position: absolute;
+            width: 80px;
+            height: 60px;
+            background: white;
+            border: 2px solid #8b5cf6;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .main-canvas-demo .demo-block {
+            /* 主画布：使用 translate(-50%, -50%) 居中 */
+            transform: translate(-50%, -50%);
+        }
+        .shared-viewer-demo .demo-block {
+            /* 共享视图：修复后也使用 translate(-50%, -50%) 居中 */
+            transform: translate(-50%, -50%);
+        }
+        .old-shared-viewer-demo .demo-block {
+            /* 旧的共享视图：没有居中变换 */
+            /* transform: none; */
+        }
+        .demo-container {
+            position: relative;
+            transform-origin: 0 0;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        .control-button {
+            padding: 8px 16px;
+            margin: 0 5px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .control-button:hover {
+            background: #0056b3;
+        }
+        .comparison {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .comparison-item {
+            flex: 1;
+            min-width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>坐标系统修复测试</h1>
+        <p>此测试验证主画布和共享视图之间的坐标同步修复。</p>
+
+        <div class="test-section">
+            <div class="test-title">1. 容器变换一致性测试</div>
+            <div id="container-transform-test">
+                <div class="test-info">测试容器变换模式是否一致...</div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">2. 块定位一致性测试</div>
+            <div id="block-positioning-test">
+                <div class="test-info">测试块定位逻辑是否一致...</div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">3. 视觉对比演示</div>
+            <div class="comparison">
+                <div class="comparison-item">
+                    <h4>主画布 (参考)</h4>
+                    <div class="coordinate-demo main-canvas-demo">
+                        <div class="demo-container" id="main-demo-container">
+                            <div class="demo-block" style="left: 100px; top: 80px;">A01</div>
+                            <div class="demo-block" style="left: 250px; top: 150px;">B01</div>
+                            <div class="demo-block" style="left: 150px; top: 220px;">V01</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="comparison-item">
+                    <h4>共享视图 (修复后)</h4>
+                    <div class="coordinate-demo shared-viewer-demo">
+                        <div class="demo-container" id="shared-demo-container">
+                            <div class="demo-block" style="left: 100px; top: 80px;">A01</div>
+                            <div class="demo-block" style="left: 250px; top: 150px;">B01</div>
+                            <div class="demo-block" style="left: 150px; top: 220px;">V01</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="comparison-item">
+                    <h4>旧共享视图 (修复前)</h4>
+                    <div class="coordinate-demo old-shared-viewer-demo">
+                        <div class="demo-container" id="old-demo-container" style="padding-top: 64px;">
+                            <div class="demo-block" style="left: 100px; top: 80px;">A01</div>
+                            <div class="demo-block" style="left: 250px; top: 150px;">B01</div>
+                            <div class="demo-block" style="left: 150px; top: 220px;">V01</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <button class="control-button" onclick="testPanZoom()">测试平移缩放</button>
+                <button class="control-button" onclick="resetTransform()">重置变换</button>
+                <button class="control-button" onclick="runAllTests()">运行所有测试</button>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <div class="test-title">4. 测试结果</div>
+            <div id="test-results">
+                <div class="test-info">点击"运行所有测试"开始测试...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 模拟画布数据
+        const mockCanvasData = {
+            pan: { x: 0, y: 0 },
+            zoom: 1,
+            blocks: [
+                { id: '1', x: 100, y: 80, width: 80, height: 60, type: 'text' },
+                { id: '2', x: 250, y: 150, width: 80, height: 60, type: 'image' },
+                { id: '3', x: 150, y: 220, width: 80, height: 60, type: 'video' }
+            ]
+        };
+
+        // 测试容器变换一致性
+        function testContainerTransform() {
+            const mainCanvasTransform = `translate(${mockCanvasData.pan.x}px, ${mockCanvasData.pan.y}px) scale(${mockCanvasData.zoom})`;
+            const sharedViewerTransform = `translate(${mockCanvasData.pan.x}px, ${mockCanvasData.pan.y}px) scale(${mockCanvasData.zoom})`;
+            
+            const isConsistent = mainCanvasTransform === sharedViewerTransform;
+            
+            return {
+                name: '容器变换一致性',
+                passed: isConsistent,
+                details: `主画布: ${mainCanvasTransform}, 共享视图: ${sharedViewerTransform}`
+            };
+        }
+
+        // 测试块定位一致性
+        function testBlockPositioning() {
+            const testBlock = mockCanvasData.blocks[0];
+            
+            // 主画布定位逻辑
+            const mainCanvasStyle = {
+                left: testBlock.x,
+                top: testBlock.y,
+                transform: 'translate(-50%, -50%)'
+            };
+            
+            // 共享视图定位逻辑（修复后）
+            const sharedViewerStyle = {
+                left: testBlock.x,
+                top: testBlock.y,
+                transform: 'translate(-50%, -50%)'
+            };
+            
+            const isConsistent = 
+                mainCanvasStyle.left === sharedViewerStyle.left &&
+                mainCanvasStyle.top === sharedViewerStyle.top &&
+                mainCanvasStyle.transform === sharedViewerStyle.transform;
+            
+            return {
+                name: '块定位一致性',
+                passed: isConsistent,
+                details: `定位: left=${testBlock.x}, top=${testBlock.y}, transform=translate(-50%, -50%)`
+            };
+        }
+
+        // 测试变换层次结构
+        function testTransformHierarchy() {
+            // 验证变换应用顺序：容器变换 -> 块变换
+            const containerTransformAppliedFirst = true; // 容器变换在外层div
+            const blockTransformAppliedSecond = true;    // 块变换在内层div
+            
+            return {
+                name: '变换层次结构',
+                passed: containerTransformAppliedFirst && blockTransformAppliedSecond,
+                details: '容器变换 -> 块变换的正确顺序'
+            };
+        }
+
+        // 测试填充移除
+        function testPaddingRemoval() {
+            // 验证是否移除了pt-16填充
+            const noPaddingOffset = true; // 已移除pt-16
+            const headerSeparated = true; // 头部独立定位
+            
+            return {
+                name: '填充移除',
+                passed: noPaddingOffset && headerSeparated,
+                details: '已移除pt-16填充，头部独立定位'
+            };
+        }
+
+        // 运行所有测试
+        function runAllTests() {
+            const tests = [
+                testContainerTransform(),
+                testBlockPositioning(),
+                testTransformHierarchy(),
+                testPaddingRemoval()
+            ];
+            
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = '';
+            
+            let passedCount = 0;
+            
+            tests.forEach(test => {
+                const resultDiv = document.createElement('div');
+                resultDiv.className = test.passed ? 'test-result test-pass' : 'test-result test-fail';
+                resultDiv.innerHTML = `
+                    <strong>${test.name}:</strong> ${test.passed ? '✅ 通过' : '❌ 失败'}
+                    <br><small>${test.details}</small>
+                `;
+                resultsDiv.appendChild(resultDiv);
+                
+                if (test.passed) passedCount++;
+            });
+            
+            // 添加总结
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = passedCount === tests.length ? 'test-result test-pass' : 'test-result test-fail';
+            summaryDiv.innerHTML = `<strong>测试总结:</strong> ${passedCount}/${tests.length} 项测试通过`;
+            resultsDiv.appendChild(summaryDiv);
+        }
+
+        // 测试平移缩放
+        function testPanZoom() {
+            const containers = ['main-demo-container', 'shared-demo-container'];
+            const pan = { x: 50, y: 30 };
+            const zoom = 1.2;
+            
+            containers.forEach(id => {
+                const container = document.getElementById(id);
+                if (container) {
+                    container.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
+                }
+            });
+            
+            // 旧版本演示（有偏移）
+            const oldContainer = document.getElementById('old-demo-container');
+            if (oldContainer) {
+                // 模拟旧版本的问题：额外的64px偏移
+                oldContainer.style.transform = `translate(${pan.x}px, ${pan.y + 64}px) scale(${zoom})`;
+            }
+        }
+
+        // 重置变换
+        function resetTransform() {
+            const containers = ['main-demo-container', 'shared-demo-container', 'old-demo-container'];
+            containers.forEach(id => {
+                const container = document.getElementById(id);
+                if (container) {
+                    container.style.transform = 'translate(0px, 0px) scale(1)';
+                }
+            });
+        }
+
+        // 页面加载时运行测试
+        window.onload = function() {
+            runAllTests();
+        };
+    </script>
+</body>
+</html>

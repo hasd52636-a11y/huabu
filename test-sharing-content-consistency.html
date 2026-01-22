@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分享内容一致性测试 - 曹操画布</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .test-header {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .test-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .test-panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .panel-header {
+            padding: 20px;
+            border-bottom: 2px solid #f3f4f6;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .panel-content {
+            padding: 20px;
+            height: 600px;
+            overflow: auto;
+        }
+        .host-panel .panel-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .viewer-panel .panel-header {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        .module-demo {
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            background: white;
+        }
+        .module-header {
+            padding: 12px 16px;
+            background: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            color: #6b7280;
+        }
+        .type-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .text-type { background: #3b82f6; }
+        .image-type { background: #10b981; }
+        .video-type { background: #8b5cf6; }
+        .module-content {
+            padding: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+        .content-area {
+            position: relative;
+            overflow: hidden;
+            border: 1px dashed #fbbf24;
+            background: #fffbeb;
+            border-radius: 4px;
+        }
+        .text-content {
+            font-size: 14px;
+            color: #333;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-break: break-words;
+            padding: 8px;
+        }
+        .image-placeholder {
+            width: 100%;
+            height: 120px;
+            background: linear-gradient(45deg, #f472b6, #06b6d4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            border-radius: 4px;
+        }
+        .video-placeholder {
+            width: 100%;
+            height: 100px;
+            background: linear-gradient(45deg, #8b5cf6, #06b6d4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            border-radius: 4px;
+        }
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .status-success {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .status-sync {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        .instructions {
+            background: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .instructions h3 {
+            margin: 0 0 15px 0;
+            color: #0c4a6e;
+        }
+        .test-steps {
+            background: #fefce8;
+            border: 1px solid #eab308;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .step {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .step-number {
+            background: #eab308;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+        .comparison-result {
+            background: #f0fdf4;
+            border: 2px solid #22c55e;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            text-align: center;
+        }
+        .sync-animation {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="test-header">
+            <h1>🎯 分享内容一致性测试</h1>
+            <p style="color: #6b7280; margin: 10px 0 0 0;">验证主机端和观看端显示的模块内容完全一致</p>
+        </div>
+
+        <div class="instructions">
+            <h3>📋 测试说明</h3>
+            <ul style="margin: 0; padding-left: 20px;">
+                <li>左侧模拟主机端（分享者）的模块显示</li>
+                <li>右侧模拟观看端（接收者）的模块显示</li>
+                <li>验证内容裁剪是否保持一致性</li>
+                <li>确保超出模块框的内容被正确裁剪</li>
+            </ul>
+        </div>
+
+        <div class="test-grid">
+            <!-- 主机端面板 -->
+            <div class="test-panel host-panel">
+                <div class="panel-header">
+                    <span>🖥️</span>
+                    <div>
+                        <div style="font-weight: bold; font-size: 16px;">主机端 (分享者)</div>
+                        <div style="font-size: 12px; opacity: 0.9;">localhost:3005</div>
+                    </div>
+                    <div style="margin-left: auto;">
+                        <span class="status-indicator status-success">
+                            <span>●</span> 分享中
+                        </span>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <!-- 文本模块 -->
+                    <div class="module-demo">
+                        <div class="module-header">
+                            <div class="type-indicator text-type"></div>
+                            <span>文本模块</span>
+                            <span style="margin-left: auto;">#A01</span>
+                        </div>
+                        <div class="module-content">
+                            <div class="content-area" style="width: 268px; height: 90px;">
+                                <div class="text-content">
+                                    这是一段测试文本内容，用于验证内容裁剪功能。当文本内容超出模块框的尺寸时，应该被正确裁剪，确保主机和观看者看到完全相同的内容。这段文本故意写得很长，以测试裁剪效果...更多内容...更多内容...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 图片模块 -->
+                    <div class="module-demo">
+                        <div class="module-header">
+                            <div class="type-indicator image-type"></div>
+                            <span>图片模块</span>
+                            <span style="margin-left: auto;">#B01</span>
+                        </div>
+                        <div class="module-content">
+                            <div class="content-area" style="width: 268px; height: 120px;">
+                                <div class="image-placeholder">
+                                    🖼️ 测试图片<br>
+                                    <small>object-fit: cover</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 视频模块 -->
+                    <div class="module-demo">
+                        <div class="module-header">
+                            <div class="type-indicator video-type"></div>
+                            <span>视频模块</span>
+                            <span style="margin-left: auto;">#V01</span>
+                        </div>
+                        <div class="module-content">
+                            <div class="content-area" style="width: 268px; height: 100px;">
+                                <div class="video-placeholder">
+                                    🎥 测试视频<br>
+                                    <small>object-fit: contain</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 观看端面板 -->
+            <div class="test-panel viewer-panel">
+                <div class="panel-header">
+                    <span>👁️</span>
+                    <div>
+                        <div style="font-weight: bold; font-size: 16px;">观看端 (接收者)</div>
+                        <div style="font-size: 12px; opacity: 0.9;">localhost:3005/?watch=caocao-canvas-xxxxx</div>
+                    </div>
+                    <div style="margin-left: auto;">
+                        <span class="status-indicator status-sync sync-animation">
+                            <span>●</span> 同步中
+                        </span>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <!-- 文本模块 (观看端) -->
+                    <div class="module-demo">
+                        <div class="module-header">
+                            <div class="type-indicator text-type"></div>
+                            <span>文本模块</span>
+                            <span style="margin-left: auto;">#A01</span>
+                        </div>
+                        <div class="module-content">
+                            <div class="content-area" style="width: 268px; height: 90px;">
+                                <div class="text-content">
+                                    这是一段测试文本内容，用于验证内容裁剪功能。当文本内容超出模块框的尺寸时，应该被正确裁剪，确保主机和观看者看到完全相同的内容。这段文本故意写得很长，以测试裁剪效果...更多内容...更多内容...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 图片模块 (观看端) -->
+                    <div class="module-demo">
+                        <div class="module-header">
+                            <div class="type-indicator image-type"></div>
+                            <span>图片模块</span>
+                            <span style="margin-left: auto;">#B01</span>
+                        </div>
+                        <div class="module-content">
+                            <div class="content-area" style="width: 268px; height: 120px;">
+                                <div class="image-placeholder">
+                                    🖼️ 测试图片<br>
+                                    <small>object-fit: cover</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 视频模块 (观看端) -->
+                    <div class="module-demo">
+                        <div class="module-header">
+                            <div class="type-indicator video-type"></div>
+                            <span>视频模块</span>
+                            <span style="margin-left: auto;">#V01</span>
+                        </div>
+                        <div class="module-content">
+                            <div class="content-area" style="width: 268px; height: 100px;">
+                                <div class="video-placeholder">
+                                    🎥 测试视频<br>
+                                    <small>object-fit: contain</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-steps">
+            <h3>🧪 测试步骤</h3>
+            <div class="step">
+                <div class="step-number">1</div>
+                <div>
+                    <strong>启动主应用：</strong>访问 <code>http://localhost:3005</code>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <div>
+                    <strong>创建测试内容：</strong>添加文本、图片、视频模块，输入超长内容
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <div>
+                    <strong>开始分享：</strong>点击左侧工具栏的分享按钮，复制分享链接
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-number">4</div>
+                <div>
+                    <strong>打开观看页面：</strong>在新标签页中打开分享链接
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-number">5</div>
+                <div>
+                    <strong>对比显示效果：</strong>验证两个页面的模块内容显示是否完全一致
+                </div>
+            </div>
+        </div>
+
+        <div class="comparison-result">
+            <h3 style="color: #166534; margin: 0 0 15px 0;">✅ 预期测试结果</h3>
+            <div style="color: #166534;">
+                <p><strong>✓ 内容尺寸一致：</strong>所有模块的内容区域尺寸完全相同</p>
+                <p><strong>✓ 裁剪效果一致：</strong>超出模块框的内容在两端都被正确裁剪</p>
+                <p><strong>✓ 显示样式一致：</strong>文本、图片、视频的显示方式完全相同</p>
+                <p><strong>✓ 实时同步：</strong>主机端的内容变化实时同步到观看端</p>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <p style="margin: 0; color: #64748b; font-size: 14px;">
+                🎯 内容裁剪功能确保分享同屏的完美一致性
+            </p>
+            <p style="margin: 10px 0 0 0; color: #64748b; font-size: 12px;">
+                测试页面生成时间: <span id="testTime"></span>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // 显示当前时间
+        document.getElementById('testTime').textContent = new Date().toLocaleString('zh-CN');
+        
+        // 模拟实时同步效果
+        setInterval(() => {
+            const syncIndicators = document.querySelectorAll('.sync-animation');
+            syncIndicators.forEach(indicator => {
+                indicator.style.opacity = Math.random() > 0.5 ? '1' : '0.7';
+            });
+        }, 1000);
+        
+        console.log('🧪 分享内容一致性测试页面已加载');
+        console.log('📊 测试重点: 验证模块内容在主机端和观看端的显示一致性');
+        console.log('🎯 关键指标: 内容裁剪、尺寸计算、样式同步');
+    </script>
+</body>
+</html>

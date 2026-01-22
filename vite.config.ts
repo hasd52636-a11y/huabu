@@ -40,6 +40,13 @@ export default defineConfig(({ mode }) => {
             }
           }
         }
+      },
+      test: {
+        globals: true,
+        environment: 'jsdom',
+        setupFiles: [],
+        include: ['**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
+        exclude: ['node_modules', 'dist', '.git', '.cache']
       }
     };
 });
