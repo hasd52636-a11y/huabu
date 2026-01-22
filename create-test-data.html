@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>创建测试数据</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 1rem 2rem;
+            margin: 0.5rem;
+            background: #3b82f6;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.2s;
+            width: 100%;
+            text-align: center;
+        }
+        
+        .btn:hover {
+            background: #2563eb;
+        }
+        
+        .btn.success {
+            background: #10b981;
+        }
+        
+        .btn.success:hover {
+            background: #059669;
+        }
+        
+        .status {
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+        
+        .status.success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #6ee7b7;
+        }
+        
+        .status.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+        
+        .status.info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+        
+        .data-preview {
+            background: #f1f5f9;
+            padding: 1rem;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 创建测试数据</h1>
+            <p>为分享查看器创建必要的测试数据</p>
+        </div>
+
+        <div id="status" class="status info">
+            点击下方按钮创建测试数据
+        </div>
+
+        <button onclick="createTestData()" class="btn success">
+            📋 创建问题分享ID的测试数据
+        </button>
+
+        <button onclick="createNormalTestData()" class="btn">
+            📄 创建正常分享ID的测试数据
+        </button>
+
+        <button onclick="showCurrentData()" class="btn">
+            👁️ 查看当前数据
+        </button>
+
+        <button onclick="clearAllData()" class="btn" style="background: #ef4444;">
+            🗑️ 清除所有数据
+        </button>
+
+        <div id="dataPreview" class="data-preview" style="display: none;"></div>
+
+        <div style="margin-top: 2rem; text-align: center;">
+            <h3>测试链接</h3>
+            <a href="/?watch=share-1769056688844-v3iise" target="_blank" class="btn">
+                🔗 测试问题分享ID
+            </a>
+            <a href="/?watch=test-share-123" target="_blank" class="btn">
+                🔗 测试正常分享ID
+            </a>
+        </div>
+    </div>
+
+    <script>
+        const PROBLEM_SHARE_ID = 'share-1769056688844-v3iise';
+        const NORMAL_SHARE_ID = 'test-share-123';
+
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.className = `status ${type}`;
+            status.innerHTML = message;
+        }
+
+        function createTestData() {
+            try {
+                const testSession = {
+                    id: PROBLEM_SHARE_ID,
+                    hostId: "demo-host-1769059789815",
+                    title: "演示分享会话 - 多种内容类型",
+                    createdAt: 1769056189815,
+                    lastUpdate: Date.now(),
+                    canvasState: {
+                        blocks: [
+                            {
+                                id: "title-block",
+                                type: "text",
+                                x: 100,
+                                y: 100,
+                                width: 500,
+                                height: 80,
+                                content: "📋 分享功能演示画布",
+                                number: 1
+                            },
+                            {
+                                id: "desc-block",
+                                type: "text",
+                                x: 100,
+                                y: 200,
+                                width: 400,
+                                height: 120,
+                                content: "这个分享会话包含多种类型的内容块：\\n• 文本块\\n• 图片块（占位符）\\n• 视频块（占位符）",
+                                number: 2
+                            },
+                            {
+                                id: "image-placeholder",
+                                type: "image",
+                                x: 550,
+                                y: 200,
+                                width: 200,
+                                height: 150,
+                                content: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPuWbvueJh+WNoOS9jeespzwvdGV4dD48L3N2Zz4=",
+                                number: 3
+                            },
+                            {
+                                id: "status-block",
+                                type: "text",
+                                x: 100,
+                                y: 380,
+                                width: 650,
+                                height: 60,
+                                content: "✅ 分享功能状态：正常运行 | 观众数：0 | 最后更新：" + new Date().toLocaleString(),
+                                number: 4
+                            }
+                        ],
+                        connections: [],
+                        zoom: 1,
+                        pan: { x: 0, y: 0 }
+                    },
+                    viewers: [
+                        {
+                            id: "user-1769059794823-in79",
+                            joinTime: 1769059794823,
+                            lastSeen: Date.now(),
+                            connectionType: "polling",
+                            userAgent: navigator.userAgent
+                        }
+                    ],
+                    isActive: true,
+                    connectionMode: {
+                        type: "polling",
+                        priority: 2,
+                        config: {
+                            pollInterval: 1000,
+                            timeout: 10000,
+                            retryAttempts: 5
+                        }
+                    },
+                    quality: {
+                        level: "excellent",
+                        latency: 80,
+                        bandwidth: 1500,
+                        stability: 0.98,
+                        lastMeasured: Date.now()
+                    },
+                    settings: {
+                        maxViewers: 20,
+                        autoReconnect: true,
+                        compressionEnabled: false,
+                        updateThrottle: 300,
+                        qualityAdaptive: true
+                    }
+                };
+
+                const sessionKey = `share-session-${PROBLEM_SHARE_ID}`;
+                localStorage.setItem(sessionKey, JSON.stringify(testSession));
+                
+                updateStatus(`✅ 成功创建问题分享ID的测试数据！<br>
+                    <strong>分享ID:</strong> ${PROBLEM_SHARE_ID}<br>
+                    <strong>模块数量:</strong> ${testSession.canvasState.blocks.length}<br>
+                    <strong>创建时间:</strong> ${new Date().toLocaleString()}<br>
+                    现在可以测试查看器了！`, 'success');
+                
+                console.log('测试数据已创建:', testSession);
+                
+            } catch (error) {
+                updateStatus(`❌ 创建测试数据失败: ${error.message}`, 'error');
+                console.error('创建测试数据失败:', error);
+            }
+        }
+
+        function createNormalTestData() {
+            try {
+                const normalSession = {
+                    id: NORMAL_SHARE_ID,
+                    hostId: "normal-host-" + Date.now(),
+                    title: "正常分享会话测试",
+                    createdAt: Date.now(),
+                    lastUpdate: Date.now(),
+                    canvasState: {
+                        blocks: [
+                            {
+                                id: "normal-block-1",
+                                type: "text",
+                                x: 50,
+                                y: 50,
+                                width: 300,
+                                height: 100,
+                                content: "这是一个正常的分享会话\\n用于对比测试",
+                                number: 1
+                            },
+                            {
+                                id: "normal-block-2",
+                                type: "text",
+                                x: 400,
+                                y: 50,
+                                width: 300,
+                                height: 100,
+                                content: "正常会话应该使用实时查看器\\n而不是隔离查看器",
+                                number: 2
+                            }
+                        ],
+                        connections: [],
+                        zoom: 1,
+                        pan: { x: 0, y: 0 }
+                    },
+                    viewers: [],
+                    isActive: true
+                };
+
+                const sessionKey = `share-session-${NORMAL_SHARE_ID}`;
+                localStorage.setItem(sessionKey, JSON.stringify(normalSession));
+                
+                updateStatus(`✅ 成功创建正常分享ID的测试数据！<br>
+                    <strong>分享ID:</strong> ${NORMAL_SHARE_ID}<br>
+                    <strong>模块数量:</strong> ${normalSession.canvasState.blocks.length}<br>
+                    用于对比测试`, 'success');
+                
+            } catch (error) {
+                updateStatus(`❌ 创建正常测试数据失败: ${error.message}`, 'error');
+            }
+        }
+
+        function showCurrentData() {
+            const preview = document.getElementById('dataPreview');
+            let content = '<h4>当前localStorage中的分享数据:</h4>';
+            
+            let hasData = false;
+            
+            // 检查问题分享ID
+            const problemData = localStorage.getItem(`share-session-${PROBLEM_SHARE_ID}`);
+            if (problemData) {
+                hasData = true;
+                content += `<h5>问题分享ID (${PROBLEM_SHARE_ID}):</h5>`;
+                content += `<pre>${JSON.stringify(JSON.parse(problemData), null, 2)}</pre>`;
+            }
+            
+            // 检查正常分享ID
+            const normalData = localStorage.getItem(`share-session-${NORMAL_SHARE_ID}`);
+            if (normalData) {
+                hasData = true;
+                content += `<h5>正常分享ID (${NORMAL_SHARE_ID}):</h5>`;
+                content += `<pre>${JSON.stringify(JSON.parse(normalData), null, 2)}</pre>`;
+            }
+            
+            if (!hasData) {
+                content += '<p style="color: #ef4444;">❌ 没有找到分享数据，请先创建测试数据</p>';
+            }
+            
+            preview.innerHTML = content;
+            preview.style.display = 'block';
+            
+            updateStatus(hasData ? '✅ 数据显示完成' : '❌ 没有找到数据', hasData ? 'success' : 'error');
+        }
+
+        function clearAllData() {
+            if (confirm('确定要清除所有测试数据吗？')) {
+                localStorage.removeItem(`share-session-${PROBLEM_SHARE_ID}`);
+                localStorage.removeItem(`share-session-${NORMAL_SHARE_ID}`);
+                
+                const preview = document.getElementById('dataPreview');
+                preview.style.display = 'none';
+                
+                updateStatus('✅ 所有测试数据已清除', 'success');
+            }
+        }
+
+        // 页面加载时检查现有数据
+        window.onload = function() {
+            const problemData = localStorage.getItem(`share-session-${PROBLEM_SHARE_ID}`);
+            const normalData = localStorage.getItem(`share-session-${NORMAL_SHARE_ID}`);
+            
+            if (problemData || normalData) {
+                updateStatus('✅ 检测到现有测试数据，可以直接测试', 'success');
+            } else {
+                updateStatus('ℹ️ 没有检测到测试数据，请先创建', 'info');
+            }
+        };
+    </script>
+</body>
+</html>

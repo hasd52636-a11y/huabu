@@ -1,0 +1,8 @@
+{
+  "name": "Real-time Share Kit",
+  "description": "A pluggable React component kit for real-time P2P content sharing using PeerJS and WebRTC, supporting up to 3 viewers with low latency.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

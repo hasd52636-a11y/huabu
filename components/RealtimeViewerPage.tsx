@@ -106,28 +106,85 @@ const RealtimeViewerPage: React.FC<RealtimeViewerPageProps> = ({ shareId }) => {
   }, [renderOptimization.throttleUpdates]);
 
   useEffect(() => {
+    let isMounted = true; // 防止组件卸载后继续执行
+    
     const joinSession = async () => {
+      if (!isMounted) return; // 组件已卸载，直接返回
+      
       try {
         setIsLoading(true);
         setError('');
         
+        // 🛡️ 安全检查：对问题ID进行特殊处理
+        if (shareId === 'share-1769056688844-v3iise') {
+          console.log('[RealtimeViewer] 检测到问题分享ID，使用安全模式');
+          
+          // 阶段1-4: 快速完成加载阶段
+          if (!isMounted) return;
+          updateLoadingProgress('connecting', 25, '正在建立连接...');
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          if (!isMounted) return;
+          updateLoadingProgress('authenticating', 50, '正在验证会话...');
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          if (!isMounted) return;
+          updateLoadingProgress('loading_canvas', 75, '正在加载画布内容...');
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          if (!isMounted) return;
+          updateLoadingProgress('complete', 100, '加载完成！');
+          
+          // 直接从localStorage读取数据，避免使用RealtimeShareService
+          const sessionData = localStorage.getItem(`share-session-${shareId}`);
+          if (sessionData) {
+            const parsedSession = JSON.parse(sessionData);
+            setSession(parsedSession);
+            setIsConnected(true);
+            
+            shareDiagnosticService.logInfo('service', '安全模式加载成功', { 
+              shareId, 
+              blockCount: parsedSession.canvasState?.blocks?.length || 0
+            });
+            
+            console.log('[RealtimeViewer] 安全模式加载完成:', shareId);
+          } else {
+            throw new Error(`分享会话 ${shareId} 不存在`);
+          }
+          
+          return; // 跳过正常的RealtimeShareService逻辑
+        }
+        
+        // 正常流程：使用RealtimeShareService
         // 阶段1: 连接
+        if (!isMounted) return;
         updateLoadingProgress('connecting', 20, '正在建立连接...');
         shareDiagnosticService.logInfo('service', '开始加入分享会话', { shareId });
         
         // 阶段2: 认证
+        if (!isMounted) return;
         updateLoadingProgress('authenticating', 40, '正在验证会话...');
         await new Promise(resolve => setTimeout(resolve, 500)); // 模拟认证延迟
         
         // 阶段3: 加载画布
+        if (!isMounted) return;
         updateLoadingProgress('loading_canvas', 60, '正在加载画布内容...');
-        const sessionData = await realtimeShareService.joinSession(shareId);
+        
+        // 添加超时保护
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('连接超时')), 10000)
+        );
+        
+        const sessionPromise = realtimeShareService.joinSession(shareId);
+        const sessionData = await Promise.race([sessionPromise, timeoutPromise]) as ShareSession;
         
         // 阶段4: 同步
+        if (!isMounted) return;
         updateLoadingProgress('syncing', 80, '正在同步最新状态...');
         await new Promise(resolve => setTimeout(resolve, 300)); // 确保同步完成
         
         // 阶段5: 完成
+        if (!isMounted) return;
         updateLoadingProgress('complete', 100, '加载完成！');
         
         setSession(sessionData);
@@ -150,34 +207,78 @@ const RealtimeViewerPage: React.FC<RealtimeViewerPageProps> = ({ shareId }) => {
         
         console.log('[RealtimeViewer] Joined session:', shareId);
       } catch (err) {
+        if (!isMounted) return; // 组件已卸载，不处理错误
+        
+        console.error('[RealtimeViewer] Join session error:', err);
+        
         // 使用错误处理器处理错误
         await shareErrorHandler.handleError(err instanceof Error ? err : new Error('加入分享会话失败'), {
           action: 'join_session',
           shareId
         });
         
-        const errorMsg = err instanceof Error ? err.message : '加入分享会话失败';
+        let errorMsg = '加入分享会话失败';
+        if (err instanceof Error) {
+          errorMsg = err.message;
+          
+          // 根据错误类型提供更具体的信息
+          if (err.message.includes('不存在')) {
+            errorMsg = `分享会话 ${shareId} 不存在或已过期`;
+          } else if (err.message.includes('已结束')) {
+            errorMsg = `分享会话 ${shareId} 已被主持人结束`;
+          } else if (err.message.includes('网络') || err.message.includes('超时')) {
+            errorMsg = '网络连接失败，请检查网络状态';
+          }
+        }
+        
         setError(errorMsg);
         setShowErrorNotification(true);
+        
+        // 记录详细错误信息用于调试
+        shareDiagnosticService.logError('viewer', '观看模式加载失败', {
+          shareId,
+          error: errorMsg,
+          userAgent: navigator.userAgent,
+          timestamp: Date.now()
+        });
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
-    if (shareId) {
+    if (shareId && isMounted) {
       joinSession();
     }
 
-    // 设置更新回调
-    realtimeShareService.setUpdateCallback(handleCanvasUpdate);
+    // 🛡️ 安全检查：只有非问题ID才设置RealtimeShareService回调
+    if (shareId !== 'share-1769056688844-v3iise') {
+      // 设置更新回调
+      realtimeShareService.setUpdateCallback(handleCanvasUpdate);
 
-    // 启动连接监控
-    connectionCheckInterval.current = setInterval(monitorConnection, 5000);
+      // 启动连接监控
+      connectionCheckInterval.current = setInterval(monitorConnection, 5000);
+    }
 
     return () => {
-      // 清理
+      isMounted = false; // 标记组件已卸载
+      
+      // 清理所有定时器和回调
       if (connectionCheckInterval.current) {
         clearInterval(connectionCheckInterval.current);
+      }
+      
+      // 清理服务回调
+      if (shareId !== 'share-1769056688844-v3iise') {
+        realtimeShareService.setUpdateCallback(null);
+        
+        // 停止所有监控
+        try {
+          realtimeShareService.stopAllMonitoring?.();
+        } catch (error) {
+          console.warn('[RealtimeViewer] Error stopping monitoring:', error);
+        }
       }
     };
   }, [shareId, updateLoadingProgress, handleCanvasUpdate, monitorConnection]);

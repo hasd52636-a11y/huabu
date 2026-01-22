@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简单P2P测试</title>
+    <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+        button { padding: 10px 15px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; background: #007bff; color: white; }
+        #log { height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; font-family: monospace; font-size: 12px; background: #f8f9fa; }
+        input { padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 200px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>简单P2P连接测试</h1>
+    
+    <div class="section">
+        <h3>主机端</h3>
+        <button onclick="createHost()">创建主机</button>
+        <button onclick="sendTestData()">发送测试数据</button>
+        <div>主机ID: <span id="hostId">未创建</span></div>
+        <div>连接的观看者: <span id="viewerCount">0</span></div>
+    </div>
+    
+    <div class="section">
+        <h3>观看者端</h3>
+        <input type="text" id="targetId" placeholder="输入主机ID" />
+        <button onclick="connectToHost()">连接主机</button>
+        <div>连接状态: <span id="connectionStatus">未连接</span></div>
+    </div>
+    
+    <div class="section">
+        <h3>测试日志</h3>
+        <button onclick="clearLog()">清空日志</button>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        let hostPeer = null;
+        let viewerPeer = null;
+        let connections = [];
+
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${message}<br>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function createHost() {
+            log('创建主机...');
+            
+            const hostId = `test-host-${Math.random().toString(36).substr(2, 6)}`;
+            hostPeer = new Peer(hostId);
+            
+            hostPeer.on('open', (id) => {
+                log(`✅ 主机创建成功，ID: ${id}`);
+                document.getElementById('hostId').textContent = id;
+            });
+            
+            hostPeer.on('connection', (conn) => {
+                log(`📥 收到新连接: ${conn.peer}`);
+                connections.push(conn);
+                updateViewerCount();
+                
+                conn.on('open', () => {
+                    log(`✅ 观看者连接成功: ${conn.peer}`);
+                    
+                    // 发送欢迎消息
+                    conn.send({
+                        type: 'welcome',
+                        message: '欢迎连接到测试主机！',
+                        timestamp: Date.now()
+                    });
+                });
+                
+                conn.on('data', (data) => {
+                    log(`📨 收到观看者数据: ${JSON.stringify(data)}`);
+                    
+                    // 如果是请求初始数据
+                    if (data.type === 'request-initial-state') {
+                        log('📤 发送初始数据给观看者');
+                        conn.send({
+                            type: 'initial-state',
+                            data: {
+                                blocks: [
+                                    { id: '1', type: 'text', content: '测试文本块', x: 100, y: 100 },
+                                    { id: '2', type: 'text', content: '另一个测试块', x: 300, y: 200 }
+                                ],
+                                connections: [],
+                                zoom: 1,
+                                pan: { x: 0, y: 0 }
+                            },
+                            timestamp: Date.now()
+                        });
+                    }
+                });
+                
+                conn.on('close', () => {
+                    log(`❌ 观看者断开连接: ${conn.peer}`);
+                    connections = connections.filter(c => c.peer !== conn.peer);
+                    updateViewerCount();
+                });
+            });
+            
+            hostPeer.on('error', (err) => {
+                log(`❌ 主机错误: ${err.message}`);
+            });
+        }
+
+        function sendTestData() {
+            if (connections.length === 0) {
+                log('⚠️ 没有连接的观看者');
+                return;
+            }
+            
+            const testData = {
+                type: 'test-update',
+                message: '这是一条测试消息',
+                timestamp: Date.now(),
+                random: Math.random()
+            };
+            
+            log(`📤 向 ${connections.length} 个观看者发送测试数据`);
+            connections.forEach(conn => {
+                if (conn.open) {
+                    conn.send(testData);
+                }
+            });
+        }
+
+        function connectToHost() {
+            const targetId = document.getElementById('targetId').value.trim();
+            if (!targetId) {
+                log('❌ 请输入主机ID');
+                return;
+            }
+            
+            log(`🔗 连接到主机: ${targetId}`);
+            document.getElementById('connectionStatus').textContent = '连接中...';
+            
+            viewerPeer = new Peer();
+            
+            viewerPeer.on('open', (id) => {
+                log(`✅ 观看者初始化成功，ID: ${id}`);
+                
+                const conn = viewerPeer.connect(targetId);
+                
+                conn.on('open', () => {
+                    log('✅ 连接到主机成功');
+                    document.getElementById('connectionStatus').textContent = '已连接';
+                    
+                    // 请求初始数据
+                    log('📤 请求初始数据');
+                    conn.send({
+                        type: 'request-initial-state',
+                        timestamp: Date.now()
+                    });
+                });
+                
+                conn.on('data', (data) => {
+                    log(`📨 收到主机数据: ${JSON.stringify(data)}`);
+                    
+                    if (data.type === 'initial-state') {
+                        log('✅ 收到初始数据！');
+                        log(`数据内容: ${data.data.blocks.length} 个块`);
+                    }
+                });
+                
+                conn.on('close', () => {
+                    log('❌ 与主机的连接已断开');
+                    document.getElementById('connectionStatus').textContent = '已断开';
+                });
+                
+                conn.on('error', (err) => {
+                    log(`❌ 连接错误: ${err.message}`);
+                    document.getElementById('connectionStatus').textContent = '连接失败';
+                });
+            });
+            
+            viewerPeer.on('error', (err) => {
+                log(`❌ 观看者错误: ${err.message}`);
+                document.getElementById('connectionStatus').textContent = '错误';
+            });
+        }
+
+        function updateViewerCount() {
+            document.getElementById('viewerCount').textContent = connections.length;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        // 页面加载完成
+        window.onload = function() {
+            log('P2P测试页面已加载');
+            log('使用说明：');
+            log('1. 点击"创建主机"按钮');
+            log('2. 复制主机ID到观看者端');
+            log('3. 点击"连接主机"测试P2P连接');
+            log('4. 点击"发送测试数据"验证数据传输');
+        };
+    </script>
+</body>
+</html>

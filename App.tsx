@@ -9,15 +9,8 @@ import {
 } from 'lucide-react';
 import { Block, Connection, BlockType, ModelConfig, ProviderType, ProviderSettings, BatchConfig, BatchGenerationState, ExportLayout, FrameData, PresetPrompt, CanvasState, BatchInputSource, Character, NewModelConfig, getProviderSettings, convertLegacyToNewConfig, convertNewToLegacyConfig, MenuConfig } from './types';
 
-// 分享功能导入
-import { useShareMode } from './hooks/useShareMode';
-import ViewerMode from './components/ViewerMode';
-import SimpleViewerMode from './components/SimpleViewerMode';
-import RealtimeViewerPage from './components/RealtimeViewerPage';
-import SharePanel from './components/SharePanel';
-import ShareToolbarButton from './components/ShareToolbarButton';
-import RealtimeShareButton from './components/RealtimeShareButton';
-import { p2pShareService } from './services/P2PShareService';
+// 新的分享功能 - 使用 real-time-share-kit
+import ToolbarShareButton from './components/ToolbarShareButton';
 
 // 简单音效播放函数
 const playCommandSound = () => {
@@ -105,6 +98,8 @@ import { useToast } from './hooks/useToast';
 import { useSystemMonitoring, useFeatureTracking } from './hooks/useSystemMonitoring';
 import VoiceSettingsModal from './components/VoiceSettingsModal';
 import { voiceSettingsService } from './services/VoiceSettingsService';
+import SmartViewerRouter from './components/SmartViewerRouter';
+import { getShareIdFromUrl } from './real-time-share-kit/utils';
 
 interface ChatMessage {
   id: string;
@@ -118,18 +113,17 @@ interface ChatMessage {
 }
 
 const App: React.FC = () => {
-  // 分享模式检测
-  const shareMode = useShareMode();
+  // 检查是否为观看模式
+  const shareId = getShareIdFromUrl();
   
-  // 调试信息
-  console.log('[App] ShareMode state:', shareMode);
-  
-  // 如果是观看模式，显示观看界面
-  if (shareMode.isViewer) {
-    console.log('[App] Rendering SimpleViewerPage with shareId:', shareMode.shareId);
-    return <RealtimeViewerPage shareId={shareMode.shareId} />;
+  // 如果是观看模式，直接渲染观看器
+  if (shareId) {
+    return <SmartViewerRouter shareId={shareId} />;
   }
-
+  
+  // 新的 ShareKit 会自动处理观看模式
+  
+  // ALL useState HOOKS MUST BE DECLARED BEFORE ANY EARLY RETURNS
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [zoom, setZoom] = useState(1.0);
@@ -311,6 +305,8 @@ const App: React.FC = () => {
   // Feature tracking for analytics (backend data collection continues)
   const { trackFeatureUsage, trackFeatureError, trackPerformance } = useFeatureTracking();
 
+  // 新的 ShareKit 会自动处理 URL 参数中的观看模式
+
   // Enhanced text formatting function with more features
   const formatText = (text: string): JSX.Element[] => {
     const lines = text.split('\n');
@@ -469,11 +465,7 @@ const App: React.FC = () => {
     }
   }, [isCanvasVoiceActive]);
 
-  // 分享功能：监听blocks变化并广播给观众
-  useEffect(() => {
-    // 广播画布更新给观众
-    p2pShareService.broadcastCanvasUpdate(blocks);
-  }, [blocks]);
+  // 新的 ShareKit 会自动处理数据同步
   
   // Initialize Speech Recognition
   useEffect(() => {
@@ -1198,7 +1190,14 @@ const App: React.FC = () => {
     };
     init();
 
-    const handleClick = () => setContextMenu(null);
+    const handleClick = (e: MouseEvent) => {
+      // 不要关闭右键菜单如果点击的是分享按钮或其子元素
+      const target = e.target as Element;
+      if (target && (target.closest('[data-share-button]') || target.closest('.share-button-popup'))) {
+        return;
+      }
+      setContextMenu(null);
+    };
     window.addEventListener('click', handleClick);
     return () => window.removeEventListener('click', handleClick);
   }, []);
@@ -3963,11 +3962,29 @@ ${block.content}
         
         <div className="w-8 h-px bg-slate-300/30" />
         
-        <RealtimeShareButton 
-          blocks={blocks}
-          connections={connections}
-          zoom={zoom}
-          pan={pan}
+        <ToolbarShareButton 
+          data={{
+            blocks,
+            connections,
+            zoom,
+            pan,
+            selectedIds,
+            theme,
+            lang
+          }}
+          onDataChange={(newData) => {
+            console.log('[ToolbarShare] 接收到同步数据:', newData);
+            // 接收到分享数据时更新应用状态
+            if (newData.blocks) setBlocks(newData.blocks);
+            if (newData.connections) setConnections(newData.connections);
+            if (newData.zoom !== undefined) setZoom(newData.zoom);
+            if (newData.pan) setPan(newData.pan);
+            if (newData.selectedIds) setSelectedIds(newData.selectedIds);
+            if (newData.theme) setTheme(newData.theme);
+            if (newData.lang) setLang(newData.lang);
+          }}
+          className="p-3 hover:bg-amber-500/10 rounded-xl transition-all relative z-50"
+          title="分享画布"
         />
         
         <div className="w-8 h-px bg-slate-300/30" />

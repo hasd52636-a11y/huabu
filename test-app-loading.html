@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>应用加载测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .success { border-color: #4CAF50; background-color: #f8fff8; }
+        .error { border-color: #f44336; background-color: #fff8f8; }
+        .info { border-color: #2196F3; background-color: #f8f9ff; }
+        .test-button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #1976D2;
+        }
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 应用加载测试</h1>
+    
+    <div class="test-section info">
+        <h3>📋 测试说明</h3>
+        <p>此页面用于测试主应用是否能正常加载，解决白屏问题。</p>
+        <ul>
+            <li>✅ 修复了 RealtimeShareButton.tsx 中的语法错误</li>
+            <li>✅ 优化了 P2PShareService 的连接配置</li>
+            <li>✅ 构建验证通过</li>
+            <li>✅ 开发服务器运行正常</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h3>🌐 应用加载测试</h3>
+        <p>开发服务器地址: <strong>http://localhost:3005/</strong></p>
+        <button class="test-button" onclick="loadApp()">加载应用</button>
+        <button class="test-button" onclick="openInNewTab()">新标签页打开</button>
+        <button class="test-button" onclick="checkConsole()">检查控制台</button>
+        
+        <div id="app-container" style="margin-top: 20px;">
+            <!-- 应用将在这里加载 -->
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>📊 测试结果</h3>
+        <div id="test-results">
+            <p>点击上方按钮开始测试...</p>
+        </div>
+    </div>
+
+    <script>
+        function updateResults(message, type = 'info') {
+            const results = document.getElementById('test-results');
+            const timestamp = new Date().toLocaleTimeString();
+            results.innerHTML += `<p class="${type}">[${timestamp}] ${message}</p>`;
+        }
+
+        function loadApp() {
+            updateResults('开始加载应用...', 'info');
+            
+            const container = document.getElementById('app-container');
+            container.innerHTML = '<iframe src="http://localhost:3005/" onload="onAppLoaded()" onerror="onAppError()"></iframe>';
+        }
+
+        function onAppLoaded() {
+            updateResults('✅ 应用加载成功！iframe 已加载完成', 'success');
+        }
+
+        function onAppError() {
+            updateResults('❌ 应用加载失败！请检查开发服务器是否运行', 'error');
+        }
+
+        function openInNewTab() {
+            updateResults('在新标签页打开应用...', 'info');
+            window.open('http://localhost:3005/', '_blank');
+        }
+
+        function checkConsole() {
+            updateResults('请打开浏览器开发者工具查看控制台输出', 'info');
+            updateResults('按 F12 或右键 -> 检查元素 -> Console 标签', 'info');
+        }
+
+        // 页面加载完成后的初始化
+        window.onload = function() {
+            updateResults('测试页面已加载，准备测试应用', 'success');
+            
+            // 检查开发服务器是否运行
+            fetch('http://localhost:3005/')
+                .then(response => {
+                    if (response.ok) {
+                        updateResults('✅ 开发服务器运行正常', 'success');
+                    } else {
+                        updateResults('⚠️ 开发服务器响应异常', 'error');
+                    }
+                })
+                .catch(error => {
+                    updateResults('❌ 无法连接到开发服务器，请确认服务器是否启动', 'error');
+                });
+        };
+    </script>
+</body>
+</html>

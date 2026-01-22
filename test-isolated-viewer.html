@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>隔离查看器测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .test-section {
+            margin-bottom: 2rem;
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            margin: 0.5rem;
+            background: #3b82f6;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: background 0.2s;
+        }
+        
+        .btn:hover {
+            background: #2563eb;
+        }
+        
+        .btn.success {
+            background: #10b981;
+        }
+        
+        .btn.success:hover {
+            background: #059669;
+        }
+        
+        .btn.danger {
+            background: #ef4444;
+        }
+        
+        .btn.danger:hover {
+            background: #dc2626;
+        }
+        
+        .status {
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+        
+        .status.info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+        
+        .status.success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #6ee7b7;
+        }
+        
+        .status.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+        
+        .code {
+            background: #f1f5f9;
+            padding: 0.5rem;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            margin: 0.5rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 隔离查看器测试工具</h1>
+            <p>测试新的隔离查看器是否能正确处理问题分享ID</p>
+        </div>
+
+        <div class="test-section">
+            <h3>📋 测试信息</h3>
+            <div class="status info">
+                <strong>问题分享ID:</strong> share-1769056688844-v3iise<br>
+                <strong>测试目标:</strong> 验证隔离查看器能否稳定显示内容而不崩溃<br>
+                <strong>预期结果:</strong> 显示分享内容，无白屏，无浏览器崩溃
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🧪 测试步骤</h3>
+            
+            <div style="margin-bottom: 1rem;">
+                <strong>步骤 1: 验证数据存在</strong>
+                <button onclick="checkSessionData()" class="btn">检查会话数据</button>
+                <div id="dataStatus" class="status info" style="display: none;"></div>
+            </div>
+            
+            <div style="margin-bottom: 1rem;">
+                <strong>步骤 2: 测试隔离查看器</strong>
+                <a href="/?watch=share-1769056688844-v3iise" class="btn success" target="_blank">
+                    🔗 打开隔离查看器
+                </a>
+                <div class="status info">
+                    点击上方链接将在新标签页中打开隔离查看器
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 1rem;">
+                <strong>步骤 3: 对比测试</strong>
+                <a href="share-viewer.html?watch=share-1769056688844-v3iise" class="btn" target="_blank">
+                    📄 独立查看器 (对比)
+                </a>
+                <div class="status info">
+                    对比独立查看器的表现
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 测试结果记录</h3>
+            <div id="testResults">
+                <div class="status info">
+                    请按顺序执行上述测试步骤，并记录结果：
+                    <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                        <li>隔离查看器是否正常加载？</li>
+                        <li>是否显示了分享内容？</li>
+                        <li>浏览器是否保持稳定？</li>
+                        <li>是否出现白屏或崩溃？</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div style="margin-top: 1rem;">
+                <button onclick="recordSuccess()" class="btn success">✅ 测试成功</button>
+                <button onclick="recordFailure()" class="btn danger">❌ 测试失败</button>
+                <button onclick="clearResults()" class="btn">🔄 清除记录</button>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔧 调试工具</h3>
+            <button onclick="showSessionData()" class="btn">显示会话数据</button>
+            <button onclick="clearSessionData()" class="btn danger">清除会话数据</button>
+            <button onclick="createTestData()" class="btn success">创建测试数据</button>
+            
+            <div id="debugOutput" style="margin-top: 1rem;"></div>
+        </div>
+    </div>
+
+    <script>
+        const SHARE_ID = 'share-1769056688844-v3iise';
+        const SESSION_KEY = `share-session-${SHARE_ID}`;
+
+        function checkSessionData() {
+            const dataStatus = document.getElementById('dataStatus');
+            const sessionData = localStorage.getItem(SESSION_KEY);
+            
+            if (sessionData) {
+                try {
+                    const parsed = JSON.parse(sessionData);
+                    dataStatus.className = 'status success';
+                    dataStatus.innerHTML = `
+                        ✅ 会话数据存在<br>
+                        <strong>标题:</strong> ${parsed.title || '未知'}<br>
+                        <strong>模块数量:</strong> ${parsed.canvasState?.blocks?.length || 0}<br>
+                        <strong>创建时间:</strong> ${new Date(parsed.createdAt).toLocaleString()}<br>
+                        <strong>最后更新:</strong> ${new Date(parsed.lastUpdate).toLocaleString()}
+                    `;
+                } catch (error) {
+                    dataStatus.className = 'status error';
+                    dataStatus.innerHTML = `❌ 数据格式错误: ${error.message}`;
+                }
+            } else {
+                dataStatus.className = 'status error';
+                dataStatus.innerHTML = '❌ 会话数据不存在，请先创建测试数据';
+            }
+            
+            dataStatus.style.display = 'block';
+        }
+
+        function showSessionData() {
+            const debugOutput = document.getElementById('debugOutput');
+            const sessionData = localStorage.getItem(SESSION_KEY);
+            
+            if (sessionData) {
+                debugOutput.innerHTML = `
+                    <h4>会话数据内容:</h4>
+                    <div class="code">${JSON.stringify(JSON.parse(sessionData), null, 2)}</div>
+                `;
+            } else {
+                debugOutput.innerHTML = '<div class="status error">❌ 无会话数据</div>';
+            }
+        }
+
+        function clearSessionData() {
+            localStorage.removeItem(SESSION_KEY);
+            document.getElementById('debugOutput').innerHTML = '<div class="status success">✅ 会话数据已清除</div>';
+        }
+
+        function createTestData() {
+            const testSession = {
+                id: SHARE_ID,
+                hostId: "demo-host-" + Date.now(),
+                title: "隔离查看器测试会话",
+                createdAt: Date.now() - 3600000, // 1小时前创建
+                lastUpdate: Date.now(),
+                canvasState: {
+                    blocks: [
+                        {
+                            id: "test-block-1",
+                            type: "text",
+                            x: 100,
+                            y: 100,
+                            width: 300,
+                            height: 80,
+                            content: "🧪 这是隔离查看器测试内容",
+                            number: 1
+                        },
+                        {
+                            id: "test-block-2",
+                            type: "text",
+                            x: 100,
+                            y: 200,
+                            width: 400,
+                            height: 120,
+                            content: "✅ 如果你能看到这个内容，说明隔离查看器工作正常！\\n\\n特点：\\n• 完全独立于RealtimeShareService\\n• 直接从localStorage读取数据\\n• 保持原有主应用样式\\n• 避免复杂的连接逻辑",
+                            number: 2
+                        },
+                        {
+                            id: "test-block-3",
+                            type: "image",
+                            x: 550,
+                            y: 100,
+                            width: 200,
+                            height: 150,
+                            content: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPuaXoOWbvueJh+WNoOS9jeespzwvdGV4dD48L3N2Zz4=",
+                            number: 3
+                        }
+                    ],
+                    connections: [],
+                    zoom: 1,
+                    pan: { x: 0, y: 0 }
+                },
+                viewers: [],
+                isActive: true
+            };
+
+            localStorage.setItem(SESSION_KEY, JSON.stringify(testSession));
+            document.getElementById('debugOutput').innerHTML = '<div class="status success">✅ 测试数据已创建</div>';
+        }
+
+        function recordSuccess() {
+            const results = document.getElementById('testResults');
+            results.innerHTML = `
+                <div class="status success">
+                    ✅ <strong>测试成功！</strong><br>
+                    时间: ${new Date().toLocaleString()}<br>
+                    结果: 隔离查看器正常工作，无白屏，无崩溃<br>
+                    建议: 可以将此方案作为问题分享ID的解决方案
+                </div>
+            `;
+        }
+
+        function recordFailure() {
+            const results = document.getElementById('testResults');
+            results.innerHTML = `
+                <div class="status error">
+                    ❌ <strong>测试失败</strong><br>
+                    时间: ${new Date().toLocaleString()}<br>
+                    请检查浏览器控制台错误信息，并考虑其他解决方案
+                </div>
+            `;
+        }
+
+        function clearResults() {
+            const results = document.getElementById('testResults');
+            results.innerHTML = `
+                <div class="status info">
+                    测试结果已清除，请重新执行测试
+                </div>
+            `;
+        }
+
+        // 页面加载时自动检查数据
+        window.onload = function() {
+            console.log('隔离查看器测试工具已加载');
+            
+            // 自动检查会话数据
+            setTimeout(checkSessionData, 500);
+        };
+    </script>
+</body>
+</html>

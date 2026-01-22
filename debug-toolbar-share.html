@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>调试工具栏分享按钮</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+</head>
+<body class="p-8 bg-gray-100">
+    <h1 class="text-2xl font-bold mb-4">调试工具栏分享按钮</h1>
+    
+    <div class="bg-white p-4 rounded-lg shadow mb-4">
+        <h2 class="text-lg font-semibold mb-2">测试环境检查</h2>
+        <div id="checks"></div>
+    </div>
+    
+    <div class="bg-white p-4 rounded-lg shadow mb-4">
+        <h2 class="text-lg font-semibold mb-2">分享按钮测试</h2>
+        <div id="share-test"></div>
+    </div>
+    
+    <div class="bg-white p-4 rounded-lg shadow">
+        <h2 class="text-lg font-semibold mb-2">控制台日志</h2>
+        <div id="console-log" class="bg-gray-100 p-2 rounded text-sm font-mono max-h-64 overflow-y-auto"></div>
+    </div>
+
+    <script>
+        // 捕获控制台日志
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        const logDiv = document.getElementById('console-log');
+        
+        function addLog(type, ...args) {
+            const timestamp = new Date().toLocaleTimeString();
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = `mb-1 ${type === 'error' ? 'text-red-600' : type === 'warn' ? 'text-yellow-600' : 'text-gray-800'}`;
+            logEntry.textContent = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        console.log = (...args) => {
+            originalLog(...args);
+            addLog('log', ...args);
+        };
+        
+        console.error = (...args) => {
+            originalError(...args);
+            addLog('error', ...args);
+        };
+        
+        console.warn = (...args) => {
+            originalWarn(...args);
+            addLog('warn', ...args);
+        };
+
+        // 检查环境
+        function checkEnvironment() {
+            const checksDiv = document.getElementById('checks');
+            const checks = [
+                { name: 'PeerJS 已加载', test: () => typeof window.Peer !== 'undefined' },
+                { name: 'WebRTC 支持', test: () => typeof RTCPeerConnection !== 'undefined' },
+                { name: 'getUserMedia 支持', test: () => navigator.mediaDevices && navigator.mediaDevices.getUserMedia },
+                { name: '本地存储支持', test: () => typeof localStorage !== 'undefined' },
+                { name: 'URL 参数解析', test: () => {
+                    const url = new URL(window.location.href);
+                    return url.searchParams.get('watch') !== null || true; // 总是通过，只是测试API
+                }}
+            ];
+            
+            checks.forEach(check => {
+                const result = check.test();
+                const div = document.createElement('div');
+                div.className = `flex items-center gap-2 mb-1 ${result ? 'text-green-600' : 'text-red-600'}`;
+                div.innerHTML = `
+                    <span class="w-4 h-4 rounded-full ${result ? 'bg-green-500' : 'bg-red-500'}"></span>
+                    <span>${check.name}: ${result ? '✓' : '✗'}</span>
+                `;
+                checksDiv.appendChild(div);
+            });
+        }
+
+        // 测试分享功能
+        function testShareButton() {
+            const testDiv = document.getElementById('share-test');
+            
+            // 创建简化的分享按钮
+            const button = document.createElement('button');
+            button.className = 'px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors';
+            button.textContent = '测试分享按钮';
+            
+            let isSharing = false;
+            let peer = null;
+            
+            button.onclick = async () => {
+                console.log('分享按钮被点击');
+                
+                if (isSharing) {
+                    // 停止分享
+                    if (peer) {
+                        peer.destroy();
+                        peer = null;
+                    }
+                    isSharing = false;
+                    button.textContent = '测试分享按钮';
+                    button.className = 'px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors';
+                    console.log('分享已停止');
+                } else {
+                    // 开始分享
+                    try {
+                        console.log('开始创建 Peer 连接...');
+                        const peerId = `test-share-${Date.now()}`;
+                        
+                        peer = new window.Peer(peerId, {
+                            debug: 2,
+                            config: {
+                                iceServers: [
+                                    { urls: 'stun:stun.l.google.com:19302' },
+                                    { urls: 'stun:stun1.l.google.com:19302' }
+                                ]
+                            }
+                        });
+                        
+                        peer.on('open', (id) => {
+                            console.log('Peer 连接已建立，ID:', id);
+                            isSharing = true;
+                            button.textContent = '停止分享 (ID: ' + id + ')';
+                            button.className = 'px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors';
+                            
+                            // 显示分享链接
+                            const linkDiv = document.createElement('div');
+                            linkDiv.className = 'mt-2 p-2 bg-gray-100 rounded';
+                            linkDiv.innerHTML = `
+                                <p class="text-sm text-gray-600 mb-1">分享链接:</p>
+                                <input type="text" value="${window.location.origin}?watch=${id}" 
+                                       class="w-full p-1 border rounded text-sm" readonly>
+                            `;
+                            testDiv.appendChild(linkDiv);
+                        });
+                        
+                        peer.on('connection', (conn) => {
+                            console.log('有观众连接:', conn.peer);
+                            conn.on('open', () => {
+                                console.log('观众连接已建立');
+                                // 发送测试数据
+                                conn.send({ type: 'test', message: '欢迎观看!' });
+                            });
+                        });
+                        
+                        peer.on('error', (err) => {
+                            console.error('Peer 错误:', err);
+                            isSharing = false;
+                            button.textContent = '测试分享按钮 (错误)';
+                            button.className = 'px-4 py-2 bg-gray-500 text-white rounded';
+                        });
+                        
+                    } catch (error) {
+                        console.error('创建分享失败:', error);
+                        button.textContent = '测试分享按钮 (失败)';
+                        button.className = 'px-4 py-2 bg-gray-500 text-white rounded';
+                    }
+                }
+            };
+            
+            testDiv.appendChild(button);
+            
+            // 添加说明
+            const info = document.createElement('p');
+            info.className = 'text-sm text-gray-600 mt-2';
+            info.textContent = '点击按钮测试 P2P 分享功能。如果按钮无响应，请查看控制台日志。';
+            testDiv.appendChild(info);
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('页面加载完成，开始检查环境...');
+            checkEnvironment();
+            testShareButton();
+        });
+    </script>
+</body>
+</html>

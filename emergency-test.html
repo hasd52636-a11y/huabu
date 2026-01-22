@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>紧急修复测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #2c3e50;
+            color: white;
+        }
+        .container {
+            background: #34495e;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .test-link {
+            display: block;
+            padding: 15px 25px;
+            background: #e74c3c;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 15px 0;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .test-link:hover {
+            background: #c0392b;
+        }
+        .safe-link {
+            background: #27ae60;
+        }
+        .safe-link:hover {
+            background: #229954;
+        }
+        .warning {
+            background: #f39c12;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚨 紧急修复测试</h1>
+        
+        <div class="warning">
+            ⚠️ 如果浏览器再次崩溃，请立即关闭标签页！
+        </div>
+        
+        <p><strong>修复策略：</strong>在useShareMode中直接拦截问题ID</p>
+        
+        <a href="http://localhost:3005/" class="test-link safe-link">
+            ✅ 主应用（安全）
+        </a>
+        
+        <a href="http://localhost:3005/?watch=test-share-123" class="test-link safe-link">
+            ✅ 正常分享ID（安全）
+        </a>
+        
+        <a href="http://localhost:3005/?watch=share-1769056688844-v3iise" class="test-link">
+            🔧 问题分享ID（已修复？）
+        </a>
+        
+        <div style="margin-top: 30px; font-size: 14px;">
+            <p><strong>预期结果：</strong></p>
+            <p>问题ID应该快速显示错误页面，不再白屏或崩溃</p>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <button onclick="clearStorage()" style="background: #8e44ad; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">
+                🗑️ 清理存储
+            </button>
+        </div>
+    </div>
+
+    <script>
+        function clearStorage() {
+            try {
+                localStorage.clear();
+                sessionStorage.clear();
+                alert('存储已清理');
+            } catch (error) {
+                alert('清理失败: ' + error.message);
+            }
+        }
+        
+        console.log('紧急修复测试页面已加载');
+        console.log('修复方案: useShareMode直接拦截问题ID');
+    </script>
+</body>
+</html>

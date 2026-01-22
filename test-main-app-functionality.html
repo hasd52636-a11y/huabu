@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>主应用功能测试</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="p-8 bg-gray-100">
+    <h1 class="text-2xl font-bold mb-4">主应用功能测试</h1>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- 基础功能测试 -->
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h2 class="text-lg font-semibold mb-2">基础功能测试</h2>
+            <div class="space-y-2">
+                <div class="flex items-center gap-2">
+                    <span id="app-load" class="w-4 h-4 bg-gray-300 rounded-full"></span>
+                    <span>应用加载</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="sidebar-visible" class="w-4 h-4 bg-gray-300 rounded-full"></span>
+                    <span>侧边栏显示</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="toolbar-visible" class="w-4 h-4 bg-gray-300 rounded-full"></span>
+                    <span>工具栏显示</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="canvas-visible" class="w-4 h-4 bg-gray-300 rounded-full"></span>
+                    <span>画布显示</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 按钮功能测试 -->
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h2 class="text-lg font-semibold mb-2">按钮功能测试</h2>
+            <div class="space-y-2">
+                <div class="flex items-center gap-2">
+                    <span id="text-btn" class="w-4 h-4 bg-gray-300 rounded-full"></span>
+                    <span>文本按钮</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="image-btn" class="w-4 h-4 bg-gray-300 rounded-full"></span>
+                    <span>图片按钮</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="video-btn" class="w-4 h-4 bg-gray-300 rounded-full"></span>
+                    <span>视频按钮</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="share-btn" class="w-4 h-4 bg-gray-300 rounded-full"></span>
+                    <span>分享按钮</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 交互功能测试 -->
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h2 class="text-lg font-semibold mb-2">交互功能测试</h2>
+            <div class="space-y-2">
+                <div class="flex items-center gap-2">
+                    <span id="chat-input" class="w-4 h-4 bg-gray-300 rounded-full"></span>
+                    <span>聊天输入</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="canvas-drag" class="w-4 h-4 bg-gray-300 rounded-full"></span>
+                    <span>画布拖拽</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="zoom-controls" class="w-4 h-4 bg-gray-300 rounded-full"></span>
+                    <span>缩放控制</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 错误检查 -->
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h2 class="text-lg font-semibold mb-2">错误检查</h2>
+            <div class="space-y-2">
+                <div class="flex items-center gap-2">
+                    <span id="no-js-errors" class="w-4 h-4 bg-gray-300 rounded-full"></span>
+                    <span>无JavaScript错误</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="no-console-errors" class="w-4 h-4 bg-gray-300 rounded-full"></span>
+                    <span>无控制台错误</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="responsive-design" class="w-4 h-4 bg-gray-300 rounded-full"></span>
+                    <span>响应式设计</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="mt-6 bg-white p-4 rounded-lg shadow">
+        <h2 class="text-lg font-semibold mb-2">测试说明</h2>
+        <ol class="list-decimal list-inside space-y-1 text-sm text-gray-600">
+            <li>打开主应用 (http://localhost:3005)</li>
+            <li>检查页面是否正常加载，无白屏或错误</li>
+            <li>测试左侧工具栏的各个按钮是否可点击</li>
+            <li>测试右侧聊天输入是否正常</li>
+            <li>测试画布拖拽和缩放功能</li>
+            <li>检查浏览器控制台是否有错误信息</li>
+            <li>测试分享功能是否正常工作</li>
+        </ol>
+    </div>
+    
+    <div class="mt-4 bg-blue-50 p-4 rounded-lg">
+        <h3 class="font-semibold text-blue-800 mb-2">快速测试步骤：</h3>
+        <div class="space-y-1 text-sm text-blue-700">
+            <p>1. 点击文本按钮，看是否能添加文本块</p>
+            <p>2. 点击分享按钮，看是否能创建分享链接</p>
+            <p>3. 在聊天框输入文字，看是否能发送消息</p>
+            <p>4. 拖拽画布，看是否能正常移动视角</p>
+            <p>5. 检查所有按钮的hover效果是否正常</p>
+        </div>
+    </div>
+
+    <script>
+        // 简单的状态指示器
+        function setStatus(id, status) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.className = `w-4 h-4 rounded-full ${
+                    status === 'success' ? 'bg-green-500' : 
+                    status === 'error' ? 'bg-red-500' : 
+                    'bg-gray-300'
+                }`;
+            }
+        }
+        
+        // 模拟测试状态（实际需要手动测试）
+        document.addEventListener('DOMContentLoaded', () => {
+            // 这些需要手动验证
+            console.log('测试页面已加载，请手动验证主应用功能');
+        });
+    </script>
+</body>
+</html>

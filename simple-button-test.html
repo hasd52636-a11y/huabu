@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简单按钮测试</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="p-8 bg-gray-100">
+    <h1 class="text-2xl font-bold mb-4">简单按钮测试</h1>
+    
+    <div class="space-y-4">
+        <button id="test1" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+            测试按钮 1 - 基础点击
+        </button>
+        
+        <button id="test2" class="p-3 text-slate-400 hover:text-amber-500 transition-all relative border border-gray-300 rounded">
+            测试按钮 2 - 模拟工具栏样式
+        </button>
+        
+        <div class="relative">
+            <button id="test3" class="p-3 text-slate-400 hover:text-amber-500 transition-all relative">
+                测试按钮 3 - 相对定位容器
+            </button>
+        </div>
+    </div>
+    
+    <div id="log" class="mt-8 p-4 bg-white rounded shadow">
+        <h2 class="font-bold mb-2">点击日志:</h2>
+        <div id="logContent" class="text-sm font-mono"></div>
+    </div>
+
+    <script>
+        const logContent = document.getElementById('logContent');
+        
+        function addLog(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logContent.appendChild(logEntry);
+        }
+        
+        document.getElementById('test1').addEventListener('click', () => {
+            addLog('测试按钮 1 被点击');
+        });
+        
+        document.getElementById('test2').addEventListener('click', () => {
+            addLog('测试按钮 2 被点击');
+        });
+        
+        document.getElementById('test3').addEventListener('click', () => {
+            addLog('测试按钮 3 被点击');
+        });
+        
+        // 测试事件冒泡
+        document.addEventListener('click', (e) => {
+            if (e.target.tagName === 'BUTTON') {
+                addLog(`全局监听器: ${e.target.textContent.trim()} 被点击`);
+            }
+        });
+        
+        addLog('页面加载完成，按钮事件已绑定');
+    </script>
+</body>
+</html>

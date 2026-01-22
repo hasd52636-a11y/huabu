@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据传输测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        button { padding: 10px 15px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-success { background-color: #28a745; color: white; }
+        .btn-warning { background-color: #ffc107; color: black; }
+        .btn-danger { background-color: #dc3545; color: white; }
+        #log { height: 400px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; font-family: monospace; font-size: 12px; background: #f8f9fa; }
+        .step { margin: 10px 0; padding: 10px; border-left: 4px solid #007bff; background: #f8f9fa; }
+        input[type="text"] { padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 300px; }
+        .data-display { background: #f8f9fa; border: 1px solid #ddd; padding: 10px; margin: 10px 0; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>P2P数据传输测试</h1>
+    
+    <div class="section warning">
+        <h3>🔍 测试目标</h3>
+        <p><strong>问题：</strong>观看者连接成功但没有接收到画布数据</p>
+        <p><strong>测试重点：</strong></p>
+        <ul>
+            <li>验证主机是否正确发送数据</li>
+            <li>验证观看者是否正确接收数据</li>
+            <li>检查数据格式和内容完整性</li>
+            <li>测试实时数据同步</li>
+        </ul>
+    </div>
+
+    <div class="section info">
+        <h3>📋 测试步骤</h3>
+        
+        <div class="step">
+            <strong>步骤 1: 打开主应用并创建分享</strong>
+            <button class="btn-primary" onclick="openMainApp()">打开主应用</button>
+            <p style="font-size: 12px; color: #666;">
+                1. 在主应用中创建一些内容（文本块、图片等）<br>
+                2. 点击左侧工具栏的分享按钮<br>
+                3. 复制分享链接并粘贴到下面
+            </p>
+        </div>
+        
+        <div class="step">
+            <strong>步骤 2: 测试数据传输</strong>
+            <input type="text" id="shareUrl" placeholder="粘贴分享链接..." />
+            <button class="btn-success" onclick="startDataTest()">开始数据测试</button>
+            <button class="btn-warning" onclick="openViewer()">打开观看页面</button>
+        </div>
+        
+        <div class="step">
+            <strong>步骤 3: 实时数据监控</strong>
+            <button class="btn-primary" onclick="startMonitoring()">开始监控</button>
+            <button class="btn-danger" onclick="stopMonitoring()">停止监控</button>
+            <div class="data-display">
+                <strong>接收到的数据：</strong>
+                <div id="receivedData">等待数据...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>🛠️ 快速操作</h3>
+        <button class="btn-primary" onclick="simulateCanvasData()">模拟画布数据</button>
+        <button class="btn-success" onclick="testDataFormat()">测试数据格式</button>
+        <button class="btn-warning" onclick="checkConsole()">检查控制台</button>
+        <button class="btn-danger" onclick="clearLog()">清空日志</button>
+    </div>
+
+    <div class="section">
+        <h3>📊 测试日志</h3>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        let monitoringInterval = null;
+        let testShareId = null;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? 'red' : type === 'success' ? 'green' : type === 'warning' ? 'orange' : 'black';
+            logDiv.innerHTML += `<div style="color: ${color}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function openMainApp() {
+            log('正在打开主应用...', 'info');
+            window.open('http://localhost:3005/', '_blank');
+            log('主应用已打开，请按照步骤操作：', 'success');
+            log('1. 创建一些画布内容', 'info');
+            log('2. 点击分享按钮', 'info');
+            log('3. 复制分享链接', 'info');
+        }
+
+        function startDataTest() {
+            const shareUrl = document.getElementById('shareUrl').value.trim();
+            if (!shareUrl) {
+                log('请先输入分享链接', 'error');
+                return;
+            }
+
+            try {
+                const url = new URL(shareUrl);
+                testShareId = url.searchParams.get('watch');
+                
+                if (!testShareId) {
+                    log('❌ 无效的分享链接格式', 'error');
+                    return;
+                }
+                
+                log(`✅ 分享ID: ${testShareId}`, 'success');
+                log('开始数据传输测试...', 'info');
+                
+                // 检查分享ID格式
+                if (testShareId.startsWith('caocao-canvas-')) {
+                    log('✅ 分享ID格式正确', 'success');
+                } else {
+                    log('⚠️ 分享ID格式可能有问题', 'warning');
+                }
+                
+            } catch (error) {
+                log(`❌ 链接解析失败: ${error.message}`, 'error');
+            }
+        }
+
+        function openViewer() {
+            const shareUrl = document.getElementById('shareUrl').value.trim();
+            if (!shareUrl) {
+                log('请先输入分享链接', 'error');
+                return;
+            }
+
+            log(`正在打开观看页面: ${shareUrl}`, 'info');
+            const viewerWindow = window.open(shareUrl, '_blank');
+            
+            log('观看页面已打开，请检查：', 'success');
+            log('1. 连接状态是否显示"已连接"', 'info');
+            log('2. 是否显示画布内容', 'info');
+            log('3. 按F12查看控制台日志', 'info');
+            
+            // 监听观看页面的消息（如果支持）
+            window.addEventListener('message', function(event) {
+                if (event.origin === window.location.origin) {
+                    log(`📨 收到观看页面消息: ${JSON.stringify(event.data)}`, 'info');
+                    updateReceivedData(event.data);
+                }
+            });
+        }
+
+        function startMonitoring() {
+            if (monitoringInterval) {
+                log('监控已在运行中', 'warning');
+                return;
+            }
+            
+            log('开始实时数据监控...', 'info');
+            
+            monitoringInterval = setInterval(() => {
+                // 检查localStorage中的分享数据
+                try {
+                    const keys = Object.keys(localStorage);
+                    const shareKeys = keys.filter(key => key.includes('share') || key.includes('canvas'));
+                    
+                    if (shareKeys.length > 0) {
+                        log(`📊 检测到 ${shareKeys.length} 个相关存储项`, 'info');
+                        shareKeys.forEach(key => {
+                            const data = localStorage.getItem(key);
+                            if (data) {
+                                try {
+                                    const parsed = JSON.parse(data);
+                                    log(`📦 ${key}: ${Object.keys(parsed).join(', ')}`, 'info');
+                                } catch (e) {
+                                    log(`📦 ${key}: ${data.substring(0, 50)}...`, 'info');
+                                }
+                            }
+                        });
+                    }
+                } catch (error) {
+                    log(`监控错误: ${error.message}`, 'error');
+                }
+            }, 5000);
+            
+            log('✅ 监控已启动，每5秒检查一次', 'success');
+        }
+
+        function stopMonitoring() {
+            if (monitoringInterval) {
+                clearInterval(monitoringInterval);
+                monitoringInterval = null;
+                log('✅ 监控已停止', 'success');
+            } else {
+                log('监控未运行', 'warning');
+            }
+        }
+
+        function simulateCanvasData() {
+            const mockData = {
+                blocks: [
+                    {
+                        id: 'test-1',
+                        type: 'text',
+                        content: '测试文本块',
+                        x: 100,
+                        y: 100,
+                        width: 200,
+                        height: 100,
+                        number: 1
+                    },
+                    {
+                        id: 'test-2',
+                        type: 'text',
+                        content: '另一个测试块',
+                        x: 350,
+                        y: 150,
+                        width: 200,
+                        height: 100,
+                        number: 2
+                    }
+                ],
+                connections: [],
+                zoom: 1,
+                pan: { x: 0, y: 0 }
+            };
+            
+            log('生成模拟画布数据:', 'info');
+            log(`数据大小: ${JSON.stringify(mockData).length} 字节`, 'info');
+            log(`包含 ${mockData.blocks.length} 个块`, 'info');
+            
+            updateReceivedData(mockData);
+        }
+
+        function testDataFormat() {
+            log('测试数据格式兼容性...', 'info');
+            
+            const testFormats = [
+                { name: '标准格式', data: { blocks: [], connections: [], zoom: 1, pan: { x: 0, y: 0 } } },
+                { name: '空数据', data: null },
+                { name: '字符串数据', data: 'test string' },
+                { name: '数组数据', data: [1, 2, 3] }
+            ];
+            
+            testFormats.forEach(format => {
+                try {
+                    const serialized = JSON.stringify(format.data);
+                    const parsed = JSON.parse(serialized);
+                    log(`✅ ${format.name}: 序列化成功 (${serialized.length} 字节)`, 'success');
+                } catch (error) {
+                    log(`❌ ${format.name}: 序列化失败 - ${error.message}`, 'error');
+                }
+            });
+        }
+
+        function checkConsole() {
+            log('=== 控制台检查指南 ===', 'info');
+            log('请在浏览器控制台中查找以下关键日志：', 'info');
+            log('', 'info');
+            log('主机端日志：', 'warning');
+            log('- [ShareProvider] 主机同步数据', 'info');
+            log('- [ShareManager] 开始广播数据', 'info');
+            log('- [ShareManager] 数据广播完成', 'info');
+            log('', 'info');
+            log('观看者端日志：', 'warning');
+            log('- [ShareProvider] 观看者接收到数据', 'info');
+            log('- [ShareKitViewer] 处理接收到的数据', 'info');
+            log('- [ShareProvider] 数据已更新到状态', 'info');
+            log('', 'info');
+            log('如果没有看到这些日志，说明数据传输存在问题', 'error');
+        }
+
+        function updateReceivedData(data) {
+            const dataDiv = document.getElementById('receivedData');
+            if (data) {
+                const summary = typeof data === 'object' ? 
+                    `类型: ${Array.isArray(data) ? '数组' : '对象'}, 键: ${Object.keys(data).join(', ')}` :
+                    `类型: ${typeof data}, 值: ${data}`;
+                
+                dataDiv.innerHTML = `
+                    <div><strong>最后更新:</strong> ${new Date().toLocaleTimeString()}</div>
+                    <div><strong>数据摘要:</strong> ${summary}</div>
+                    <div><strong>数据大小:</strong> ${JSON.stringify(data).length} 字节</div>
+                    <details>
+                        <summary>完整数据</summary>
+                        <pre style="font-size: 10px; max-height: 200px; overflow-y: auto;">${JSON.stringify(data, null, 2)}</pre>
+                    </details>
+                `;
+                
+                log(`📊 数据已更新: ${summary}`, 'success');
+            } else {
+                dataDiv.innerHTML = '暂无数据';
+                log('📊 数据已清空', 'warning');
+            }
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            log('测试日志已清空', 'info');
+        }
+
+        // 页面加载完成后的初始化
+        window.onload = function() {
+            log('数据传输测试工具已加载', 'success');
+            log('请按照测试步骤进行数据传输验证', 'info');
+            
+            // 检查是否有URL参数
+            const urlParams = new URLSearchParams(window.location.search);
+            const autoTest = urlParams.get('auto');
+            if (autoTest) {
+                log('检测到自动测试参数', 'info');
+                setTimeout(() => {
+                    simulateCanvasData();
+                    startMonitoring();
+                }, 1000);
+            }
+        };
+    </script>
+</body>
+</html>

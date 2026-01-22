@@ -219,6 +219,8 @@ export class RealtimeShareService {
    * 加入分享会话（观众）- 增强版
    */
   async joinSession(sessionId: string): Promise<ShareSession> {
+    console.log('[RealtimeShare] Attempting to join session:', sessionId);
+    
     try {
       let session: ShareSession | null = null;
       let connectionAttempts = 0;
@@ -227,16 +229,25 @@ export class RealtimeShareService {
       // 尝试多次连接
       while (connectionAttempts < maxAttempts && !session) {
         try {
+          console.log('[RealtimeShare] Connection attempt:', connectionAttempts + 1);
+          
           if (this.isProduction()) {
             session = await this.getSessionFromServer(sessionId);
           } else {
             session = this.getSessionFromLocal(sessionId);
           }
           
-          if (session) break;
+          if (session) {
+            console.log('[RealtimeShare] Session found:', session);
+            break;
+          } else {
+            console.log('[RealtimeShare] No session found, attempt:', connectionAttempts + 1);
+          }
           
         } catch (error) {
           connectionAttempts++;
+          console.error('[RealtimeShare] Connection attempt failed:', error);
+          
           if (connectionAttempts < maxAttempts) {
             shareDiagnosticService.logWarning('service', `连接尝试 ${connectionAttempts} 失败，重试中`, { sessionId, error });
             await this.delay(1000 * connectionAttempts); // 递增延迟
@@ -244,8 +255,16 @@ export class RealtimeShareService {
         }
       }
 
-      if (!session || !session.isActive) {
-        throw new Error('分享会话不存在或已结束');
+      if (!session) {
+        const errorMsg = `分享会话 ${sessionId} 不存在`;
+        console.error('[RealtimeShare]', errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      if (!session.isActive) {
+        const errorMsg = `分享会话 ${sessionId} 已结束`;
+        console.error('[RealtimeShare]', errorMsg);
+        throw new Error(errorMsg);
       }
 
       // 尝试建立连接
@@ -284,12 +303,21 @@ export class RealtimeShareService {
         viewerCount: session.viewers.length
       });
 
-      console.log('[RealtimeShare] Joined session:', sessionId);
+      console.log('[RealtimeShare] Successfully joined session:', sessionId);
       return session;
     } catch (error) {
-      console.error('[RealtimeShare] Failed to join session:', error);
-      await shareErrorHandler.handleError(error instanceof Error ? error : new Error('加入分享会话失败'));
-      throw new Error('加入分享会话失败');
+      const errorMsg = error instanceof Error ? error.message : '加入分享会话失败';
+      console.error('[RealtimeShare] Failed to join session:', errorMsg, error);
+      
+      // 记录详细错误信息
+      shareDiagnosticService.logError('service', '加入分享会话失败', { 
+        sessionId, 
+        error: errorMsg,
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      
+      await shareErrorHandler.handleError(error instanceof Error ? error : new Error(errorMsg));
+      throw new Error(errorMsg);
     }
   }
   /**
@@ -525,10 +553,35 @@ export class RealtimeShareService {
 
   private getSessionFromLocal(sessionId: string): ShareSession | null {
     try {
+      console.log('[RealtimeShare] Getting session from local:', sessionId);
       const data = localStorage.getItem(`share-session-${sessionId}`);
-      return data ? JSON.parse(data) : null;
+      
+      if (!data) {
+        console.log('[RealtimeShare] No local session found for:', sessionId);
+        return null;
+      }
+      
+      const parsed = JSON.parse(data);
+      console.log('[RealtimeShare] Parsed session data:', parsed);
+      
+      // 验证数据完整性
+      if (!parsed.id || !parsed.canvasState) {
+        console.warn('[RealtimeShare] Invalid session data structure:', parsed);
+        // 清理损坏的数据
+        localStorage.removeItem(`share-session-${sessionId}`);
+        return null;
+      }
+      
+      return parsed;
     } catch (error) {
       console.error('[RealtimeShare] Failed to get session from local:', error);
+      // 清理损坏的数据
+      try {
+        localStorage.removeItem(`share-session-${sessionId}`);
+        console.log('[RealtimeShare] Cleaned up corrupted session data');
+      } catch (cleanupError) {
+        console.error('[RealtimeShare] Failed to cleanup corrupted data:', cleanupError);
+      }
       return null;
     }
   }
@@ -1034,7 +1087,9 @@ export class RealtimeShareService {
   /**
    * 停止所有监控
    */
-  private stopAllMonitoring(): void {
+  public stopAllMonitoring(): void {
+    console.log('[RealtimeShare] Stopping all monitoring...');
+    
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
@@ -1049,6 +1104,15 @@ export class RealtimeShareService {
       clearInterval(this.qualityCheckInterval);
       this.qualityCheckInterval = null;
     }
+    
+    // 清理回调
+    this.onUpdateCallback = null;
+    
+    // 重置状态
+    this.isReconnecting = false;
+    this.reconnectAttempts = 0;
+    
+    console.log('[RealtimeShare] All monitoring stopped');
   }
 
   /**

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分享问题调试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .debug-section {
+            background: white;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .error { color: #d32f2f; }
+        .success { color: #388e3c; }
+        .warning { color: #f57c00; }
+        .info { color: #1976d2; }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        button {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1565c0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 分享问题调试工具</h1>
+    
+    <div class="debug-section">
+        <h2>问题分享ID分析</h2>
+        <p><strong>分享ID:</strong> <code>share-1769056688844-v3iise</code></p>
+        <div id="shareAnalysis"></div>
+    </div>
+
+    <div class="debug-section">
+        <h2>localStorage 数据检查</h2>
+        <div id="storageCheck"></div>
+        <button onclick="checkStorage()">检查存储</button>
+        <button onclick="clearStorage()">清理存储</button>
+    </div>
+
+    <div class="debug-section">
+        <h2>创建测试分享数据</h2>
+        <div id="testDataResult"></div>
+        <button onclick="createTestShare()">创建测试分享</button>
+        <button onclick="createValidShare()">创建有效分享数据</button>
+    </div>
+
+    <div class="debug-section">
+        <h2>分享服务测试</h2>
+        <div id="serviceTest"></div>
+        <button onclick="testShareService()">测试分享服务</button>
+    </div>
+
+    <script>
+        const problematicId = 'share-1769056688844-v3iise';
+        
+        function log(message, type = 'info') {
+            const colors = {
+                error: '#d32f2f',
+                success: '#388e3c', 
+                warning: '#f57c00',
+                info: '#1976d2'
+            };
+            console.log(`%c[DEBUG] ${message}`, `color: ${colors[type]}`);
+        }
+
+        function displayResult(elementId, content, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="${type}">${content}</div>`;
+        }
+
+        function checkStorage() {
+            log('检查localStorage中的分享数据');
+            
+            const results = [];
+            const keys = Object.keys(localStorage);
+            const shareKeys = keys.filter(key => key.startsWith('share-session-'));
+            
+            results.push(`<h3>发现 ${shareKeys.length} 个分享会话</h3>`);
+            
+            shareKeys.forEach(key => {
+                try {
+                    const data = JSON.parse(localStorage.getItem(key));
+                    const sessionId = key.replace('share-session-', '');
+                    
+                    results.push(`
+                        <div style="margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                            <strong>会话ID:</strong> ${sessionId}<br>
+                            <strong>标题:</strong> ${data.title || '无标题'}<br>
+                            <strong>创建时间:</strong> ${new Date(data.createdAt).toLocaleString()}<br>
+                            <strong>是否活跃:</strong> ${data.isActive ? '是' : '否'}<br>
+                            <strong>画布块数:</strong> ${data.canvasState?.blocks?.length || 0}<br>
+                            <strong>观众数:</strong> ${data.viewers?.length || 0}<br>
+                            ${sessionId === problematicId ? '<span class="error">⚠️ 这是问题ID</span>' : ''}
+                        </div>
+                    `);
+                } catch (error) {
+                    results.push(`<div class="error">❌ ${key}: 数据损坏 - ${error.message}</div>`);
+                }
+            });
+            
+            // 检查问题ID
+            const problematicKey = `share-session-${problematicId}`;
+            if (localStorage.getItem(problematicKey)) {
+                results.push(`<div class="warning">⚠️ 发现问题ID数据，尝试解析...</div>`);
+                try {
+                    const data = JSON.parse(localStorage.getItem(problematicKey));
+                    results.push(`<pre>${JSON.stringify(data, null, 2)}</pre>`);
+                } catch (error) {
+                    results.push(`<div class="error">❌ 问题ID数据完全损坏: ${error.message}</div>`);
+                }
+            } else {
+                results.push(`<div class="info">ℹ️ 问题ID数据不存在</div>`);
+            }
+            
+            displayResult('storageCheck', results.join(''));
+        }
+
+        function clearStorage() {
+            try {
+                const keys = Object.keys(localStorage);
+                const shareKeys = keys.filter(key => key.startsWith('share-session-'));
+                
+                shareKeys.forEach(key => {
+                    localStorage.removeItem(key);
+                });
+                
+                displayResult('storageCheck', `✅ 已清理 ${shareKeys.length} 个分享会话数据`, 'success');
+                log(`清理了 ${shareKeys.length} 个分享会话`, 'success');
+            } catch (error) {
+                displayResult('storageCheck', `❌ 清理失败: ${error.message}`, 'error');
+                log(`清理失败: ${error.message}`, 'error');
+            }
+        }
+
+        function createTestShare() {
+            log('创建测试分享数据');
+            
+            const testSession = {
+                id: 'test-share-123',
+                hostId: 'host-test-123',
+                title: '测试分享会话',
+                createdAt: Date.now(),
+                lastUpdate: Date.now(),
+                canvasState: {
+                    blocks: [
+                        {
+                            id: 'block-1',
+                            type: 'text',
+                            x: 100,
+                            y: 100,
+                            width: 200,
+                            height: 100,
+                            content: '这是一个测试文本块'
+                        }
+                    ],
+                    connections: [],
+                    zoom: 1,
+                    pan: { x: 0, y: 0 }
+                },
+                viewers: [],
+                isActive: true,
+                connectionMode: {
+                    type: 'polling',
+                    priority: 2,
+                    config: {
+                        pollInterval: 1000,
+                        timeout: 10000,
+                        retryAttempts: 5
+                    }
+                },
+                quality: {
+                    level: 'good',
+                    latency: 200,
+                    bandwidth: 500,
+                    stability: 0.8,
+                    lastMeasured: Date.now()
+                },
+                settings: {
+                    maxViewers: 10,
+                    autoReconnect: true,
+                    compressionEnabled: true,
+                    updateThrottle: 500,
+                    qualityAdaptive: true
+                }
+            };
+            
+            try {
+                localStorage.setItem(`share-session-${testSession.id}`, JSON.stringify(testSession));
+                displayResult('testDataResult', '✅ 测试分享数据创建成功！可以访问: http://localhost:3005/?watch=test-share-123', 'success');
+                log('测试分享数据创建成功', 'success');
+            } catch (error) {
+                displayResult('testDataResult', `❌ 创建失败: ${error.message}`, 'error');
+                log(`创建测试数据失败: ${error.message}`, 'error');
+            }
+        }
+
+        function createValidShare() {
+            log('为问题ID创建有效数据');
+            
+            const validSession = {
+                id: problematicId,
+                hostId: 'host-fixed-123',
+                title: '修复后的分享会话',
+                createdAt: Date.now() - 3600000, // 1小时前创建
+                lastUpdate: Date.now(),
+                canvasState: {
+                    blocks: [
+                        {
+                            id: 'block-1',
+                            type: 'text',
+                            x: 150,
+                            y: 150,
+                            width: 300,
+                            height: 120,
+                            content: '这是修复后的分享内容\n\n现在应该可以正常显示了！'
+                        },
+                        {
+                            id: 'block-2',
+                            type: 'text',
+                            x: 500,
+                            y: 200,
+                            width: 250,
+                            height: 80,
+                            content: '分享功能已恢复正常'
+                        }
+                    ],
+                    connections: [],
+                    zoom: 1,
+                    pan: { x: 0, y: 0 }
+                },
+                viewers: [],
+                isActive: true,
+                connectionMode: {
+                    type: 'polling',
+                    priority: 2,
+                    config: {
+                        pollInterval: 1000,
+                        timeout: 10000,
+                        retryAttempts: 5
+                    }
+                },
+                quality: {
+                    level: 'good',
+                    latency: 150,
+                    bandwidth: 800,
+                    stability: 0.9,
+                    lastMeasured: Date.now()
+                },
+                settings: {
+                    maxViewers: 10,
+                    autoReconnect: true,
+                    compressionEnabled: false,
+                    updateThrottle: 500,
+                    qualityAdaptive: true
+                }
+            };
+            
+            try {
+                localStorage.setItem(`share-session-${problematicId}`, JSON.stringify(validSession));
+                displayResult('testDataResult', `✅ 问题ID的有效数据已创建！<br>现在可以访问: <a href="http://localhost:3005/?watch=${problematicId}" target="_blank">http://localhost:3005/?watch=${problematicId}</a>`, 'success');
+                log('问题ID的有效数据创建成功', 'success');
+            } catch (error) {
+                displayResult('testDataResult', `❌ 创建失败: ${error.message}`, 'error');
+                log(`创建有效数据失败: ${error.message}`, 'error');
+            }
+        }
+
+        function testShareService() {
+            log('测试分享服务功能');
+            
+            // 模拟分享服务的基本功能测试
+            const tests = [];
+            
+            // 测试1: localStorage访问
+            try {
+                localStorage.setItem('test-key', 'test-value');
+                const value = localStorage.getItem('test-key');
+                localStorage.removeItem('test-key');
+                tests.push('✅ localStorage 访问正常');
+            } catch (error) {
+                tests.push(`❌ localStorage 访问失败: ${error.message}`);
+            }
+            
+            // 测试2: JSON序列化
+            try {
+                const testObj = { test: true, data: [1, 2, 3] };
+                const serialized = JSON.stringify(testObj);
+                const parsed = JSON.parse(serialized);
+                tests.push('✅ JSON 序列化正常');
+            } catch (error) {
+                tests.push(`❌ JSON 序列化失败: ${error.message}`);
+            }
+            
+            // 测试3: URL参数解析
+            try {
+                const url = new URL('http://localhost:3005/?watch=test-123');
+                const watchId = url.searchParams.get('watch');
+                tests.push(`✅ URL参数解析正常: ${watchId}`);
+            } catch (error) {
+                tests.push(`❌ URL参数解析失败: ${error.message}`);
+            }
+            
+            displayResult('serviceTest', tests.join('<br>'));
+        }
+
+        // 页面加载时自动检查
+        window.onload = function() {
+            log('调试页面加载完成');
+            checkStorage();
+        };
+    </script>
+</body>
+</html>

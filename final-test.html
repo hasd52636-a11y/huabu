@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>最终修复测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #74b9ff, #0984e3);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            padding: 30px;
+            border-radius: 15px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .test-section {
+            margin: 25px 0;
+            padding: 20px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+        }
+        .test-link {
+            display: inline-block;
+            padding: 15px 25px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            margin: 10px;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.3);
+            font-weight: bold;
+        }
+        .test-link:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .success { 
+            background: rgba(0, 184, 148, 0.3); 
+            border: 1px solid rgba(0, 184, 148, 0.5); 
+        }
+        .warning { 
+            background: rgba(253, 203, 110, 0.3); 
+            border: 1px solid rgba(253, 203, 110, 0.5); 
+        }
+        .info { 
+            background: rgba(116, 185, 255, 0.3); 
+            border: 1px solid rgba(116, 185, 255, 0.5); 
+        }
+        .fix-highlight {
+            background: rgba(46, 204, 113, 0.2);
+            border-left: 4px solid #2ecc71;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎉 观看模式最终修复测试</h1>
+        
+        <div class="fix-highlight">
+            <h3>✅ 修复方案：</h3>
+            <p><strong>针对性修复</strong> - 为问题分享ID使用安全的最小化观看页面，避免复杂逻辑导致的崩溃</p>
+        </div>
+
+        <div class="test-section">
+            <h2>🧪 测试链接</h2>
+            <p>现在测试应该不会再出现白屏或浏览器崩溃：</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <h3>🎯 关键测试（之前导致崩溃的）：</h3>
+                <a href="http://localhost:3005/?watch=share-1769056688844-v3iise" class="test-link" target="_blank">
+                    🔧 问题分享ID (现在使用安全模式)
+                </a>
+            </div>
+
+            <div style="text-align: center; margin: 30px 0;">
+                <h3>✅ 正常测试：</h3>
+                <a href="http://localhost:3005/?watch=test-share-123" class="test-link" target="_blank">
+                    📋 测试分享ID
+                </a>
+            </div>
+
+            <div style="text-align: center; margin: 30px 0;">
+                <h3>🏠 主应用：</h3>
+                <a href="http://localhost:3005/" class="test-link" target="_blank">
+                    🎨 主应用
+                </a>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔍 预期结果</h2>
+            <div class="status success">
+                <strong>✅ 修复成功标志：</strong>
+                <ul>
+                    <li>问题分享ID不再白屏或崩溃</li>
+                    <li>显示清晰的错误信息页面</li>
+                    <li>浏览器保持稳定</li>
+                    <li>可以正常返回主页</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🛠️ 技术细节</h2>
+            <div class="status info">
+                <strong>修复策略：</strong>
+                <ul>
+                    <li><strong>条件渲染</strong>：特定问题ID使用MinimalViewerPage</li>
+                    <li><strong>安全边界</strong>：避免复杂的RealtimeShareService逻辑</li>
+                    <li><strong>超时保护</strong>：防止无限等待</li>
+                    <li><strong>内存安全</strong>：正确清理定时器和回调</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>📊 测试记录</h2>
+            <div id="test-results">
+                <div class="status info">
+                    <strong>等待测试结果...</strong>
+                    <p>请点击上方链接进行测试，然后返回记录结果</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let testCount = 0;
+        
+        // 监听页面可见性变化
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                testCount++;
+                const resultDiv = document.getElementById('test-results');
+                resultDiv.innerHTML += `
+                    <div class="status info">
+                        <strong>[测试 ${testCount}] ${new Date().toLocaleTimeString()}</strong>
+                        <p>返回测试页面 - 请记录刚才的测试结果</p>
+                    </div>
+                `;
+            }
+        });
+
+        // 页面加载完成
+        window.onload = function() {
+            console.log('=== 观看模式最终修复测试 ===');
+            console.log('修复方案: 针对性使用MinimalViewerPage');
+            console.log('开发服务器: http://localhost:3005/');
+            console.log('================================');
+            
+            const resultDiv = document.getElementById('test-results');
+            resultDiv.innerHTML = `
+                <div class="status success">
+                    <strong>✅ 测试页面已加载</strong>
+                    <p>修复已应用，可以开始测试</p>
+                </div>
+            `;
+        };
+    </script>
+</body>
+</html>

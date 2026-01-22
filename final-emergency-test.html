@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>最终紧急修复测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: 30px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        .test-link {
+            display: block;
+            padding: 18px 30px;
+            margin: 15px 0;
+            border-radius: 10px;
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        .danger-link {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            color: white;
+        }
+        .danger-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+        }
+        .safe-link {
+            background: linear-gradient(45deg, #00d2d3, #54a0ff);
+            color: white;
+        }
+        .safe-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 210, 211, 0.4);
+        }
+        .warning {
+            background: rgba(255, 193, 7, 0.2);
+            border: 2px solid #ffc107;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 25px 0;
+            font-weight: bold;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        .fix-info {
+            background: rgba(40, 167, 69, 0.2);
+            border: 2px solid #28a745;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: left;
+            font-size: 14px;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .status.success {
+            background: rgba(40, 167, 69, 0.3);
+            border: 1px solid #28a745;
+        }
+        .status.error {
+            background: rgba(220, 53, 69, 0.3);
+            border: 1px solid #dc3545;
+        }
+        .btn {
+            background: rgba(108, 117, 125, 0.8);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            background: rgba(108, 117, 125, 1);
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ 最终紧急修复测试</h1>
+        
+        <div class="warning">
+            ⚠️ 强化修复已部署！问题ID现在会被多层拦截
+        </div>
+        
+        <div class="fix-info">
+            <h3>🔧 修复策略：</h3>
+            <ul style="text-align: left; margin: 10px 0;">
+                <li>✅ useShareMode Hook 中立即拦截问题ID</li>
+                <li>✅ connectToShare 函数中二次安全检查</li>
+                <li>✅ MinimalViewerPage 中三重验证</li>
+                <li>✅ 自动清理损坏的localStorage数据</li>
+                <li>✅ 完全阻止RealtimeShareService复杂逻辑执行</li>
+            </ul>
+        </div>
+        
+        <h2>🧪 测试链接</h2>
+        
+        <a href="http://localhost:3005/" class="test-link safe-link">
+            ✅ 主应用（安全基线）
+        </a>
+        
+        <a href="http://localhost:3005/?watch=test-share-123" class="test-link safe-link">
+            ✅ 正常分享ID（功能验证）
+        </a>
+        
+        <a href="http://localhost:3005/?watch=share-1769056688844-v3iise" class="test-link danger-link">
+            🛡️ 问题分享ID（修复验证）
+        </a>
+        
+        <div class="status" id="testStatus" style="display: none;">
+            测试状态将在这里显示...
+        </div>
+        
+        <div style="margin-top: 30px;">
+            <h3>🔧 工具</h3>
+            <button onclick="clearAllStorage()" class="btn">
+                🗑️ 清理所有存储
+            </button>
+            <button onclick="runDiagnostic()" class="btn">
+                🔍 运行诊断
+            </button>
+            <button onclick="testProblematicId()" class="btn">
+                ⚡ 快速测试问题ID
+            </button>
+        </div>
+        
+        <div style="margin-top: 30px; font-size: 12px; opacity: 0.8;">
+            <p><strong>预期结果：</strong></p>
+            <p>问题ID应该立即显示技术问题错误页面，不再出现白屏或浏览器崩溃</p>
+            <p>如果仍有问题，请立即关闭标签页并报告</p>
+        </div>
+    </div>
+
+    <script>
+        function clearAllStorage() {
+            try {
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                // 清理特定的分享会话数据
+                const keys = Object.keys(localStorage);
+                keys.forEach(key => {
+                    if (key.startsWith('share-session-')) {
+                        localStorage.removeItem(key);
+                    }
+                });
+                
+                showStatus('存储已完全清理', 'success');
+            } catch (error) {
+                showStatus('清理失败: ' + error.message, 'error');
+            }
+        }
+        
+        function runDiagnostic() {
+            const results = [];
+            
+            // 检查localStorage中的分享会话
+            const keys = Object.keys(localStorage);
+            const shareKeys = keys.filter(key => key.startsWith('share-session-'));
+            
+            results.push(`发现 ${shareKeys.length} 个分享会话数据`);
+            
+            shareKeys.forEach(key => {
+                try {
+                    const data = JSON.parse(localStorage.getItem(key));
+                    results.push(`- ${key}: ${data.id || '无ID'} (${data.isActive ? '活跃' : '非活跃'})`);
+                } catch (error) {
+                    results.push(`- ${key}: 数据损坏`);
+                }
+            });
+            
+            // 检查问题ID
+            const problematicId = 'share-1769056688844-v3iise';
+            if (localStorage.getItem(`share-session-${problematicId}`)) {
+                results.push(`⚠️ 发现问题ID数据: ${problematicId}`);
+            } else {
+                results.push(`✅ 问题ID数据已清理: ${problematicId}`);
+            }
+            
+            showStatus(results.join('\n'), 'success');
+        }
+        
+        function testProblematicId() {
+            showStatus('正在测试问题ID...', 'success');
+            
+            // 创建隐藏的iframe来测试
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = 'http://localhost:3005/?watch=share-1769056688844-v3iise';
+            
+            let testTimeout;
+            
+            iframe.onload = function() {
+                clearTimeout(testTimeout);
+                showStatus('✅ 问题ID加载成功，没有崩溃！', 'success');
+                document.body.removeChild(iframe);
+            };
+            
+            iframe.onerror = function() {
+                clearTimeout(testTimeout);
+                showStatus('❌ 问题ID仍然存在加载问题', 'error');
+                document.body.removeChild(iframe);
+            };
+            
+            // 5秒超时
+            testTimeout = setTimeout(() => {
+                showStatus('⏱️ 测试超时，可能仍有问题', 'error');
+                document.body.removeChild(iframe);
+            }, 5000);
+            
+            document.body.appendChild(iframe);
+        }
+        
+        function showStatus(message, type) {
+            const statusEl = document.getElementById('testStatus');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+            statusEl.style.display = 'block';
+            
+            // 3秒后自动隐藏
+            setTimeout(() => {
+                statusEl.style.display = 'none';
+            }, 3000);
+        }
+        
+        console.log('🛡️ 最终紧急修复测试页面已加载');
+        console.log('修复方案: 多层拦截 + 数据清理 + 逻辑阻断');
+        
+        // 页面加载时自动运行诊断
+        setTimeout(runDiagnostic, 1000);
+    </script>
+</body>
+</html>

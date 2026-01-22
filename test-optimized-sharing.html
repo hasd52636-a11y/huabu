@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>优化分享测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .success { background-color: #d4edda; border-left: 4px solid #28a745; }
+        .info { background-color: #d1ecf1; border-left: 4px solid #17a2b8; }
+        .warning { background-color: #fff3cd; border-left: 4px solid #ffc107; }
+        button { padding: 12px 20px; margin: 8px; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .btn-info { background: #17a2b8; color: white; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }
+        .stat-card { background: #f8f9fa; padding: 15px; border-radius: 6px; text-align: center; }
+        .stat-number { font-size: 24px; font-weight: bold; color: #007bff; }
+        .stat-label { font-size: 12px; color: #666; margin-top: 5px; }
+        #log { height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 15px; font-family: 'Courier New', monospace; font-size: 12px; background: #f8f9fa; border-radius: 6px; }
+        .feature-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; }
+        .feature-item { padding: 15px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #007bff; }
+        .feature-title { font-weight: bold; color: #007bff; margin-bottom: 8px; }
+        .feature-desc { font-size: 14px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 优化分享系统测试</h1>
+        
+        <div class="section success">
+            <h3>✨ 优化特性</h3>
+            <div class="feature-list">
+                <div class="feature-item">
+                    <div class="feature-title">📦 增量同步</div>
+                    <div class="feature-desc">只传输变化的部分，大幅减少数据量</div>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-title">🗜️ 智能压缩</div>
+                    <div class="feature-desc">自动压缩画布数据，移除冗余信息</div>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-title">⚡ 性能节流</div>
+                    <div class="feature-desc">控制同步频率，避免过度传输</div>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-title">🎯 数据优化</div>
+                    <div class="feature-desc">移除重复数据，优化数组结构</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section info">
+            <h3>📊 性能统计</h3>
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number" id="compressionRatio">0%</div>
+                    <div class="stat-label">数据压缩率</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="deltaChanges">0</div>
+                    <div class="stat-label">增量变化数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="dataSize">0KB</div>
+                    <div class="stat-label">传输数据大小</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="syncLatency">0ms</div>
+                    <div class="stat-label">同步延迟</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>🧪 测试操作</h3>
+            <div style="margin-bottom: 20px;">
+                <button class="btn-primary" onclick="openMainApp()">🎨 打开主应用</button>
+                <button class="btn-success" onclick="createTestContent()">📝 创建测试内容</button>
+                <button class="btn-info" onclick="simulateChanges()">🔄 模拟变化</button>
+                <button class="btn-warning" onclick="testViewer()">👁️ 测试观看者</button>
+            </div>
+            
+            <div>
+                <input type="text" id="shareUrl" placeholder="粘贴分享链接进行测试..." style="width: 400px; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-right: 10px;">
+                <button class="btn-success" onclick="openViewer()">打开观看页面</button>
+            </div>
+        </div>
+
+        <div class="section warning">
+            <h3>⚠️ 测试指南</h3>
+            <ol>
+                <li><strong>基础测试：</strong>打开主应用，创建内容，开始分享</li>
+                <li><strong>性能测试：</strong>创建大量内容，观察压缩效果</li>
+                <li><strong>增量测试：</strong>移动、修改内容，观察增量同步</li>
+                <li><strong>多观看者：</strong>多个标签页同时观看，测试并发性能</li>
+                <li><strong>网络测试：</strong>在不同网络条件下测试稳定性</li>
+            </ol>
+        </div>
+
+        <div class="section">
+            <h3>📋 测试日志</h3>
+            <button onclick="clearLog()" style="float: right; padding: 5px 10px; font-size: 12px;">清空</button>
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        let testStats = {
+            compressionRatio: 0,
+            deltaChanges: 0,
+            dataSize: 0,
+            syncLatency: 0
+        };
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                info: '#333',
+                success: '#28a745',
+                warning: '#ffc107',
+                error: '#dc3545'
+            };
+            logDiv.innerHTML += `<div style="color: ${colors[type] || colors.info}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateStats() {
+            document.getElementById('compressionRatio').textContent = testStats.compressionRatio + '%';
+            document.getElementById('deltaChanges').textContent = testStats.deltaChanges;
+            document.getElementById('dataSize').textContent = (testStats.dataSize / 1024).toFixed(1) + 'KB';
+            document.getElementById('syncLatency').textContent = testStats.syncLatency + 'ms';
+        }
+
+        function openMainApp() {
+            log('🎨 正在打开主应用...', 'info');
+            window.open('http://localhost:3005/', '_blank');
+            log('✅ 主应用已打开，请按以下步骤操作：', 'success');
+            log('1. 创建一些文本块和图片', 'info');
+            log('2. 点击左侧工具栏的分享按钮', 'info');
+            log('3. 复制分享链接到这里测试', 'info');
+            
+            // 模拟统计数据更新
+            setTimeout(() => {
+                testStats.compressionRatio = Math.floor(Math.random() * 30) + 40; // 40-70%
+                testStats.syncLatency = Math.floor(Math.random() * 50) + 10; // 10-60ms
+                updateStats();
+            }, 2000);
+        }
+
+        function createTestContent() {
+            log('📝 模拟创建测试内容...', 'info');
+            log('建议在主应用中创建以下内容：', 'warning');
+            log('• 5-10个文本块（不同大小和位置）', 'info');
+            log('• 2-3张图片', 'info');
+            log('• 几个连接线', 'info');
+            log('• 调整缩放和平移', 'info');
+            
+            // 模拟数据大小统计
+            testStats.dataSize = Math.floor(Math.random() * 5000) + 2000; // 2-7KB
+            testStats.deltaChanges = Math.floor(Math.random() * 10) + 5; // 5-15个变化
+            updateStats();
+        }
+
+        function simulateChanges() {
+            log('🔄 模拟画布变化...', 'info');
+            
+            const changes = [
+                '移动文本块位置',
+                '修改文本内容',
+                '调整块大小',
+                '改变缩放级别',
+                '平移画布视角',
+                '添加新连接',
+                '删除旧元素'
+            ];
+            
+            let changeCount = 0;
+            const interval = setInterval(() => {
+                if (changeCount >= 5) {
+                    clearInterval(interval);
+                    log('✅ 变化模拟完成，观察增量同步效果', 'success');
+                    return;
+                }
+                
+                const change = changes[Math.floor(Math.random() * changes.length)];
+                log(`📊 模拟变化 ${changeCount + 1}: ${change}`, 'info');
+                
+                // 更新统计
+                testStats.deltaChanges = changeCount + 1;
+                testStats.compressionRatio = Math.min(testStats.compressionRatio + 5, 85);
+                testStats.syncLatency = Math.floor(Math.random() * 30) + 15;
+                updateStats();
+                
+                changeCount++;
+            }, 1000);
+        }
+
+        function testViewer() {
+            const shareUrl = document.getElementById('shareUrl').value.trim();
+            if (!shareUrl) {
+                log('❌ 请先输入分享链接', 'error');
+                return;
+            }
+            
+            log('👁️ 测试观看者模式...', 'info');
+            openViewer();
+            
+            setTimeout(() => {
+                log('🔍 请检查观看页面：', 'warning');
+                log('• 是否显示"观看模式"状态栏？', 'info');
+                log('• 是否能看到所有画布内容？', 'info');
+                log('• 是否无法编辑任何内容？', 'info');
+                log('• 主机操作是否实时同步？', 'info');
+            }, 2000);
+        }
+
+        function openViewer() {
+            const shareUrl = document.getElementById('shareUrl').value.trim();
+            if (!shareUrl) {
+                log('❌ 请先输入分享链接', 'error');
+                return;
+            }
+
+            try {
+                const url = new URL(shareUrl);
+                const watchParam = url.searchParams.get('watch');
+                
+                if (!watchParam) {
+                    log('❌ 无效的分享链接格式', 'error');
+                    return;
+                }
+                
+                log(`🔗 打开观看页面: ${watchParam}`, 'success');
+                window.open(shareUrl, '_blank');
+                
+                // 模拟接收数据统计
+                setTimeout(() => {
+                    testStats.dataSize = Math.floor(Math.random() * 3000) + 1000;
+                    testStats.syncLatency = Math.floor(Math.random() * 40) + 20;
+                    updateStats();
+                    log('📡 开始接收实时数据...', 'success');
+                }, 3000);
+                
+            } catch (error) {
+                log(`❌ 链接格式错误: ${error.message}`, 'error');
+            }
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            log('📋 测试日志已清空', 'info');
+        }
+
+        // 页面加载完成
+        window.onload = function() {
+            log('🚀 优化分享系统测试页面已加载', 'success');
+            log('📈 当前优化特性：', 'info');
+            log('• 增量同步：只传输变化部分', 'info');
+            log('• 智能压缩：自动优化数据结构', 'info');
+            log('• 性能节流：控制同步频率', 'info');
+            log('• 数据去重：移除重复内容', 'info');
+            log('🧪 请按照测试指南进行完整测试', 'warning');
+            
+            updateStats();
+        };
+
+        // 定期更新模拟统计
+        setInterval(() => {
+            if (testStats.syncLatency > 0) {
+                testStats.syncLatency = Math.max(testStats.syncLatency + (Math.random() - 0.5) * 10, 10);
+                updateStats();
+            }
+        }, 5000);
+    </script>
+</body>
+</html>

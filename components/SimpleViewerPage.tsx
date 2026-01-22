@@ -56,13 +56,19 @@ const SimpleViewerPage: React.FC<SimpleViewerPageProps> = ({ shareId }) => {
 
   // 自动刷新功能
   useEffect(() => {
-    if (!isAutoRefresh) return;
+    let interval: NodeJS.Timeout | null = null;
+    
+    if (isAutoRefresh) {
+      interval = setInterval(() => {
+        loadShareData();
+      }, 2000); // 每2秒刷新一次
+    }
 
-    const interval = setInterval(() => {
-      loadShareData();
-    }, 2000); // 每2秒刷新一次
-
-    return () => clearInterval(interval);
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
   }, [isAutoRefresh, shareId]);
 
   const handleRefresh = () => {

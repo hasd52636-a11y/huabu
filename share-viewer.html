@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分享画布查看器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            height: calc(100vh - 80px);
+            overflow: hidden;
+            background: white;
+        }
+        
+        .canvas {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transform-origin: 0 0;
+            transition: transform 0.2s ease;
+        }
+        
+        .block {
+            position: absolute;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 1rem;
+            font-size: 14px;
+            line-height: 1.5;
+            overflow: hidden;
+            cursor: default;
+            transition: all 0.2s ease;
+        }
+        
+        .block:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+        }
+        
+        .block.text {
+            background: #ffffff;
+            color: #1e293b;
+            white-space: pre-wrap;
+        }
+        
+        .block.image {
+            background: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px dashed #cbd5e1;
+        }
+        
+        .block.video {
+            background: #fef3c7;
+            border-color: #f59e0b;
+        }
+        
+        .block-number {
+            position: absolute;
+            top: -8px;
+            left: -8px;
+            width: 24px;
+            height: 24px;
+            background: #3b82f6;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #64748b;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e2e8f0;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 1rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #dc2626;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .error-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        .controls {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .control-btn {
+            width: 48px;
+            height: 48px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.2s ease;
+        }
+        
+        .control-btn:hover {
+            background: #f8fafc;
+            border-color: #3b82f6;
+        }
+        
+        .viewer-info {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title" id="shareTitle">分享画布查看器</div>
+        <div class="status">
+            <div class="status-dot"></div>
+            <span>实时同步</span>
+        </div>
+    </div>
+    
+    <div class="canvas-container">
+        <div id="loadingState" class="loading">
+            <div class="spinner"></div>
+            <div>正在加载分享内容...</div>
+        </div>
+        
+        <div id="errorState" class="error" style="display: none;">
+            <div class="error-icon">⚠️</div>
+            <h3>无法加载分享内容</h3>
+            <p id="errorMessage">分享会话不存在或已过期</p>
+            <button onclick="window.location.reload()" style="margin-top: 1rem; padding: 0.5rem 1rem; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">重新加载</button>
+        </div>
+        
+        <div id="canvas" class="canvas" style="display: none;"></div>
+    </div>
+    
+    <div class="controls">
+        <div class="control-btn" onclick="resetView()" title="重置视图">
+            🏠
+        </div>
+        <div class="control-btn" onclick="zoomIn()" title="放大">
+            ➕
+        </div>
+        <div class="control-btn" onclick="zoomOut()" title="缩小">
+            ➖
+        </div>
+    </div>
+    
+    <div class="viewer-info" id="viewerInfo">
+        观众模式 | ID: <span id="shareId">-</span>
+    </div>
+
+    <script>
+        let currentZoom = 1;
+        let currentPan = { x: 0, y: 0 };
+        let shareData = null;
+        
+        // 获取分享ID
+        const urlParams = new URLSearchParams(window.location.search);
+        const shareId = urlParams.get('watch') || urlParams.get('id');
+        
+        document.getElementById('shareId').textContent = shareId || '未知';
+        
+        function showLoading() {
+            document.getElementById('loadingState').style.display = 'flex';
+            document.getElementById('errorState').style.display = 'none';
+            document.getElementById('canvas').style.display = 'none';
+        }
+        
+        function showError(message) {
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('errorState').style.display = 'flex';
+            document.getElementById('canvas').style.display = 'none';
+            document.getElementById('errorMessage').textContent = message;
+        }
+        
+        function showCanvas() {
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('errorState').style.display = 'none';
+            document.getElementById('canvas').style.display = 'block';
+        }
+        
+        function loadShareData() {
+            if (!shareId) {
+                showError('缺少分享ID参数');
+                return;
+            }
+            
+            try {
+                // 从localStorage加载分享数据
+                const data = localStorage.getItem(`share-session-${shareId}`);
+                
+                if (!data) {
+                    showError(`分享会话 ${shareId} 不存在`);
+                    return;
+                }
+                
+                shareData = JSON.parse(data);
+                
+                if (!shareData.isActive) {
+                    showError('分享会话已结束');
+                    return;
+                }
+                
+                // 更新标题
+                document.getElementById('shareTitle').textContent = shareData.title || '分享画布';
+                
+                // 渲染画布
+                renderCanvas();
+                showCanvas();
+                
+                console.log('分享数据加载成功:', shareData);
+                
+            } catch (error) {
+                console.error('加载分享数据失败:', error);
+                showError(`加载失败: ${error.message}`);
+            }
+        }
+        
+        function renderCanvas() {
+            const canvas = document.getElementById('canvas');
+            canvas.innerHTML = '';
+            
+            if (!shareData || !shareData.canvasState || !shareData.canvasState.blocks) {
+                showError('分享数据格式无效');
+                return;
+            }
+            
+            const { blocks, zoom = 1, pan = { x: 0, y: 0 } } = shareData.canvasState;
+            
+            // 设置初始视图
+            currentZoom = zoom;
+            currentPan = pan;
+            updateCanvasTransform();
+            
+            // 渲染所有块
+            blocks.forEach(block => {
+                const blockEl = createBlockElement(block);
+                canvas.appendChild(blockEl);
+            });
+        }
+        
+        function createBlockElement(block) {
+            const div = document.createElement('div');
+            div.className = `block ${block.type}`;
+            div.style.left = `${block.x}px`;
+            div.style.top = `${block.y}px`;
+            div.style.width = `${block.width}px`;
+            div.style.height = `${block.height}px`;
+            
+            // 添加块编号
+            if (block.number) {
+                const numberEl = document.createElement('div');
+                numberEl.className = 'block-number';
+                numberEl.textContent = block.number;
+                div.appendChild(numberEl);
+            }
+            
+            // 根据类型渲染内容
+            if (block.type === 'text') {
+                div.textContent = block.content || '';
+            } else if (block.type === 'image') {
+                if (block.content && block.content.startsWith('data:image')) {
+                    const img = document.createElement('img');
+                    img.src = block.content;
+                    img.style.maxWidth = '100%';
+                    img.style.maxHeight = '100%';
+                    img.style.objectFit = 'contain';
+                    div.appendChild(img);
+                } else {
+                    div.innerHTML = '<div style="color: #64748b;">📷 图片内容</div>';
+                }
+            } else if (block.type === 'video') {
+                div.innerHTML = '<div style="color: #92400e;">🎥 视频内容</div>';
+            }
+            
+            return div;
+        }
+        
+        function updateCanvasTransform() {
+            const canvas = document.getElementById('canvas');
+            canvas.style.transform = `scale(${currentZoom}) translate(${currentPan.x}px, ${currentPan.y}px)`;
+        }
+        
+        function resetView() {
+            currentZoom = 1;
+            currentPan = { x: 0, y: 0 };
+            updateCanvasTransform();
+        }
+        
+        function zoomIn() {
+            currentZoom = Math.min(currentZoom * 1.2, 3);
+            updateCanvasTransform();
+        }
+        
+        function zoomOut() {
+            currentZoom = Math.max(currentZoom / 1.2, 0.3);
+            updateCanvasTransform();
+        }
+        
+        // 定期检查更新
+        function checkForUpdates() {
+            if (!shareId) return;
+            
+            try {
+                const data = localStorage.getItem(`share-session-${shareId}`);
+                if (data) {
+                    const newShareData = JSON.parse(data);
+                    
+                    // 检查是否有更新
+                    if (newShareData.lastUpdate > (shareData?.lastUpdate || 0)) {
+                        console.log('检测到分享内容更新');
+                        shareData = newShareData;
+                        renderCanvas();
+                    }
+                }
+            } catch (error) {
+                console.error('检查更新失败:', error);
+            }
+        }
+        
+        // 页面加载时初始化
+        window.onload = function() {
+            console.log('独立分享查看器启动');
+            console.log('分享ID:', shareId);
+            
+            loadShareData();
+            
+            // 每2秒检查一次更新
+            setInterval(checkForUpdates, 2000);
+        };
+        
+        // 键盘快捷键
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'r' || e.key === 'R') {
+                resetView();
+            } else if (e.key === '=' || e.key === '+') {
+                zoomIn();
+            } else if (e.key === '-') {
+                zoomOut();
+            } else if (e.key === 'F5') {
+                e.preventDefault();
+                window.location.reload();
+            }
+        });
+    </script>
+</body>
+</html>

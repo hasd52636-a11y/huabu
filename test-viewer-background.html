@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>观看页面背景测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        button { padding: 10px 15px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; background: #007bff; color: white; }
+        .preview-box { 
+            width: 300px; 
+            height: 200px; 
+            border: 2px solid #ddd; 
+            border-radius: 8px; 
+            margin: 10px; 
+            display: inline-block;
+            position: relative;
+        }
+        .canvas-grid {
+            background-color: #ffffff;
+            background-image: radial-gradient(circle, rgba(100, 100, 100, 0.3) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        .dark .canvas-grid {
+            background-color: #020617;
+            background-image: radial-gradient(circle, rgba(255, 255, 255, 0.3) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        .old-background {
+            background: linear-gradient(to bottom, #ffffff 50%, #f5f5f5 50%);
+        }
+        .label {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>观看页面背景样式测试</h1>
+    
+    <div class="section success">
+        <h3>✅ 背景修复完成</h3>
+        <p><strong>问题：</strong>观看页面背景显示为"上面白色下面灰色"，与主应用画布背景不一致</p>
+        <p><strong>解决方案：</strong>将观看页面背景改为与主应用相同的canvas-grid样式</p>
+    </div>
+
+    <div class="section info">
+        <h3>🎨 背景样式对比</h3>
+        
+        <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: center;">
+            <div class="preview-box old-background">
+                <div class="label">修复前：上白下灰</div>
+            </div>
+            
+            <div class="preview-box canvas-grid">
+                <div class="label">修复后：网格背景</div>
+            </div>
+            
+            <div style="margin-left: 20px;">
+                <h4>主要改进：</h4>
+                <ul>
+                    <li>✅ 使用canvas-grid样式类</li>
+                    <li>✅ 白色背景 + 网格点</li>
+                    <li>✅ 支持深色模式</li>
+                    <li>✅ 与主应用完全一致</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="section warning">
+        <h3>🔧 修改的文件</h3>
+        <p><strong>文件：</strong> <code>components/ShareKitViewerPage.tsx</code></p>
+        <p><strong>主要修改：</strong></p>
+        <ul>
+            <li>页面根容器：<code>bg-gray-100</code> → <code>canvas-grid</code></li>
+            <li>画布容器：<code>bg-white</code> → <code>canvas-grid</code></li>
+            <li>等待内容区域：<code>min-h-screen</code> → <code>canvas-grid + min-h-screen</code></li>
+            <li>添加canvas-grid样式定义到页面头部</li>
+        </ul>
+    </div>
+
+    <div class="section info">
+        <h3>📋 测试步骤</h3>
+        
+        <div style="margin: 20px 0;">
+            <button onclick="openMainApp()">1. 打开主应用</button>
+            <button onclick="testViewer()">2. 测试观看页面</button>
+            <button onclick="compareBackgrounds()">3. 对比背景</button>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <h4>详细测试流程：</h4>
+            <ol>
+                <li><strong>打开主应用</strong> - 创建一些画布内容</li>
+                <li><strong>开始分享</strong> - 点击分享按钮，复制链接</li>
+                <li><strong>打开观看页面</strong> - 在新标签页打开分享链接</li>
+                <li><strong>对比背景</strong> - 确认观看页面背景与主应用一致</li>
+                <li><strong>检查深色模式</strong> - 如果主应用支持深色模式，测试观看页面是否同步</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>🎯 预期效果</h3>
+        <div style="display: flex; gap: 20px; align-items: center;">
+            <div>
+                <h4>修复前：</h4>
+                <ul style="color: #dc3545;">
+                    <li>❌ 上半部分白色背景</li>
+                    <li>❌ 下半部分灰色背景</li>
+                    <li>❌ 与主应用不一致</li>
+                    <li>❌ 视觉体验差</li>
+                </ul>
+            </div>
+            <div>
+                <h4>修复后：</h4>
+                <ul style="color: #28a745;">
+                    <li>✅ 统一的网格背景</li>
+                    <li>✅ 与主应用完全一致</li>
+                    <li>✅ 支持深色模式</li>
+                    <li>✅ 专业的视觉效果</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openMainApp() {
+            window.open('http://localhost:3005/', '_blank');
+            console.log('主应用已打开');
+        }
+
+        function testViewer() {
+            const shareUrl = prompt('请输入分享链接（或使用测试链接）:');
+            if (shareUrl) {
+                window.open(shareUrl, '_blank');
+            } else {
+                // 使用测试链接
+                window.open('http://localhost:3005/?watch=test-background-123', '_blank');
+            }
+            console.log('观看页面已打开');
+        }
+
+        function compareBackgrounds() {
+            alert('请对比以下内容：\n\n1. 主应用的画布背景（网格点背景）\n2. 观看页面的背景\n3. 确认两者是否一致\n\n如果背景一致，说明修复成功！');
+        }
+
+        // 深色模式切换测试
+        function toggleDarkMode() {
+            document.documentElement.classList.toggle('dark');
+            console.log('深色模式已切换');
+        }
+
+        // 页面加载完成
+        window.onload = function() {
+            console.log('背景样式测试页面已加载');
+            
+            // 添加深色模式切换按钮
+            const darkModeBtn = document.createElement('button');
+            darkModeBtn.textContent = '切换深色模式';
+            darkModeBtn.onclick = toggleDarkMode;
+            darkModeBtn.style.position = 'fixed';
+            darkModeBtn.style.top = '20px';
+            darkModeBtn.style.right = '20px';
+            darkModeBtn.style.zIndex = '1000';
+            document.body.appendChild(darkModeBtn);
+        };
+    </script>
+</body>
+</html>

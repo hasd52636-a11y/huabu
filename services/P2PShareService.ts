@@ -32,22 +32,31 @@ export class P2PShareService {
     try {
       console.log('[P2PShareService] 开始初始化PeerJS...');
       
-      // 使用更可靠的配置，包括多个备用服务器
+      // 使用更可靠的配置，优化中国网络环境
       this.peer = new Peer({
-        debug: 1, // 减少调试信息
+        debug: 2, // 增加调试信息以便排查问题
         config: {
           iceServers: [
+            // Google STUN 服务器
             { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' },
             { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' }
-          ]
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            // Twilio STUN 服务器
+            { urls: 'stun:global.stun.twilio.com:3478' },
+            // 其他公共 STUN 服务器
+            { urls: 'stun:stun.stunprotocol.org:3478' },
+            { urls: 'stun:stun.voiparound.com' },
+            { urls: 'stun:stun.voipbuster.com' }
+          ],
+          // 增加连接超时时间
+          iceCandidatePoolSize: 10
         },
-        // 使用自定义的PeerJS服务器配置
-        host: 'peerjs-server.herokuapp.com',
-        port: 443,
-        path: '/',
-        secure: true
+        // 使用默认的 PeerJS 云服务（通常更稳定）
+        // 不指定 host，使用默认的 0.peerjs.com
+        secure: true,
+        // 增加连接超时
+        pingInterval: 5000
       });
 
       this.peer.on('open', (id) => {
@@ -68,6 +77,11 @@ export class P2PShareService {
           setTimeout(() => {
             this.setupPeerWithFallback();
           }, 3000);
+        } else if (error.type === 'unavailable-id') {
+          console.log('[P2PShareService] ID不可用，重新生成...');
+          setTimeout(() => {
+            this.setupPeer();
+          }, 1000);
         } else {
           console.log('[P2PShareService] 其他错误，使用默认重连...');
           setTimeout(() => {
@@ -78,6 +92,13 @@ export class P2PShareService {
 
       this.peer.on('connection', (conn) => {
         this.handleNewConnection(conn);
+      });
+
+      this.peer.on('disconnected', () => {
+        console.log('[P2PShareService] PeerJS连接断开，尝试重连...');
+        if (!this.peer?.destroyed) {
+          this.peer?.reconnect();
+        }
       });
       
     } catch (error) {
@@ -95,14 +116,20 @@ export class P2PShareService {
       
       // 使用默认的PeerJS服务器（通常更稳定）
       this.peer = new Peer({
-        debug: 1,
+        debug: 2,
         config: {
           iceServers: [
+            // 使用更多的 STUN 服务器提高连接成功率
             { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' }
-          ]
-        }
-        // 不指定host，使用默认服务器
+            { urls: 'stun:global.stun.twilio.com:3478' },
+            { urls: 'stun:stun.stunprotocol.org:3478' },
+            { urls: 'stun:stun.voiparound.com' }
+          ],
+          iceCandidatePoolSize: 5
+        },
+        // 不指定host，使用默认的 0.peerjs.com 服务器
+        secure: true,
+        pingInterval: 10000 // 增加心跳间隔
       });
 
       this.peer.on('open', (id) => {
@@ -113,31 +140,51 @@ export class P2PShareService {
 
       this.peer.on('error', (error) => {
         console.error('[P2PShareService] 备用配置也失败:', error);
-        // 最后的降级方案：生成一个模拟ID用于测试
+        // 最后的降级方案：使用本地模拟模式
         setTimeout(() => {
-          this.setupMockPeer();
+          this.setupLocalMode();
         }, 2000);
       });
 
       this.peer.on('connection', (conn) => {
         this.handleNewConnection(conn);
       });
+
+      this.peer.on('disconnected', () => {
+        console.log('[P2PShareService] 备用配置断开，尝试重连...');
+        if (!this.peer?.destroyed) {
+          this.peer?.reconnect();
+        }
+      });
       
     } catch (error) {
       console.error('[P2PShareService] 备用配置初始化失败:', error);
-      this.setupMockPeer();
+      this.setupLocalMode();
     }
   }
 
-  private setupMockPeer(): void {
-    console.log('[P2PShareService] 使用模拟模式（仅用于测试）');
+  private setupLocalMode(): void {
+    console.log('[P2PShareService] 启用本地模式（适用于网络受限环境）');
     
-    // 生成一个模拟的ID用于测试
-    this.shareId = 'mock-' + Math.random().toString(36).substr(2, 9);
-    this.peer = null; // 标记为模拟模式
+    // 生成一个本地ID用于测试
+    this.shareId = 'local-' + Math.random().toString(36).substr(2, 9);
+    this.peer = null; // 标记为本地模式
     
-    console.log('[P2PShareService] 模拟模式ID:', this.shareId);
+    console.log('[P2PShareService] 本地模式ID:', this.shareId);
+    console.log('[P2PShareService] 注意：本地模式下无法进行真实的P2P连接，仅用于功能测试');
+    
     this.notifyStatusChange();
+    
+    // 在本地模式下，可以模拟一些基本功能
+    this.simulateLocalSharing();
+  }
+
+  private simulateLocalSharing(): void {
+    // 模拟本地分享功能，用于测试UI和基本逻辑
+    console.log('[P2PShareService] 模拟本地分享功能启动');
+    
+    // 可以在这里添加一些模拟的观众连接等
+    // 主要用于在网络不佳时测试界面功能
   }
 
   private handleNewConnection(conn: any): void {
@@ -195,6 +242,9 @@ export class P2PShareService {
     console.log('[P2PShareService] peer:', this.peer);
     console.log('[P2PShareService] shareId:', this.shareId);
     
+    // 先进行网络质量检测
+    this.checkNetworkQuality();
+    
     if (!this.peer) {
       console.error('[P2PShareService] Peer is null');
       throw new Error('PeerJS未初始化，请刷新页面重试');
@@ -212,6 +262,113 @@ export class P2PShareService {
     this.notifyStatusChange();
     
     return shareUrl;
+  }
+
+  // 网络质量检测
+  private async checkNetworkQuality(): Promise<void> {
+    console.log('[P2PShareService] 开始网络质量检测...');
+    
+    try {
+      // 检测网络连接类型
+      const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+      if (connection) {
+        console.log('[P2PShareService] 网络类型:', connection.effectiveType);
+        console.log('[P2PShareService] 下行速度:', connection.downlink, 'Mbps');
+        console.log('[P2PShareService] RTT:', connection.rtt, 'ms');
+      }
+
+      // 检测 WebRTC 支持
+      const hasWebRTC = !!(window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection);
+      console.log('[P2PShareService] WebRTC支持:', hasWebRTC);
+
+      // 检测 STUN 服务器连通性
+      await this.testStunConnectivity();
+
+    } catch (error) {
+      console.warn('[P2PShareService] 网络质量检测失败:', error);
+    }
+  }
+
+  // 测试 STUN 服务器连通性
+  private async testStunConnectivity(): Promise<void> {
+    return new Promise((resolve) => {
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+      });
+
+      let resolved = false;
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          console.warn('[P2PShareService] STUN服务器连接超时');
+          pc.close();
+          resolve();
+        }
+      }, 5000);
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate && !resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          console.log('[P2PShareService] STUN服务器连接正常');
+          pc.close();
+          resolve();
+        }
+      };
+
+      // 创建一个数据通道来触发 ICE 收集
+      pc.createDataChannel('test');
+      pc.createOffer().then(offer => pc.setLocalDescription(offer));
+    });
+  }
+
+  // 获取连接状态信息
+  public getConnectionStatus(): { quality: string; message: string; suggestions: string[] } {
+    if (!this.peer) {
+      return {
+        quality: '未连接',
+        message: 'PeerJS服务未初始化',
+        suggestions: [
+          '检查网络连接',
+          '刷新页面重试',
+          '尝试使用其他浏览器'
+        ]
+      };
+    }
+
+    if (this.peer.destroyed) {
+      return {
+        quality: '连接中断',
+        message: 'PeerJS连接已断开',
+        suggestions: [
+          '检查网络稳定性',
+          '重新启动分享',
+          '确认防火墙设置'
+        ]
+      };
+    }
+
+    if (this.shareId && this.peer.open) {
+      return {
+        quality: '连接正常',
+        message: `分享ID: ${this.shareId}`,
+        suggestions: [
+          '分享链接给观众',
+          '保持网络稳定',
+          '避免频繁操作'
+        ]
+      };
+    }
+
+    return {
+      quality: '连接中',
+      message: '正在建立连接...',
+      suggestions: [
+        '请稍等片刻',
+        '确保网络畅通',
+        '如长时间无响应请刷新'
+      ]
+    };
   }
 
   // 停止分享

@@ -170,16 +170,3 @@ export interface EnhancedTaggedInputState {
   hoveredTag: string | null;
   layoutMetrics: LayoutMetrics;
 }
-
-// Enhanced tag chip component props
-export interface EnhancedTagChipProps {
-  tag: TagData;
-  blockType: BlockType;
-  onHover: (tag: TagData, event: MouseEvent) => void;
-  onHoverEnd: () => void;
-  onClick?: (tag: TagData) => void;
-  visualConfig: VisualConfig;
-  isSelected?: boolean;
-  isFocused?: boolean;
-  className?: string;
-}

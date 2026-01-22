@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>最终分享按钮测试</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+</head>
+<body class="p-8 bg-gray-100">
+    <h1 class="text-2xl font-bold mb-4">最终分享按钮测试</h1>
+    
+    <div class="bg-white p-4 rounded-lg shadow mb-4">
+        <h2 class="text-lg font-semibold mb-2">模拟工具栏环境</h2>
+        <div class="flex flex-col gap-2 w-16 bg-gray-50 p-2 rounded">
+            <!-- 模拟其他工具栏按钮 -->
+            <button class="p-3 text-blue-500 hover:bg-blue-500/10 rounded-xl transition-all" title="文本">
+                📝
+            </button>
+            <button class="p-3 text-emerald-500 hover:bg-emerald-500/10 rounded-xl transition-all" title="图片">
+                🖼️
+            </button>
+            <button class="p-3 text-red-500 hover:bg-red-500/10 rounded-xl transition-all" title="视频">
+                🎥
+            </button>
+            
+            <div class="w-8 h-px bg-slate-300/30"></div>
+            
+            <!-- 分享按钮 -->
+            <div class="relative">
+                <button 
+                    id="share-button"
+                    class="p-3 hover:bg-amber-500/10 rounded-xl transition-all text-slate-400 hover:text-amber-500 relative"
+                    title="分享画布"
+                >
+                    <span id="share-icon">🔗</span>
+                    <!-- 分享状态指示器 -->
+                    <div id="share-indicator" class="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse hidden"></div>
+                </button>
+                
+                <!-- 分享链接弹出框 -->
+                <div id="share-popup" class="absolute left-full ml-2 top-0 bg-white border border-gray-200 rounded-lg shadow-lg p-3 min-w-[300px] z-50 hidden">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium text-gray-700">分享链接</span>
+                        <button id="close-popup" class="text-gray-400 hover:text-gray-600">×</button>
+                    </div>
+                    
+                    <div class="flex items-center gap-2 mb-2">
+                        <input 
+                            id="share-url"
+                            readonly 
+                            class="text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded border flex-1 outline-none"
+                        />
+                        <button 
+                            id="copy-button"
+                            class="p-1.5 hover:bg-gray-100 rounded text-gray-600 transition-colors"
+                            title="复制链接"
+                        >
+                            📋
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white p-4 rounded-lg shadow">
+        <h2 class="text-lg font-semibold mb-2">测试日志</h2>
+        <div id="log" class="bg-gray-100 p-2 rounded text-sm font-mono max-h-64 overflow-y-auto"></div>
+    </div>
+
+    <script>
+        const shareButton = document.getElementById('share-button');
+        const shareIcon = document.getElementById('share-icon');
+        const shareIndicator = document.getElementById('share-indicator');
+        const sharePopup = document.getElementById('share-popup');
+        const shareUrl = document.getElementById('share-url');
+        const copyButton = document.getElementById('copy-button');
+        const closePopup = document.getElementById('close-popup');
+        const log = document.getElementById('log');
+        
+        let isSharing = false;
+        let peer = null;
+        let shareId = null;
+        
+        function addLog(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            log.appendChild(logEntry);
+            log.scrollTop = log.scrollHeight;
+            console.log(message);
+        }
+        
+        function generateId(length = 8) {
+            return Math.random().toString(36).substring(2, 2 + length);
+        }
+        
+        async function startSharing() {
+            try {
+                addLog('开始创建分享...');
+                
+                // 检查 PeerJS
+                if (typeof window.Peer === 'undefined') {
+                    throw new Error('PeerJS 未加载');
+                }
+                
+                shareId = `share-${Date.now()}-${generateId(6)}`;
+                addLog(`生成分享 ID: ${shareId}`);
+                
+                peer = new window.Peer(shareId, {
+                    debug: 2,
+                    config: {
+                        iceServers: [
+                            { urls: 'stun:stun.l.google.com:19302' },
+                            { urls: 'stun:stun1.l.google.com:19302' }
+                        ]
+                    }
+                });
+                
+                peer.on('open', (id) => {
+                    addLog(`Peer 连接已建立: ${id}`);
+                    isSharing = true;
+                    
+                    // 更新 UI
+                    shareIcon.textContent = '🛑';
+                    shareButton.title = '停止分享';
+                    shareButton.className = 'p-3 hover:bg-red-500/10 rounded-xl transition-all text-green-500 hover:text-green-600 relative';
+                    shareIndicator.classList.remove('hidden');
+                    
+                    // 显示分享链接
+                    const url = `${window.location.origin}?watch=${id}`;
+                    shareUrl.value = url;
+                    sharePopup.classList.remove('hidden');
+                    
+                    addLog(`分享链接: ${url}`);
+                });
+                
+                peer.on('connection', (conn) => {
+                    addLog(`观众连接: ${conn.peer}`);
+                    
+                    conn.on('open', () => {
+                        addLog(`观众连接已建立: ${conn.peer}`);
+                        // 发送欢迎消息
+                        conn.send({
+                            type: 'welcome',
+                            message: '欢迎观看曹操画布!',
+                            timestamp: Date.now()
+                        });
+                    });
+                    
+                    conn.on('close', () => {
+                        addLog(`观众断开连接: ${conn.peer}`);
+                    });
+                });
+                
+                peer.on('error', (err) => {
+                    addLog(`Peer 错误: ${err.message}`);
+                    console.error('Peer error:', err);
+                    stopSharing();
+                });
+                
+            } catch (error) {
+                addLog(`创建分享失败: ${error.message}`);
+                console.error('Share creation failed:', error);
+            }
+        }
+        
+        function stopSharing() {
+            if (peer) {
+                peer.destroy();
+                peer = null;
+            }
+            
+            isSharing = false;
+            shareId = null;
+            
+            // 更新 UI
+            shareIcon.textContent = '🔗';
+            shareButton.title = '分享画布';
+            shareButton.className = 'p-3 hover:bg-amber-500/10 rounded-xl transition-all text-slate-400 hover:text-amber-500 relative';
+            shareIndicator.classList.add('hidden');
+            sharePopup.classList.add('hidden');
+            
+            addLog('分享已停止');
+        }
+        
+        function copyUrl() {
+            if (shareUrl.value) {
+                navigator.clipboard.writeText(shareUrl.value).then(() => {
+                    copyButton.textContent = '✅';
+                    setTimeout(() => {
+                        copyButton.textContent = '📋';
+                    }, 2000);
+                    addLog('分享链接已复制到剪贴板');
+                });
+            }
+        }
+        
+        // 事件监听器
+        shareButton.addEventListener('click', (e) => {
+            addLog('分享按钮被点击');
+            e.preventDefault();
+            
+            if (isSharing) {
+                stopSharing();
+            } else {
+                startSharing();
+            }
+        });
+        
+        copyButton.addEventListener('click', copyUrl);
+        
+        closePopup.addEventListener('click', () => {
+            sharePopup.classList.add('hidden');
+        });
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            addLog('页面加载完成');
+            addLog(`PeerJS 可用: ${typeof window.Peer !== 'undefined'}`);
+        });
+    </script>
+</body>
+</html>

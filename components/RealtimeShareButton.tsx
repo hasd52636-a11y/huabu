@@ -99,18 +99,28 @@ const RealtimeShareButton: React.FC<RealtimeShareButtonProps> = ({
     const currentSession = realtimeShareService.getCurrentSession();
     const connectionStatus = realtimeShareService.getConnectionStatus();
     
+    // 获取 P2P 连接状态
+    const p2pStatus = (window as any).p2pShareService?.getConnectionStatus?.() || {
+      quality: '未知',
+      message: '无法获取状态',
+      suggestions: []
+    };
+
     if (currentSession) {
       const now = Date.now();
       setShareStats(prev => ({
         ...prev,
         sessionDuration: sessionStartTime.current ? now - sessionStartTime.current : 0,
-        currentViewers: currentSession.viewers.length,
-        totalViewers: Math.max(prev.totalViewers, currentSession.viewers.length),
-        connectionQuality: connectionStatus.quality?.level || 'unknown',
+        currentViewers: currentSession.viewers?.length || 0,
+        totalViewers: Math.max(prev.totalViewers, currentSession.viewers?.length || 0),
+        updatesSent: updateCounter.current,
+        connectionQuality: connectionStatus.quality?.level || p2pStatus.quality || 'unknown',
         lastUpdate: now
       }));
       
-      setIsConnected(connectionStatus.isConnected);
+      if (connectionStatus.isConnected !== undefined) {
+        setIsConnected(connectionStatus.isConnected);
+      }
     }
   }, [isSharing]);
 
