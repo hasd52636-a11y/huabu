@@ -27,6 +27,31 @@ const TaggedInput = React.forwardRef<HTMLDivElement, TaggedInputProps>(({
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isComposing, setIsComposing] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+
+  // 处理内容更新，确保placeholder正确显示/隐藏
+  useEffect(() => {
+    if (containerRef.current) {
+      const currentContent = containerRef.current.textContent || '';
+      // 如果当前显示的内容是placeholder文本，但实际value为空且未聚焦，需要更新显示
+      if (currentContent === placeholder && !value && !isFocused) {
+        // 内容正确，不需要更新
+        return;
+      }
+      // 如果当前显示placeholder但已聚焦，清空显示
+      if (currentContent === placeholder && isFocused) {
+        containerRef.current.textContent = '';
+        return;
+      }
+      // 如果value变化了，更新显示内容
+      if (value !== currentContent && currentContent !== placeholder) {
+        // 只有当内容真正不同时才更新，避免光标位置丢失
+        if (value && value !== currentContent) {
+          containerRef.current.textContent = value;
+        }
+      }
+    }
+  }, [value, placeholder, isFocused]);
 
   // 解析文本中的标签引用 (如 #1, #2 等)
   const parseTagsFromText = useCallback((text: string) => {
@@ -54,8 +79,19 @@ const TaggedInput = React.forwardRef<HTMLDivElement, TaggedInputProps>(({
 
   // 渲染带标签的内容
   const renderContent = useCallback(() => {
+    // 当聚焦时，即使没有内容也不显示placeholder
+    if (!value && !isFocused) {
+      return <span className="text-gray-400 pointer-events-none select-none">{placeholder}</span>;
+    }
+
+    // 当聚焦但没有内容时，返回空字符串（不显示placeholder）
+    if (!value && isFocused) {
+      return '';
+    }
+
+    // 有内容时正常渲染
     if (!value) {
-      return <span className="text-gray-400">{placeholder}</span>;
+      return '';
     }
 
     const tags = parseTagsFromText(value);
@@ -94,7 +130,7 @@ const TaggedInput = React.forwardRef<HTMLDivElement, TaggedInputProps>(({
     }
 
     return parts;
-  }, [value, placeholder, parseTagsFromText, onTagHover]);
+  }, [value, placeholder, isFocused, parseTagsFromText, onTagHover]);
 
   // 处理输入
   const handleInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
@@ -157,6 +193,25 @@ const TaggedInput = React.forwardRef<HTMLDivElement, TaggedInputProps>(({
       onKeyDown={handleKeyDown}
       onCompositionStart={handleCompositionStart}
       onCompositionEnd={handleCompositionEnd}
+      onFocus={(e) => {
+        setIsFocused(true);
+        // 如果内容为空且显示的是placeholder，清空内容
+        if (!value && e.currentTarget.textContent === placeholder) {
+          e.currentTarget.textContent = '';
+        }
+      }}
+      onBlur={(e) => {
+        setIsFocused(false);
+        // 如果内容为空，确保显示placeholder
+        if (!value) {
+          // 强制重新渲染以显示placeholder
+          setTimeout(() => {
+            if (containerRef.current && !value) {
+              containerRef.current.innerHTML = '';
+            }
+          }, 0);
+        }
+      }}
       style={{ whiteSpace: 'pre-wrap' }}
     >
       {renderContent()}

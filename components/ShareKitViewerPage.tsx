@@ -485,8 +485,19 @@ const ShareKitViewerPage: React.FC<ShareKitViewerPageProps> = ({ shareId }) => {
       appName: "caocao-canvas",
       maxViewers: 5,
       iceServers: [
+        // Google STUN servers (for international users)
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
+        { urls: 'stun:stun1.l.google.com:19302' },
+        // Additional STUN servers for better connectivity in China
+        { urls: 'stun:stun.qq.com:3478' },
+        { urls: 'stun:stun.miwifi.com:3478' },
+        { urls: 'stun:stun.chat.bilibili.com:3478' },
+        // Public STUN servers that work well in China
+        { urls: 'stun:stun.stunprotocol.org:3478' },
+        { urls: 'stun:stun.voiparound.com:3478' },
+        { urls: 'stun:stun.voipbuster.com:3478' },
+        // Cloudflare STUN (good global coverage)
+        { urls: 'stun:stun.cloudflare.com:3478' }
       ]
     }}>
       <ShareKitViewerPageInternal shareId={shareId} />

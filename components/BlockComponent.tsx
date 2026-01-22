@@ -2624,9 +2624,15 @@ const BlockComponent: React.FC<BlockProps> = ({
                     className="w-full h-full object-cover opacity-70" 
                     alt="Reference Image"
                   />
-                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                    <div className="bg-white/90 dark:bg-black/90 px-3 py-1 rounded-full text-sm font-medium">
-                      📎 参考图片
+                  <div className="absolute inset-0 bg-black/20 flex flex-col items-center justify-center">
+                    <div className="bg-white/90 dark:bg-black/90 px-4 py-2 rounded-full text-sm font-medium mb-2">
+                      📎 参考图片已上传
+                    </div>
+                    <div className="bg-blue-500/90 text-white px-3 py-1 rounded-full text-xs max-w-[80%] text-center">
+                      {lang === 'zh' 
+                        ? '输入指令生成新图片，或使用"编辑"等词语来修改此图片' 
+                        : 'Enter command to generate new image, or use "edit" to modify this image'
+                      }
                     </div>
                   </div>
                 </div>
@@ -3086,9 +3092,12 @@ const BlockComponent: React.FC<BlockProps> = ({
                   }
                 }}
                 placeholder={
-                  upstreamData.length > 0 
-                    ? (lang === 'zh' ? '输入指令，使用 [A01] 引用上游数据...' : 'Enter command, use [A01] to reference upstream data...')
-                    : (lang === 'zh' ? '输入指令，点击编号可混排...' : 'Enter command, click ID to mix...')
+                  // 为图片模块提供更智能的提示
+                  block.type === 'image' && block.attachmentContent 
+                    ? (lang === 'zh' ? '输入指令生成新图片，或使用"编辑"、"修改"等词语来编辑上传的图片...' : 'Enter command to generate new image, or use "edit", "modify" to edit uploaded image...')
+                    : upstreamData.length > 0 
+                      ? (lang === 'zh' ? '输入指令，使用 [A01] 引用上游数据...' : 'Enter command, use [A01] to reference upstream data...')
+                      : (lang === 'zh' ? '输入指令...' : 'Enter command...')
                 }
                 className={`w-full bg-transparent text-2xl font-semibold focus:outline-none text-slate-900 dark:text-white placeholder-slate-400 py-3 px-6 min-h-[60px] max-h-[300px] overflow-y-auto resize-none border-2 border-amber-500/30 rounded-[2.5rem] focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 transition-all duration-300 relative z-20 ${variableErrors.length > 0 ? 'text-red-600 dark:text-red-400 border-red-500/50' : ''}`}
                 lang={lang}

@@ -37,17 +37,38 @@ export class P2PShareService {
         debug: 2, // 增加调试信息以便排查问题
         config: {
           iceServers: [
-            // Google STUN 服务器
+            // Google STUN 服务器（海外用户）
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
             { urls: 'stun:stun2.l.google.com:19302' },
             { urls: 'stun:stun3.l.google.com:19302' },
-            // Twilio STUN 服务器
+            { urls: 'stun:stun4.l.google.com:19302' },
+            
+            // 中国大陆可访问的STUN服务器
+            { urls: 'stun:stun.qq.com:3478' },
+            { urls: 'stun:stun.miwifi.com:3478' },
+            { urls: 'stun:turn.livekit.cloud:3478' },
             { urls: 'stun:global.stun.twilio.com:3478' },
-            // 其他公共 STUN 服务器
+            { urls: 'stun:stun.cloudflare.com:3478' },
+            
+            // 备用STUN服务器
             { urls: 'stun:stun.stunprotocol.org:3478' },
-            { urls: 'stun:stun.voiparound.com' },
-            { urls: 'stun:stun.voipbuster.com' }
+            { urls: 'stun:stun.voiparound.com:3478' },
+            { urls: 'stun:stun.voipbuster.com:3478' },
+            { urls: 'stun:stun.voipstunt.com:3478' },
+            { urls: 'stun:stun.counterpath.com:3478' },
+            
+            // 公共TURN服务器（如果需要中继）
+            { 
+              urls: 'turn:openrelay.metered.ca:80',
+              username: 'openrelayproject',
+              credential: 'openrelayproject'
+            },
+            { 
+              urls: 'turn:openrelay.metered.ca:443',
+              username: 'openrelayproject', 
+              credential: 'openrelayproject'
+            }
           ],
           // 增加连接超时时间
           iceCandidatePoolSize: 10
@@ -119,11 +140,24 @@ export class P2PShareService {
         debug: 2,
         config: {
           iceServers: [
-            // 使用更多的 STUN 服务器提高连接成功率
+            // 中国大陆优先的STUN服务器
+            { urls: 'stun:stun.qq.com:3478' },
+            { urls: 'stun:stun.miwifi.com:3478' },
+            { urls: 'stun:turn.livekit.cloud:3478' },
+            { urls: 'stun:stun.cloudflare.com:3478' },
+            
+            // 备用国际服务器
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:global.stun.twilio.com:3478' },
             { urls: 'stun:stun.stunprotocol.org:3478' },
-            { urls: 'stun:stun.voiparound.com' }
+            { urls: 'stun:stun.voiparound.com:3478' },
+            
+            // 公共TURN服务器（中继）
+            { 
+              urls: 'turn:openrelay.metered.ca:80',
+              username: 'openrelayproject',
+              credential: 'openrelayproject'
+            }
           ],
           iceCandidatePoolSize: 5
         },
@@ -293,7 +327,12 @@ export class P2PShareService {
   private async testStunConnectivity(): Promise<void> {
     return new Promise((resolve) => {
       const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        iceServers: [
+          // 测试多个STUN服务器的连通性
+          { urls: 'stun:stun.qq.com:3478' },
+          { urls: 'stun:stun.cloudflare.com:3478' },
+          { urls: 'stun:stun.l.google.com:19302' }
+        ]
       });
 
       let resolved = false;

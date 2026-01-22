@@ -2124,14 +2124,27 @@ const App: React.FC = () => {
           // 附件内容自动与指令结合，不需要用户手动引用
           // 模块内显示的内容用于预览和传递给下游模块
           
-          // 如果模块有原始参考图，使用原始参考图
-          // 如果没有原始参考图，使用当前内容作为参考图
+          // 检查用户指令中是否明确要求编辑现有图片
+          const isEditingExistingImage = resolvedPrompt.includes('编辑') || 
+                                       resolvedPrompt.includes('修改') || 
+                                       resolvedPrompt.includes('调整') ||
+                                       resolvedPrompt.includes('edit') ||
+                                       resolvedPrompt.includes('modify') ||
+                                       resolvedPrompt.includes('adjust') ||
+                                       resolvedPrompt.includes('基于这张图') ||
+                                       resolvedPrompt.includes('在这张图上');
+          
+          // 获取参考图片
           let referenceImageContent = block.imageMetadata?.originalReferenceImage || block.content;
           
-          // 如果有参考图，使用editImage方法，否则使用generateImage方法
-          if (referenceImageContent && referenceImageContent.startsWith('data:image/')) {
-            // 有参考图，使用editImage方法
-            console.log('[handleGenerate] Using editImage method with reference image');
+          // 决定使用哪种生成方式：
+          // 1. 如果有参考图且用户明确要求编辑，使用editImage
+          // 2. 如果有参考图但用户没有明确要求编辑，将参考图作为上下文信息传递给generateImage
+          // 3. 如果没有参考图，直接使用generateImage
+          
+          if (referenceImageContent && referenceImageContent.startsWith('data:image/') && isEditingExistingImage) {
+            // 用户明确要求编辑现有图片，使用editImage方法
+            console.log('[handleGenerate] Using editImage method - user explicitly requested editing');
             result = await aiServiceAdapter.editImage(
               referenceImageContent, 
               resolvedPrompt,
@@ -2142,10 +2155,27 @@ const App: React.FC = () => {
               }
             );
           } else {
-            // 没有参考图，使用generateImage方法
-            console.log('[handleGenerate] Using generateImage method without reference image');
-            // 添加用户指令
-            parts.push({ text: `\nUser Instruction: ${resolvedPrompt}` });
+            // 生成新图片，如果有参考图则作为上下文信息
+            console.log('[handleGenerate] Using generateImage method - generating new image');
+            
+            // 如果有参考图，将其作为上下文信息添加到parts中
+            if (referenceImageContent && referenceImageContent.startsWith('data:image/')) {
+              console.log('[handleGenerate] Adding reference image as context');
+              const mimeType = referenceImageContent.split(';')[0].split(':')[1];
+              const base64Data = referenceImageContent.split(',')[1];
+              parts.push({
+                inlineData: {
+                  mimeType: mimeType,
+                  data: base64Data
+                }
+              });
+              // 添加说明文字
+              parts.push({ text: `参考图片已上传。用户指令: ${resolvedPrompt}` });
+            } else {
+              // 没有参考图，直接添加用户指令
+              parts.push({ text: `用户指令: ${resolvedPrompt}` });
+            }
+            
             result = await aiServiceAdapter.generateImage({
               parts,
               aspectRatio: block.aspectRatio || '16:9' // 传递图片比例参数

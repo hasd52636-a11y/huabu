@@ -38,8 +38,38 @@ export class ShareManager {
         debug: 2,
         config: {
           iceServers: [
+            // Google STUN 服务器（海外用户）
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' },
+            
+            // 中国大陆可访问的STUN服务器
+            { urls: 'stun:stun.qq.com:3478' },
+            { urls: 'stun:stun.miwifi.com:3478' },
+            { urls: 'stun:turn.livekit.cloud:3478' },
+            { urls: 'stun:global.stun.twilio.com:3478' },
+            { urls: 'stun:stun.cloudflare.com:3478' },
+            
+            // 备用STUN服务器
+            { urls: 'stun:stun.stunprotocol.org:3478' },
+            { urls: 'stun:stun.voiparound.com:3478' },
+            { urls: 'stun:stun.voipbuster.com:3478' },
+            { urls: 'stun:stun.voipstunt.com:3478' },
+            { urls: 'stun:stun.counterpath.com:3478' },
+            
+            // 公共TURN服务器（如果需要中继）
+            { 
+              urls: 'turn:openrelay.metered.ca:80',
+              username: 'openrelayproject',
+              credential: 'openrelayproject'
+            },
+            { 
+              urls: 'turn:openrelay.metered.ca:443',
+              username: 'openrelayproject', 
+              credential: 'openrelayproject'
+            }
           ]
         }
       });
