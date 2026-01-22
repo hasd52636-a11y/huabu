@@ -1,8 +1,18 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { ProviderSettings } from "../types";
+import { ProviderSettings, NewModelConfig } from "../types";
 
 export class AIService {
+  // 获取用户配置的方法
+  private getUserConfig(): NewModelConfig | null {
+    try {
+      const configStr = localStorage.getItem('caocao-canvas-model-config');
+      return configStr ? JSON.parse(configStr) : null;
+    } catch (error) {
+      console.error('Failed to get user config:', error);
+      return null;
+    }
+  }
   // Master dispatch for text generation
   async generateText(contents: any, settings: ProviderSettings) {
     if (settings.provider === 'google') {
@@ -14,9 +24,12 @@ export class AIService {
 
   // Google Implementation
   private async generateGoogleText(contents: any, model: string) {
-    const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('Google API key not configured. Please set up your API key in the settings.');
+    // 从用户配置中获取 API 密钥，不再使用环境变量
+    const userConfig = this.getUserConfig();
+    const apiKey = userConfig?.providers?.google?.apiKey;
+    
+    if (!apiKey || apiKey.trim() === '') {
+      throw new Error('请在设置中配置 Google API 密钥。点击右上角设置按钮 → API配置 → 填入您的 Gemini API 密钥');
     }
     
     const ai = new GoogleGenAI({ apiKey });
@@ -74,9 +87,12 @@ export class AIService {
   // Image dispatch
   async generateImage(contents: any, settings: ProviderSettings) {
     if (settings.provider === 'google') {
-      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('Google API key not configured. Please set up your API key in the settings.');
+      // 从用户配置中获取 API 密钥，不再使用环境变量
+      const userConfig = this.getUserConfig();
+      const apiKey = userConfig?.providers?.google?.apiKey;
+      
+      if (!apiKey || apiKey.trim() === '') {
+        throw new Error('请在设置中配置 Google API 密钥。点击右上角设置按钮 → API配置 → 填入您的 Gemini API 密钥');
       }
       
       const ai = new GoogleGenAI({ apiKey });
@@ -98,9 +114,12 @@ export class AIService {
   // Video dispatch
   async generateVideo(prompt: string, settings: ProviderSettings) {
     if (settings.provider === 'google') {
-      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('Google API key not configured. Please set up your API key in the settings.');
+      // 从用户配置中获取 API 密钥，不再使用环境变量
+      const userConfig = this.getUserConfig();
+      const apiKey = userConfig?.providers?.google?.apiKey;
+      
+      if (!apiKey || apiKey.trim() === '') {
+        throw new Error('请在设置中配置 Google API 密钥。点击右上角设置按钮 → API配置 → 填入您的 Gemini API 密钥');
       }
       
       const ai = new GoogleGenAI({ apiKey });
