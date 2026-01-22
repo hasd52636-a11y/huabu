@@ -135,6 +135,9 @@ const BlockComponent: React.FC<BlockProps> = ({
     height: block.aspectRatio?.startsWith('1:1') ? 1024 : 1080
   });
   
+  // 获取国际化文本
+  const t = I18N[lang];
+  
   // 下载菜单状态管理
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
 
@@ -2665,7 +2668,7 @@ const BlockComponent: React.FC<BlockProps> = ({
               {isEditing ? (
                 <textarea
                   className="w-full h-[calc(100%-12px)] bg-white/50 dark:bg-black/20 backdrop-blur-md rounded-xl p-6 border-2 border-violet-500 outline-none resize-none font-bold leading-relaxed text-left scrollbar-hide focus:ring-0"
-                  value={block.content}
+                  value={block.content === t.blockPlaceholder ? '' : block.content}
                   autoFocus
                   style={{ fontSize: block.fontSize || 18, color: block.textColor || '#334155' }}
                   onChange={(e) => onUpdate(block.id, { content: e.target.value })}

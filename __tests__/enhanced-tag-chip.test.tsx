@@ -119,7 +119,7 @@ describe('EnhancedTagChip Component', () => {
           id: `test-${blockType}`,
           label: `${blockType}01`,
           blockType,
-       'Test content'
+          content: 'Test content'
         };
         
         // Verify tag structure is valid
