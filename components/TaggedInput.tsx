@@ -29,120 +29,119 @@ const TaggedInput = React.forwardRef<HTMLDivElement, TaggedInputProps>(({
   const [isComposing, setIsComposing] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
 
-  // 处理内容更新，确保placeholder正确显示/隐藏
+  // 简化的内容同步，避免复杂的DOM操作
   useEffect(() => {
-    if (containerRef.current) {
+    if (containerRef.current && value && !isFocused) {
       const currentContent = containerRef.current.textContent || '';
-      // 如果当前显示的内容是placeholder文本，但实际value为空且未聚焦，需要更新显示
-      if (currentContent === placeholder && !value && !isFocused) {
-        // 内容正确，不需要更新
-        return;
-      }
-      // 如果当前显示placeholder但已聚焦，清空显示
-      if (currentContent === placeholder && isFocused) {
-        containerRef.current.textContent = '';
-        return;
-      }
-      // 如果value变化了，更新显示内容
-      if (value !== currentContent && currentContent !== placeholder) {
-        // 只有当内容真正不同时才更新，避免光标位置丢失
-        if (value && value !== currentContent) {
-          containerRef.current.textContent = value;
-        }
+      if (value !== currentContent) {
+        containerRef.current.textContent = value;
       }
     }
-  }, [value, placeholder, isFocused]);
+  }, [value, isFocused]);
 
   // 解析文本中的标签引用 (如 #1, #2 等)
   const parseTagsFromText = useCallback((text: string) => {
-    const tagRegex = /#(\d+)/g;
-    const matches = [];
-    let match;
-    
-    while ((match = tagRegex.exec(text)) !== null) {
-      const blockNumber = match[1];
-      const referencedBlock = upstreamData.find(block => block.blockNumber === blockNumber);
+    try {
+      const tagRegex = /#(\d+)/g;
+      const matches = [];
+      let match;
       
-      matches.push({
-        id: `tag-${blockNumber}`,
-        blockNumber,
-        content: referencedBlock?.content || '',
-        type: referencedBlock?.type || 'text',
-        startIndex: match.index,
-        endIndex: match.index + match[0].length,
-        text: match[0]
-      });
+      while ((match = tagRegex.exec(text)) !== null) {
+        const blockNumber = match[1];
+        const referencedBlock = upstreamData.find(block => block.blockNumber === blockNumber);
+        
+        matches.push({
+          id: `tag-${blockNumber}`,
+          blockNumber,
+          content: referencedBlock?.content || '',
+          type: referencedBlock?.type || 'text',
+          startIndex: match.index,
+          endIndex: match.index + match[0].length,
+          text: match[0]
+        });
+      }
+      
+      return matches;
+    } catch (error) {
+      console.error('Error parsing tags:', error);
+      return [];
     }
-    
-    return matches;
   }, [upstreamData]);
 
   // 渲染带标签的内容
   const renderContent = useCallback(() => {
-    // 当聚焦时，即使没有内容也不显示placeholder
-    if (!value && !isFocused) {
-      return <span className="text-gray-400 pointer-events-none select-none">{placeholder}</span>;
-    }
-
-    // 当聚焦但没有内容时，返回空字符串（不显示placeholder）
-    if (!value && isFocused) {
-      return '';
-    }
-
-    // 有内容时正常渲染
-    if (!value) {
-      return '';
-    }
-
-    const tags = parseTagsFromText(value);
-    if (tags.length === 0) {
-      return value;
-    }
-
-    const parts = [];
-    let lastIndex = 0;
-
-    tags.forEach((tag, index) => {
-      // 添加标签前的文本
-      if (tag.startIndex > lastIndex) {
-        parts.push(value.slice(lastIndex, tag.startIndex));
+    try {
+      // 当没有内容且未聚焦时，显示placeholder
+      if (!value && !isFocused && placeholder) {
+        return <span className="text-gray-400 pointer-events-none select-none">{placeholder}</span>;
       }
 
-      // 添加标签
-      parts.push(
-        <span
-          key={`tag-${index}`}
-          className="inline-flex items-center px-2 py-1 mx-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full cursor-pointer hover:bg-blue-200 transition-colors"
-          onMouseEnter={() => onTagHover?.({ id: tag.id, content: tag.content })}
-          onMouseLeave={() => onTagHover?.(null)}
-          title={tag.content ? `${tag.blockNumber}: ${tag.content.slice(0, 50)}${tag.content.length > 50 ? '...' : ''}` : `引用模块 ${tag.blockNumber}`}
-        >
-          #{tag.blockNumber}
-        </span>
-      );
+      // 如果没有内容，返回null
+      if (!value) {
+        return null;
+      }
 
-      lastIndex = tag.endIndex;
-    });
+      const tags = parseTagsFromText(value);
+      if (tags.length === 0) {
+        return value;
+      }
 
-    // 添加最后的文本
-    if (lastIndex < value.length) {
-      parts.push(value.slice(lastIndex));
+      const parts = [];
+      let lastIndex = 0;
+
+      tags.forEach((tag, index) => {
+        // 添加标签前的文本
+        if (tag.startIndex > lastIndex) {
+          parts.push(value.slice(lastIndex, tag.startIndex));
+        }
+
+        // 添加标签
+        parts.push(
+          <span
+            key={`tag-${index}`}
+            className="inline-flex items-center px-2 py-1 mx-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full cursor-pointer hover:bg-blue-200 transition-colors"
+            onMouseEnter={() => onTagHover?.({ id: tag.id, content: tag.content })}
+            onMouseLeave={() => onTagHover?.(null)}
+            title={tag.content ? `${tag.blockNumber}: ${tag.content.slice(0, 50)}${tag.content.length > 50 ? '...' : ''}` : `引用模块 ${tag.blockNumber}`}
+          >
+            #{tag.blockNumber}
+          </span>
+        );
+
+        lastIndex = tag.endIndex;
+      });
+
+      // 添加最后的文本
+      if (lastIndex < value.length) {
+        parts.push(value.slice(lastIndex));
+      }
+
+      return parts;
+    } catch (error) {
+      console.error('Error rendering content:', error);
+      return value || null;
     }
-
-    return parts;
   }, [value, placeholder, isFocused, parseTagsFromText, onTagHover]);
 
   // 处理输入
   const handleInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
-    if (isComposing) return;
-    
-    const newValue = e.currentTarget.textContent || '';
-    onChange(newValue);
+    try {
+      if (isComposing) return;
+      
+      const newValue = e.currentTarget.textContent || '';
+      onChange(newValue);
+    } catch (error) {
+      console.error('Error handling input:', error);
+    }
   }, [onChange, isComposing]);
 
   // 处理键盘事件
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    onKeyDown?.(e);
+    try {
+      onKeyDown?.(e);
+    } catch (error) {
+      console.error('Error handling key down:', error);
+    }
   }, [onKeyDown]);
 
   // 处理输入法事件
@@ -151,29 +150,39 @@ const TaggedInput = React.forwardRef<HTMLDivElement, TaggedInputProps>(({
   }, []);
 
   const handleCompositionEnd = useCallback((e: React.CompositionEvent<HTMLDivElement>) => {
-    setIsComposing(false);
-    const newValue = e.currentTarget.textContent || '';
-    onChange(newValue);
+    try {
+      setIsComposing(false);
+      const newValue = e.currentTarget.textContent || '';
+      onChange(newValue);
+    } catch (error) {
+      console.error('Error handling composition end:', error);
+    }
   }, [onChange]);
 
   // 插入标签的方法
   const insertTag = useCallback((blockNumber: string) => {
-    const tagText = `#${blockNumber}`;
-    const newValue = value + (value ? ' ' : '') + tagText;
-    onChange(newValue);
-    
-    // 聚焦到输入框末尾
-    setTimeout(() => {
-      if (containerRef.current) {
-        containerRef.current.focus();
-        const range = document.createRange();
-        const selection = window.getSelection();
-        range.selectNodeContents(containerRef.current);
-        range.collapse(false);
-        selection?.removeAllRanges();
-        selection?.addRange(range);
-      }
-    }, 0);
+    try {
+      const tagText = `#${blockNumber}`;
+      const newValue = value + (value ? ' ' : '') + tagText;
+      onChange(newValue);
+      
+      // 聚焦到输入框末尾
+      setTimeout(() => {
+        if (containerRef.current) {
+          containerRef.current.focus();
+          const range = document.createRange();
+          const selection = window.getSelection();
+          if (selection) {
+            range.selectNodeContents(containerRef.current);
+            range.collapse(false);
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+        }
+      }, 0);
+    } catch (error) {
+      console.error('Error inserting tag:', error);
+    }
   }, [value, onChange]);
 
   // 暴露方法给父组件
@@ -193,25 +202,8 @@ const TaggedInput = React.forwardRef<HTMLDivElement, TaggedInputProps>(({
       onKeyDown={handleKeyDown}
       onCompositionStart={handleCompositionStart}
       onCompositionEnd={handleCompositionEnd}
-      onFocus={(e) => {
-        setIsFocused(true);
-        // 如果内容为空且显示的是placeholder，清空内容
-        if (!value && e.currentTarget.textContent === placeholder) {
-          e.currentTarget.textContent = '';
-        }
-      }}
-      onBlur={(e) => {
-        setIsFocused(false);
-        // 如果内容为空，确保显示placeholder
-        if (!value) {
-          // 强制重新渲染以显示placeholder
-          setTimeout(() => {
-            if (containerRef.current && !value) {
-              containerRef.current.innerHTML = '';
-            }
-          }, 0);
-        }
-      }}
+      onFocus={() => setIsFocused(true)}
+      onBlur={() => setIsFocused(false)}
       style={{ whiteSpace: 'pre-wrap' }}
     >
       {renderContent()}
