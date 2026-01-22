@@ -19,7 +19,7 @@ This implementation plan fixes the coordinate synchronization issue between the 
     - Apply transforms without modification to received pan/zoom values
     - _Requirements: 1.1, 1.2, 1.4_
   
-  - [ ] 2.2 Write property test for container transform consistency
+  - [x] 2.2 Write property test for container transform consistency
     - **Property 1: Container Transform Consistency**
     - **Validates: Requirements 1.1, 1.2, 1.3, 1.4**
 
@@ -30,7 +30,7 @@ This implementation plan fixes the coordinate synchronization issue between the 
     - Maintain identical block positioning logic as Main_Canvas
     - _Requirements: 2.1, 2.2, 2.3, 2.4_
   
-  - [ ] 3.2 Write property test for block positioning consistency
+  - [x] 3.2 Write property test for block positioning consistency
     - **Property 2: Block Positioning Consistency**
     - **Validates: Requirements 2.1, 2.2, 2.3, 2.4**
 
@@ -41,7 +41,7 @@ This implementation plan fixes the coordinate synchronization issue between the 
     - Maintain transform composition order
     - _Requirements: 5.1, 5.2, 5.4_
   
-  - [ ] 4.2 Write property test for transform hierarchy consistency
+  - [x] 4.2 Write property test for transform hierarchy consistency
     - **Property 5: Transform Hierarchy Consistency**
     - **Validates: Requirements 5.2, 5.3, 5.4**
 
@@ -61,11 +61,11 @@ This implementation plan fixes the coordinate synchronization issue between the 
     - Test CSS transform string generation edge cases
 
 - [ ] 7. Add comprehensive integration tests
-  - [ ] 7.1 Write property test for visual coordinate consistency
+  - [x] 7.1 Write property test for visual coordinate consistency
     - **Property 3: Visual Coordinate Consistency**
     - **Validates: Requirements 4.1, 4.2, 4.3, 4.4**
   
-  - [ ] 7.2 Write property test for container isolation
+  - [x] 7.2 Write property test for container isolation
     - **Property 4: Container Isolation**
     - **Validates: Requirements 3.3, 3.4**
   
