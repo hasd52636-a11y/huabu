@@ -98,7 +98,7 @@ import { useToast } from './hooks/useToast';
 import { useSystemMonitoring, useFeatureTracking } from './hooks/useSystemMonitoring';
 import VoiceSettingsModal from './components/VoiceSettingsModal';
 import { voiceSettingsService } from './services/VoiceSettingsService';
-import SmartViewerRouter from './components/SmartViewerRouter';
+import MobileOptimizationNotice from './components/MobileOptimizationNotice';
 import { getShareIdFromUrl } from './real-time-share-kit/utils';
 
 interface ChatMessage {
@@ -3725,7 +3725,7 @@ ${block.content}
       )}
 
       {/* Header */}
-      <header className={`fixed top-0 left-0 right-0 h-28 flex items-center justify-between px-16 z-[300] border-b-2 backdrop-blur-3xl ${theme === 'dark' ? 'bg-slate-900/80 border-white/5' : 'bg-white/80 border-black/5 shadow-sm'} rounded-br-3xl`}>
+      <header className={`fixed top-0 left-0 right-0 h-14 md:h-28 flex items-center justify-between px-2 md:px-16 z-[300] border-b-2 backdrop-blur-3xl ${theme === 'dark' ? 'bg-slate-900/80 border-white/5' : 'bg-white/80 border-black/5 shadow-sm'} rounded-br-3xl`}>
         <div className="flex items-center gap-8">
            <div className="flex items-center justify-center">
              <svg width="64" height="40" viewBox="0 0 64 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -3774,7 +3774,7 @@ ${block.content}
                <path d="M33 15 Q37 15.5 39 15" stroke="#4338ca" strokeWidth="0.5" fill="none" strokeLinecap="round"/>
              </svg>
            </div>
-           <h1 className="font-black text-3xl md:text-4xl uppercase tracking-tighter leading-tight">
+           <h1 className="font-black text-sm md:text-3xl lg:text-4xl uppercase tracking-tighter leading-tight">
              {lang === 'zh' ? (
                <>
                  <span className="text-slate-900 dark:text-white font-bold tracking-widest" style={{letterSpacing: '0.2em'}}>曹操</span>
@@ -3806,7 +3806,7 @@ ${block.content}
             className={`p-5 rounded-2xl border-2 transition-all flex items-center gap-3 ${theme === 'dark' ? 'bg-white/5 border-white/5 hover:bg-blue-500/20 text-blue-500' : 'bg-white border-black/5 hover:shadow-xl text-blue-600'}`}
            >
              <FolderOpen size={24} strokeWidth={3} />
-             <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">{lang === 'zh' ? '模板' : 'Templates'}</span>
+             <span className="text-xs font-black uppercase tracking-widest hidden md:inline">{lang === 'zh' ? '模板' : 'Templates'}</span>
            </button>
            
            <button 
@@ -3814,7 +3814,7 @@ ${block.content}
             className={`p-5 rounded-2xl border-2 transition-all flex items-center gap-3 ${theme === 'dark' ? 'bg-white/5 border-white/5 hover:bg-amber-500/20 text-amber-500' : 'bg-white border-black/5 hover:shadow-xl text-amber-600'}`}
            >
              <Key size={24} strokeWidth={3} />
-             <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">{t.api}</span>
+             <span className="text-xs font-black uppercase tracking-widest hidden md:inline">{t.api}</span>
            </button>
 
            {/* Admin Monitoring Button - Hidden by default, shown with Ctrl+Shift+A */}
@@ -3831,7 +3831,7 @@ ${block.content}
             title={lang === 'zh' ? '管理员面板 (双击或Ctrl+Shift+点击)' : 'Admin Panel (Double-click or Ctrl+Shift+Click)'}
            >
              <Database size={24} strokeWidth={3} />
-             <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">
+             <span className="text-xs font-black uppercase tracking-widest hidden md:inline">
                {lang === 'zh' ? '管理' : 'Admin'}
              </span>
            </button>
@@ -3938,7 +3938,7 @@ ${block.content}
       <aside className={`fixed left-12 top-1/2 -translate-y-1/2 w-24 flex flex-col items-center py-6 gap-3 z-[300] border-2 border-purple-400/50 rounded-[3rem] shadow-3xl backdrop-blur-3xl ${theme === 'dark' ? 'bg-slate-900/80' : 'bg-white/95'}`}>
         <button 
           onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')} 
-          className="w-12 h-12 bg-amber-500 text-white rounded-xl shadow-2xl hover:scale-110 active:scale-90 transition-all border-2 border-white/20 flex items-center justify-center font-black text-sm"
+          className="w-8 h-8 md:w-12 md:h-12 bg-amber-500 text-white rounded-xl shadow-2xl hover:scale-110 active:scale-90 transition-all border-2 border-white/20 flex items-center justify-center font-black text-xs md:text-sm"
           title={lang === 'zh' ? 'Switch to English' : '切换为中文'}
         >
           {lang === 'zh' ? 'EN' : '中'}
@@ -3992,7 +3992,7 @@ ${block.content}
         <button onClick={() => { setZoom(0.5); setPan({ x: 0, y: 0 }); }} className="p-3 text-slate-400 hover:text-amber-500 transition-all" title={t.ctxReset}><RotateCcw size={20} /></button>
       </aside>
 
-      <main className="flex-1 h-full pt-28 pl-40" style={{ marginRight: showSidebar ? `${sidebarWidth}px` : 0 }}>
+      <main className="flex-1 h-full pt-14 md:pt-28 pl-2 md:pl-40" style={{ marginRight: showSidebar && window.innerWidth >= 768 ? `${sidebarWidth}px` : 0 }}>
         {/* 手势测试按钮（开发调试用） */}
         {isCanvasGestureActive && (
           <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
@@ -4198,7 +4198,17 @@ ${block.content}
       </main>
 
       {showSidebar && (
-        <aside style={{ width: `${sidebarWidth}px` }} className={`fixed right-0 top-28 bottom-0 flex flex-col z-[300] border-l-2 border-purple-400/50 ${theme === 'dark' ? 'bg-slate-900' : 'bg-white'} rounded-tl-3xl rounded-bl-3xl`}>
+        <>
+          {/* 移动端遮罩层 */}
+          <div 
+            className="fixed inset-0 bg-black/50 z-[250] md:hidden"
+            onClick={() => setShowSidebar(false)}
+          />
+          
+          <aside 
+            style={{ width: window.innerWidth < 768 ? '85%' : `${sidebarWidth}px` }} 
+            className={`fixed right-0 top-0 md:top-28 bottom-0 flex flex-col z-[300] border-l-2 border-purple-400/50 ${theme === 'dark' ? 'bg-slate-900' : 'bg-white'} transform transition-transform duration-300 ${showSidebar ? 'translate-x-0' : 'translate-x-full'} md:rounded-tl-3xl md:rounded-bl-3xl`}
+          >
           <div onMouseDown={startResizing} className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-amber-500/20 z-[310]" />
           <div className="p-4 border-b-2 border-black/5 flex flex-col gap-4">
                <div className="flex items-center justify-between">
@@ -4822,6 +4832,9 @@ ${block.content}
         onClose={() => setShowVoiceSettings(false)}
         currentLang={lang}
       />
+
+      {/* 移动端优化提示 */}
+      <MobileOptimizationNotice theme={theme} lang={lang} />
 
     </div>
   );
