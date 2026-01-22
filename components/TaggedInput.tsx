@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 
 interface TaggedInputProps {
   value: string;
@@ -28,16 +28,6 @@ const TaggedInput = React.forwardRef<HTMLDivElement, TaggedInputProps>(({
   const containerRef = useRef<HTMLDivElement>(null);
   const [isComposing, setIsComposing] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
-
-  // 简化的内容同步，避免复杂的DOM操作
-  useEffect(() => {
-    if (containerRef.current && value && !isFocused) {
-      const currentContent = containerRef.current.textContent || '';
-      if (value !== currentContent) {
-        containerRef.current.textContent = value;
-      }
-    }
-  }, [value, isFocused]);
 
   // 解析文本中的标签引用 (如 #1, #2 等)
   const parseTagsFromText = useCallback((text: string) => {
@@ -76,14 +66,15 @@ const TaggedInput = React.forwardRef<HTMLDivElement, TaggedInputProps>(({
         return <span className="text-gray-400 pointer-events-none select-none">{placeholder}</span>;
       }
 
-      // 如果没有内容，返回null
+      // 如果没有内容，返回空的span以保持结构
       if (!value) {
-        return null;
+        return <span></span>;
       }
 
       const tags = parseTagsFromText(value);
       if (tags.length === 0) {
-        return value;
+        // 没有标签时，直接显示文本
+        return <span>{value}</span>;
       }
 
       const parts = [];
@@ -92,7 +83,10 @@ const TaggedInput = React.forwardRef<HTMLDivElement, TaggedInputProps>(({
       tags.forEach((tag, index) => {
         // 添加标签前的文本
         if (tag.startIndex > lastIndex) {
-          parts.push(value.slice(lastIndex, tag.startIndex));
+          const textPart = value.slice(lastIndex, tag.startIndex);
+          if (textPart) {
+            parts.push(<span key={`text-${index}`}>{textPart}</span>);
+          }
         }
 
         // 添加标签
@@ -113,13 +107,16 @@ const TaggedInput = React.forwardRef<HTMLDivElement, TaggedInputProps>(({
 
       // 添加最后的文本
       if (lastIndex < value.length) {
-        parts.push(value.slice(lastIndex));
+        const textPart = value.slice(lastIndex);
+        if (textPart) {
+          parts.push(<span key="text-end">{textPart}</span>);
+        }
       }
 
-      return parts;
+      return <>{parts}</>;
     } catch (error) {
       console.error('Error rendering content:', error);
-      return value || null;
+      return <span>{value || ''}</span>;
     }
   }, [value, placeholder, isFocused, parseTagsFromText, onTagHover]);
 
@@ -204,7 +201,11 @@ const TaggedInput = React.forwardRef<HTMLDivElement, TaggedInputProps>(({
       onCompositionEnd={handleCompositionEnd}
       onFocus={() => setIsFocused(true)}
       onBlur={() => setIsFocused(false)}
-      style={{ whiteSpace: 'pre-wrap' }}
+      style={{ 
+        whiteSpace: 'pre-wrap',
+        direction: 'ltr',
+        textAlign: 'left'
+      }}
     >
       {renderContent()}
     </div>
