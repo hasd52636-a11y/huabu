@@ -28,6 +28,12 @@ const TaggedInput = React.forwardRef<HTMLDivElement, TaggedInputProps>(({
   const containerRef = useRef<HTMLDivElement>(null);
   const [isComposing, setIsComposing] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const lastValueRef = useRef<string>('');
+
+  // 同步lastValueRef
+  React.useEffect(() => {
+    lastValueRef.current = value;
+  }, [value]);
 
   // 解析文本中的标签引用 (如 #1, #2 等)
   const parseTagsFromText = useCallback((text: string) => {
@@ -126,7 +132,11 @@ const TaggedInput = React.forwardRef<HTMLDivElement, TaggedInputProps>(({
       if (isComposing) return;
       
       const newValue = e.currentTarget.textContent || '';
-      onChange(newValue);
+      // 防止重复触发onChange
+      if (newValue !== lastValueRef.current) {
+        lastValueRef.current = newValue;
+        onChange(newValue);
+      }
     } catch (error) {
       console.error('Error handling input:', error);
     }
@@ -150,7 +160,11 @@ const TaggedInput = React.forwardRef<HTMLDivElement, TaggedInputProps>(({
     try {
       setIsComposing(false);
       const newValue = e.currentTarget.textContent || '';
-      onChange(newValue);
+      // 防止重复触发onChange
+      if (newValue !== lastValueRef.current) {
+        lastValueRef.current = newValue;
+        onChange(newValue);
+      }
     } catch (error) {
       console.error('Error handling composition end:', error);
     }
