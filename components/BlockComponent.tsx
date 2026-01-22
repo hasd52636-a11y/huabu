@@ -506,8 +506,6 @@ const BlockComponent: React.FC<BlockProps> = ({
   };
 
 
-  const t = I18N[lang];
-
   const theme = block.type === 'text' ? COLORS.text : 
                 block.type === 'image' ? COLORS.image : 
                 block.type === 'video' ? COLORS.video : 
