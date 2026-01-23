@@ -748,6 +748,33 @@ export class MultiProviderAIService implements AIServiceAdapter {
     const executionId = `video_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const blockId = 'video_generation'; // In real usage, this would come from the block
 
+    // === VEO DEBUG: AIServiceAdapter.generateVideo ===
+    console.log('[VEO-DEBUG] AIServiceAdapter.generateVideo called:', {
+      settingsProvider: settings.provider,
+      settingsModelId: settings.modelId,
+      userSelectedModel: settings.modelId,
+      isVeoModel: settings.modelId && settings.modelId.includes('veo'),
+      timestamp: new Date().toISOString(),
+      buildId: 'VEO-FIX-' + Date.now(),
+      settingsObject: JSON.stringify(settings, null, 2)
+    });
+
+    // === VEO DEBUG: Verify settings are correctly passed ===
+    if (settings.modelId && settings.modelId.includes('veo')) {
+      console.log('[VEO-DEBUG] ✅ VEO model detected in settings:', {
+        modelId: settings.modelId,
+        provider: settings.provider,
+        willRouteToVeo: true
+      });
+    } else {
+      console.log('[VEO-DEBUG] ❌ No VEO model in settings:', {
+        modelId: settings.modelId,
+        provider: settings.provider,
+        willRouteToSora: true,
+        availableModels: ['veo3', 'veo3-pro', 'veo3-fast', 'veo3.1', 'veo3.1-pro']
+      });
+    }
+
     return await this.errorHandler.executeWithRetry(
       async () => {
         this.initializeProviders(settings);
@@ -873,6 +900,15 @@ export class MultiProviderAIService implements AIServiceAdapter {
         if (settings.provider === 'shenma' && this.shenmaService) {
           // 优先使用用户选择的模型，否则使用智能策略
           const userSelectedModel = settings.modelId;
+          
+          // === VEO DEBUG: Model selection in AIServiceAdapter ===
+          console.log('[VEO-DEBUG] AIServiceAdapter model selection:', {
+            userSelectedModel,
+            isVeoModel: userSelectedModel && userSelectedModel.includes('veo'),
+            willPassToShenma: true,
+            timestamp: new Date().toISOString()
+          });
+          
           const videoStrategy = this.getEnhancedVideoStrategy(userSelectedModel, {
             duration,
             aspectRatio,

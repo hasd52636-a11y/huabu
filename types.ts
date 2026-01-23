@@ -464,6 +464,18 @@ export function getProviderSettings(
   const modalityConfig = config[modality];
   const credentials = config.providers[modalityConfig.provider];
   
+  // === VEO DEBUG: getProviderSettings ===
+  console.log('[VEO-DEBUG] getProviderSettings called:', {
+    modality,
+    modalityConfig: modalityConfig,
+    selectedModelId: modalityConfig.modelId,
+    provider: modalityConfig.provider,
+    hasCredentials: !!credentials,
+    isVeoModel: modalityConfig.modelId && modalityConfig.modelId.includes('veo'),
+    timestamp: new Date().toISOString(),
+    buildId: 'VEO-FIX-' + Date.now()
+  });
+  
   if (!credentials) {
     throw new Error(`Provider ${modalityConfig.provider} not configured`);
   }
@@ -472,12 +484,21 @@ export function getProviderSettings(
     throw new Error(`Provider ${modalityConfig.provider} is disabled`);
   }
   
-  return {
+  const result = {
     provider: modalityConfig.provider,
     apiKey: credentials.apiKey,
     baseUrl: credentials.baseUrl,
     modelId: modalityConfig.modelId
   };
+  
+  // === VEO DEBUG: getProviderSettings result ===
+  console.log('[VEO-DEBUG] getProviderSettings result:', {
+    result,
+    isVeoModel: result.modelId && result.modelId.includes('veo'),
+    timestamp: new Date().toISOString()
+  });
+  
+  return result;
 }
 
 /**

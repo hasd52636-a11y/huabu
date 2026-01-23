@@ -418,6 +418,19 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
       <button
         key={model.id}
         onClick={() => {
+          // === VEO DEBUG: Model selection in ModelSelector ===
+          console.log('[VEO-DEBUG] ModelSelector model selected:', {
+            selectedModelId: model.id,
+            isVeoModel: model.id.includes('veo'),
+            generationType: generationType,
+            timestamp: new Date().toISOString(),
+            modelInfo: {
+              id: model.id,
+              name: model.name,
+              provider: model.provider
+            }
+          });
+          
           onModelSelect(model.id);
           setIsOpen(false);
         }}

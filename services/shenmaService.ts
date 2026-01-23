@@ -516,6 +516,17 @@ export class ShenmaService {
     console.log('[ShenmaService] Starting video generation with sora_video2');
     console.log('[ShenmaService] Prompt:', prompt?.substring(0, 100) + '...');
     
+    // === VEO DEBUG: ShenmaService.generateVideo ===
+    console.log('[VEO-DEBUG] ShenmaService.generateVideo called:', {
+      prompt: prompt?.substring(0, 50) + '...',
+      optionsModel: options?.model,
+      isVeoModel: options?.model && options.model.includes('veo'),
+      willUseVeo3: options?.model && options.model.includes('veo'),
+      timestamp: new Date().toISOString(),
+      buildId: 'VEO-FIX-' + Date.now(),
+      fullOptions: JSON.stringify(options, null, 2)
+    });
+    
     // 检查prompt是否为空
     if (!prompt || prompt.trim() === '') {
       throw new Error('Prompt cannot be empty for video generation');
@@ -524,6 +535,13 @@ export class ShenmaService {
     // 检查是否是VEO模型，如果是则使用专用方法
     if (options?.model && options.model.includes('veo')) {
       console.log('[ShenmaService] Detected VEO model, using generateVideoViaVeo3');
+      
+      // === VEO DEBUG: VEO3 Generation Path ===
+      console.log('[VEO-DEBUG] ✅ VEO3 generation path taken:', {
+        detectedVeoModel: options.model,
+        timestamp: new Date().toISOString(),
+        willCallGenerateVideoViaVeo3: true
+      });
       
       const veoParams: Veo3VideoParams = {
         prompt: prompt,

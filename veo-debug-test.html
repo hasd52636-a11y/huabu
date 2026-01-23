@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VEO Model Selection Debug Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .debug-section {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .debug-title {
+            color: #60a5fa;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .debug-item {
+            margin: 10px 0;
+            padding: 10px;
+            background: #333;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .success { color: #10b981; }
+        .error { color: #ef4444; }
+        .warning { color: #f59e0b; }
+        .info { color: #3b82f6; }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        #console-output {
+            background: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 VEO Model Selection Debug Test</h1>
+    <p>这个页面帮助验证 VEO 模型选择修复是否生效。请按照以下步骤测试：</p>
+
+    <div class="debug-section">
+        <div class="debug-title">📋 测试步骤</div>
+        <ol>
+            <li>打开浏览器开发者工具 (F12)</li>
+            <li>切换到 Console 标签页</li>
+            <li>刷新主应用页面</li>
+            <li>在视频模型选择器中选择任意 VEO 模型 (veo3, veo3-pro, veo3-fast, veo3.1, veo3.1-pro)</li>
+            <li>创建一个视频块并输入提示词</li>
+            <li>点击生成按钮</li>
+            <li>观察控制台输出</li>
+        </ol>
+    </div>
+
+    <div class="debug-section">
+        <div class="debug-title">🔍 需要查找的调试信息</div>
+        <div class="debug-item">
+            <strong class="success">[VEO-DEBUG] App component loaded:</strong><br>
+            应该显示应用初始化信息和缓存清除
+        </div>
+        <div class="debug-item">
+            <strong class="success">[VEO-DEBUG] ModelSelector model selected:</strong><br>
+            当选择 VEO 模型时应该显示，isVeoModel 应该为 true
+        </div>
+        <div class="debug-item">
+            <strong class="success">[VEO-DEBUG] App.tsx video generation:</strong><br>
+            生成视频时应该显示，isVeoModel 应该为 true
+        </div>
+        <div class="debug-item">
+            <strong class="success">[VEO-DEBUG] AIServiceAdapter.generateVideo called:</strong><br>
+            应该显示 VEO 模型被正确传递到适配器
+        </div>
+        <div class="debug-item">
+            <strong class="success">[VEO-DEBUG] ShenmaService.generateVideo called:</strong><br>
+            应该显示 VEO 模型被正确传递到服务
+        </div>
+        <div class="debug-item">
+            <strong class="success">[VEO-DEBUG] ✅ VEO3 generation path taken:</strong><br>
+            应该显示 VEO3 生成路径被选择
+        </div>
+    </div>
+
+    <div class="debug-section">
+        <div class="debug-title">❌ 问题诊断</div>
+        <div class="debug-item">
+            <strong class="error">如果看不到任何 [VEO-DEBUG] 信息：</strong><br>
+            可能是浏览器缓存问题，请尝试：<br>
+            1. 硬刷新页面 (Ctrl+Shift+R 或 Cmd+Shift+R)<br>
+            2. 清除浏览器缓存<br>
+            3. 在开发者工具中禁用缓存
+        </div>
+        <div class="debug-item">
+            <strong class="warning">如果 isVeoModel 显示为 false：</strong><br>
+            说明模型选择器没有正确传递 VEO 模型 ID，检查：<br>
+            1. 模型选择器是否正确更新了 modelConfig<br>
+            2. getProviderSettings 函数是否正确提取了模型 ID
+        </div>
+        <div class="debug-item">
+            <strong class="warning">如果没有看到 VEO3 generation path：</strong><br>
+            说明 VEO 检测逻辑有问题，检查：<br>
+            1. options?.model 是否包含 'veo' 字符串<br>
+            2. 模型 ID 是否被正确传递到 ShenmaService
+        </div>
+    </div>
+
+    <div class="debug-section">
+        <div class="debug-title">🛠️ 缓存清除工具</div>
+        <button onclick="clearBrowserCache()">清除浏览器缓存</button>
+        <button onclick="forceReload()">强制重新加载</button>
+        <button onclick="checkConsole()">检查控制台输出</button>
+        <button onclick="testVeoDetection()">测试 VEO 检测逻辑</button>
+    </div>
+
+    <div class="debug-section">
+        <div class="debug-title">📊 控制台输出监控</div>
+        <div id="console-output">等待控制台输出...</div>
+    </div>
+
+    <script>
+        // 监控控制台输出
+        const originalLog = console.log;
+        const outputDiv = document.getElementById('console-output');
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            
+            if (message.includes('[VEO-DEBUG]') || message.includes('[VEO-VERIFY]')) {
+                const timestamp = new Date().toLocaleTimeString();
+                outputDiv.textContent += `[${timestamp}] ${message}\n`;
+                outputDiv.scrollTop = outputDiv.scrollHeight;
+            }
+        };
+
+        function clearBrowserCache() {
+            if ('caches' in window) {
+                caches.keys().then(names => {
+                    names.forEach(name => {
+                        caches.delete(name);
+                    });
+                });
+            }
+            localStorage.clear();
+            sessionStorage.clear();
+            alert('缓存已清除，请刷新页面');
+        }
+
+        function forceReload() {
+            window.location.reload(true);
+        }
+
+        function checkConsole() {
+            console.log('[VEO-DEBUG] Manual console check at', new Date().toISOString());
+            alert('请查看控制台输出');
+        }
+
+        function testVeoDetection() {
+            const testModels = ['veo3', 'veo3-pro', 'veo3-fast', 'veo3.1', 'veo3.1-pro', 'sora_video2'];
+            testModels.forEach(model => {
+                const isVeo = model.includes('veo');
+                console.log(`[VEO-DEBUG] Test detection: ${model} -> isVeo: ${isVeo}`);
+            });
+        }
+
+        // 页面加载时的初始化
+        console.log('[VEO-DEBUG] Debug test page loaded at', new Date().toISOString());
+        console.log('[VEO-DEBUG] User agent:', navigator.userAgent);
+        console.log('[VEO-DEBUG] Cache buster:', Date.now());
+    </script>
+</body>
+</html>

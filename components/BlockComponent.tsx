@@ -740,6 +740,16 @@ const BlockComponent: React.FC<BlockProps> = ({
         } else {
           // 图片和视频块：保存为主要内容
           onUpdate(block.id, { content: result.items[0].content, status: 'idle' });
+          
+          // 更新连接引擎数据缓存，确保下游模块能获取到新内容
+          if (result.items[0].content && result.items[0].content.trim()) {
+            const { connectionEngine } = await import('../services/ConnectionEngine');
+            connectionEngine.updateBlockData(block.id, result.items[0].content, block.type, block.number, {
+              ...block,
+              content: result.items[0].content
+            });
+            console.log(`[BlockComponent] Updated connection engine for block ${block.number} after file upload`);
+          }
         }
       } else if (result.items[0].error) {
         alert(result.items[0].error);
@@ -774,6 +784,17 @@ const BlockComponent: React.FC<BlockProps> = ({
             attachmentFileName: file.name,
             status: 'idle'
           });
+          
+          // 更新连接引擎数据缓存，确保下游模块能获取到新内容
+          if (content && content.trim()) {
+            const { connectionEngine } = await import('../services/ConnectionEngine');
+            connectionEngine.updateBlockData(block.id, content, block.type, block.number, {
+              ...block,
+              attachmentContent: content,
+              attachmentFileName: file.name
+            });
+            console.log(`[BlockComponent] Updated connection engine for block ${block.number} after text file upload`);
+          }
         } else if (block.type === 'image') {
           // 图片块：将上传的图片保存为附件（参考图片），不覆盖content
           onUpdate(block.id, {
@@ -1060,6 +1081,17 @@ const BlockComponent: React.FC<BlockProps> = ({
         originalPrompt: `${block.originalPrompt || '图片'} - 已增强`
       });
       
+      // 更新连接引擎数据缓存，确保下游模块能获取到新内容
+      if (enhancedImage && enhancedImage.trim()) {
+        const { connectionEngine } = await import('../services/ConnectionEngine');
+        connectionEngine.updateBlockData(block.id, enhancedImage, block.type, block.number, {
+          ...block,
+          content: enhancedImage,
+          originalPrompt: `${block.originalPrompt || '图片'} - 已增强`
+        });
+        console.log(`[BlockComponent] Updated connection engine for block ${block.number} after image enhancement`);
+      }
+      
       return enhancedImage;
     }, '图片增强', 'image-enhance');
 
@@ -1095,6 +1127,17 @@ const BlockComponent: React.FC<BlockProps> = ({
         content: processedImage,
         originalPrompt: `${block.originalPrompt || '图片'} - 已移除背景`
       });
+      
+      // 更新连接引擎数据缓存，确保下游模块能获取到新内容
+      if (processedImage && processedImage.trim()) {
+        const { connectionEngine } = await import('../services/ConnectionEngine');
+        connectionEngine.updateBlockData(block.id, processedImage, block.type, block.number, {
+          ...block,
+          content: processedImage,
+          originalPrompt: `${block.originalPrompt || '图片'} - 已移除背景`
+        });
+        console.log(`[BlockComponent] Updated connection engine for block ${block.number} after background removal`);
+      }
       
       alert('背景移除完成');
     } catch (error) {
@@ -1184,6 +1227,17 @@ const BlockComponent: React.FC<BlockProps> = ({
         content: newVideoUrl,
         originalPrompt: `${block.originalPrompt || '视频'} - 已替换角色`
       });
+      
+      // 更新连接引擎数据缓存，确保下游模块能获取到新内容
+      if (newVideoUrl && newVideoUrl.trim()) {
+        const { connectionEngine } = await import('../services/ConnectionEngine');
+        connectionEngine.updateBlockData(block.id, newVideoUrl, block.type, block.number, {
+          ...block,
+          content: newVideoUrl,
+          originalPrompt: `${block.originalPrompt || '视频'} - 已替换角色`
+        });
+        console.log(`[BlockComponent] Updated connection engine for block ${block.number} after character replacement`);
+      }
       
       alert('视频角色替换完成');
     } catch (error) {

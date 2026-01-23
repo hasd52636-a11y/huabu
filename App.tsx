@@ -119,6 +119,50 @@ interface ChatMessage {
 }
 
 const App: React.FC = () => {
+  // === VEO DEBUG: App component initialization ===
+  console.log('[VEO-DEBUG] App component loaded:', {
+    timestamp: new Date().toISOString(),
+    buildId: 'VEO-FIX-' + Date.now(),
+    userAgent: navigator.userAgent.substring(0, 50),
+    cacheTimestamp: Date.now(),
+    location: window.location.href
+  });
+  
+  // === CACHE BUSTING: Force browser to reload updated code ===
+  useEffect(() => {
+    const cacheKey = 'veo-fix-cache-' + Date.now();
+    console.log('[VEO-DEBUG] Cache busting key:', cacheKey);
+    sessionStorage.setItem('cache-buster', cacheKey);
+  }, []);
+  
+  // Runtime verification system
+  useEffect(() => {
+    // Verify that our debug system is working
+    const verifyDebugSystem = () => {
+      console.log('[VEO-VERIFY] Debug system verification:', {
+        hasGetProviderSettings: typeof getProviderSettings === 'function',
+        hasModelConfig: !!modelConfig,
+        currentVideoModel: modelConfig?.video?.modelId,
+        timestamp: new Date().toISOString(),
+        buildVersion: 'VEO-FIX-2.0'
+      });
+      
+      // Test VEO model detection
+      const testVeoDetection = (modelId: string) => {
+        const isVeo = modelId && modelId.includes('veo');
+        console.log('[VEO-VERIFY] VEO detection test:', { modelId, isVeo });
+        return isVeo;
+      };
+      
+      // Test with known VEO models
+      testVeoDetection('veo3.1-pro');
+      testVeoDetection('veo3-fast');
+      testVeoDetection('sora_video2'); // Should be false
+    };
+    
+    verifyDebugSystem();
+  }, [modelConfig]);
+  
   // 检查是否为观看模式
   const shareId = getShareIdFromUrl();
   
@@ -2092,16 +2136,38 @@ const App: React.FC = () => {
           provider: videoSettings.provider,
           modelId: videoSettings.modelId
         });
+        
+        // === VEO DEBUG: Video model selection in App.tsx ===
+        console.log('[VEO-DEBUG] App.tsx video generation:', {
+          userSelectedModel: modelConfig.video.modelId,
+          isVeoModel: modelConfig.video.modelId && modelConfig.video.modelId.includes('veo'),
+          videoSettingsProvider: videoSettings.provider,
+          videoSettingsModelId: videoSettings.modelId,
+          willPassToAIServiceAdapter: true,
+          timestamp: new Date().toISOString()
+        });
+        
         result = await aiServiceAdapter.generateVideo(videoContents, videoSettings);
       }
       
       // 更新块内容，并设置originalPrompt
-      setBlocks(prev => prev.map(b => b.id === blockId ? {
-        ...b, 
-        content: result, 
-        status: 'idle',
-        originalPrompt: prompt // 设置originalPrompt为用户输入的原始提示词
-      } : b));
+      setBlocks(prev => {
+        const updatedBlocks = prev.map(b => b.id === blockId ? {
+          ...b, 
+          content: result, 
+          status: 'idle',
+          originalPrompt: prompt // 设置originalPrompt为用户输入的原始提示词
+        } : b);
+        
+        // 更新连接引擎的数据缓存，使下游模块能够获取到最新内容
+        const updatedBlock = updatedBlocks.find(b => b.id === blockId);
+        if (updatedBlock && result && result.trim()) {
+          console.log(`[handleGenerate] Updating connection engine for block ${updatedBlock.number} with new content`);
+          connectionEngine.updateBlockData(blockId, result, updatedBlock.type, updatedBlock.number, updatedBlock);
+        }
+        
+        return updatedBlocks;
+      });
     } catch (err) {
       console.error(err);
       setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, status: 'error' } : b));
@@ -2249,6 +2315,18 @@ ${inputText || "Generate from attachment"}
       } else {
         // 使用用户选择的视频模型
         settings = getProviderSettings(modelConfig, 'video');
+        
+        // === VEO DEBUG: App.tsx handleSidebarSend ===
+        console.log('[VEO-DEBUG] handleSidebarSend - Video model selection:', {
+          selectedVideoModel: modelConfig.video.modelId,
+          provider: modelConfig.video.provider,
+          settingsProvider: settings.provider,
+          settingsModelId: settings.modelId,
+          isVeoModel: modelConfig.video.modelId && modelConfig.video.modelId.includes('veo'),
+          timestamp: new Date().toISOString(),
+          buildId: 'VEO-FIX-' + Date.now()
+        });
+        
         console.log('[handleSidebarSend] Using video model from UI selection:', {
           selectedModel: modelConfig.video.modelId,
           provider: settings.provider,

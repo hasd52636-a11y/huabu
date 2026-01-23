@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VEO Model Routing Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .debug-output { background: #f5f5f5; padding: 10px; margin: 10px 0; font-family: monospace; }
+        .error { color: red; }
+        .success { color: green; }
+        .warning { color: orange; }
+    </style>
+</head>
+<body>
+    <h1>VEO Model Routing Debug Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Instructions</h2>
+        <ol>
+            <li>Open the main application in another tab</li>
+            <li>Open browser developer tools (F12)</li>
+            <li>Go to Console tab</li>
+            <li>Select a VEO model in the video model selector</li>
+            <li>Try to generate a video</li>
+            <li>Look for debug messages starting with <code>[VEO-DEBUG]</code></li>
+        </ol>
+    </div>
+    
+    <div class="test-section">
+        <h2>Expected Debug Flow</h2>
+        <div class="debug-output">
+[VEO-DEBUG] App component loaded: { timestamp, buildId, userAgent }
+[VEO-DEBUG] handleSidebarSend - Video model selection: { selectedVideoModel: "veo3.1-pro", isVeoModel: true }
+[VEO-DEBUG] getProviderSettings called: { modality: "video", selectedModelId: "veo3.1-pro", isVeoModel: true }
+[VEO-DEBUG] getProviderSettings result: { modelId: "veo3.1-pro", isVeoModel: true }
+[VEO-DEBUG] AIServiceAdapter.generateVideo called: { settingsModelId: "veo3.1-pro", isVeoModel: true }
+[VEO-DEBUG] AIServiceAdapter model selection: { userSelectedModel: "veo3.1-pro", isVeoModel: true }
+[VEO-DEBUG] ShenmaService.generateVideo called: { optionsModel: "veo3.1-pro", isVeoModel: true, willUseVeo3: true }
+[VEO-DEBUG] VEO3 generation path taken: { detectedVeoModel: "veo3.1-pro" }
+[ShenmaService] Detected VEO model, using generateVideoViaVeo3
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Problem Indicators</h2>
+        <div class="debug-output error">
+If you see any of these, the VEO routing is broken:
+- isVeoModel: false (when VEO model is selected)
+- willUseVeo3: false (when VEO model is selected)  
+- "action": "sora-video" in API response
+- "platform": "openai" in API response
+- "model": "sora-2" in API response
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Cache Busting</h2>
+        <p>If the debug messages don't appear or show old buildId values:</p>
+        <ol>
+            <li>Hard refresh: Ctrl+Shift+R (Windows/Linux) or Cmd+Shift+R (Mac)</li>
+            <li>Clear browser cache completely</li>
+            <li>Disable browser cache in DevTools Network tab</li>
+            <li>Check if service worker is caching old files</li>
+        </ol>
+    </div>
+    
+    <div class="test-section">
+        <h2>Build Verification</h2>
+        <p>Look for the buildId in debug messages. It should be: <code>VEO-FIX-[timestamp]</code></p>
+        <p>If you see an old buildId or no buildId, the browser is using cached code.</p>
+    </div>
+    
+    <script>
+        console.log('[VEO-TEST] Test page loaded at:', new Date().toISOString());
+        console.log('[VEO-TEST] Use this page to verify VEO routing debug messages');
+    </script>
+</body>
+</html>
