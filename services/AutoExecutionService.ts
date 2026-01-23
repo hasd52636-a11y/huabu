@@ -52,6 +52,11 @@ export class AutoExecutionService {
   private onCreateBlock?: (block: Block) => void;
   private resultHandling?: 'canvas' | 'download'; // 结果处理方式
   private currentBatchIndex?: number; // 当前批次索引
+  
+  // 新增：事件驱动执行相关
+  private pendingNodes: Map<string, { resolve: () => void; reject: (error: Error) => void }> = new Map();
+  private completedNodes: Set<string> = new Set();
+  private nodeCompletionCallbacks: Map<string, (() => void)[]> = new Map();
 
   // 默认间隔时间（秒）
   private readonly DEFAULT_INTERVALS = {
@@ -250,6 +255,20 @@ export class AutoExecutionService {
     };
 
     try {
+      // 检查是否有上游依赖，如果有则验证内容
+      if (currentNode.dependencies.length > 0) {
+        // 导入连接引擎来获取上游数据
+        const { connectionEngine } = await import('./ConnectionEngine');
+        const upstreamData = connectionEngine.getUpstreamData(currentNode.blockId);
+        
+        // 给出警告但不中断执行
+        const emptyUpstreamBlocks = upstreamData.filter(d => !d.content || !d.content.trim());
+        if (emptyUpstreamBlocks.length > 0) {
+          const emptyBlockNumbers = emptyUpstreamBlocks.map(d => d.blockNumber).join('、');
+          console.warn(`[AutoExecutionService] 警告：上游模块 [${emptyBlockNumbers}] 内容为空，可能影响生成质量`);
+        }
+      }
+      
       // 执行当前节点
       const prompt = currentBlock.content || ''; // 使用块的当前内容作为提示词
       await this.onNodeExecute?.(currentNode.blockId, prompt);
@@ -466,6 +485,11 @@ export class AutoExecutionService {
           const { connectionEngine } = await import('./ConnectionEngine');
           const upstreamData = connectionEngine.getUpstreamData(currentNode.blockId);
           
+          console.log(`[AutoExecutionService] 节点 ${currentNode.blockNumber} 获取上游数据:`, {
+            upstreamCount: upstreamData.length,
+            upstreamBlocks: upstreamData.map(d => ({ blockNumber: d.blockNumber, hasContent: !!d.content }))
+          });
+          
           if (upstreamData.length > 0) {
             // 有上游数据，进行变量替换
             let resolvedPrompt = originalPrompt;
@@ -473,7 +497,16 @@ export class AutoExecutionService {
             // 替换变量引用 [A01], [B01] 等
             for (const data of upstreamData) {
               const variablePattern = new RegExp(`\\[${data.blockNumber}\\]`, 'g');
-              resolvedPrompt = resolvedPrompt.replace(variablePattern, data.content || '');
+              const replacementContent = data.content || '';
+              
+              // 如果上游内容为空，给出警告但不中断执行
+              if (!replacementContent.trim()) {
+                console.warn(`[AutoExecutionService] 警告：上游模块 [${data.blockNumber}] 内容为空，可能影响生成质量`);
+              }
+              
+              resolvedPrompt = resolvedPrompt.replace(variablePattern, replacementContent);
+              
+              console.log(`[AutoExecutionService] 替换变量 [${data.blockNumber}] -> ${replacementContent.substring(0, 50)}...`);
             }
             
             // 替换批量数据变量
@@ -489,6 +522,10 @@ export class AutoExecutionService {
         // 执行当前节点 - 等待完成
         await this.onNodeExecute?.(currentNode.blockId, prompt);
         
+        // 使用事件驱动等待，而不是固定时间等待
+        console.log(`[AutoExecutionService] 等待节点 ${currentNode.blockId} 完成信号...`);
+        await this.waitForNodeCompletion(currentNode.blockId);
+        
         // 记录成功
         executionRecord.endTime = Date.now();
         executionRecord.duration = executionRecord.endTime - executionRecord.startTime;
@@ -498,10 +535,11 @@ export class AutoExecutionService {
 
         console.log(`[AutoExecutionService] 节点 ${currentNode.blockNumber} 执行完成，耗时: ${executionRecord.duration}ms`);
 
-        // 计算下一个节点的等待时间
-        const waitTime = this.calculateWaitTime(currentNode.blockType, executionRecord.duration);
-        
-        // 等待指定时间后执行下一个节点
+        // 只需要很短的缓冲时间，确保数据传播
+        if (nodeIndex < executionPlan.length - 1) {
+          console.log(`[AutoExecutionService] 短暂缓冲后执行下一个节点...`);
+          await this.delay(1000); // 只需1秒缓冲时间
+        }
         if (nodeIndex < executionPlan.length - 1) {
           console.log(`[AutoExecutionService] 等待 ${waitTime} 秒后执行下一个节点...`);
           await this.delay(waitTime * 1000);
@@ -626,6 +664,56 @@ export class AutoExecutionService {
    */
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * 通知节点完成 - 由外部调用（如handleGenerate完成时）
+   */
+  notifyNodeCompletion(nodeId: string, success: boolean = true, error?: Error): void {
+    console.log(`[AutoExecutionService] 节点 ${nodeId} 完成通知，成功: ${success}`);
+    
+    if (success) {
+      this.completedNodes.add(nodeId);
+    }
+    
+    // 触发等待该节点的回调
+    const callbacks = this.nodeCompletionCallbacks.get(nodeId) || [];
+    callbacks.forEach(callback => callback());
+    this.nodeCompletionCallbacks.delete(nodeId);
+    
+    // 解决等待的Promise
+    const pending = this.pendingNodes.get(nodeId);
+    if (pending) {
+      if (success) {
+        pending.resolve();
+      } else {
+        pending.reject(error || new Error(`节点 ${nodeId} 执行失败`));
+      }
+      this.pendingNodes.delete(nodeId);
+    }
+  }
+
+  /**
+   * 等待节点完成 - 返回Promise
+   */
+  private waitForNodeCompletion(nodeId: string): Promise<void> {
+    // 如果节点已经完成，立即返回
+    if (this.completedNodes.has(nodeId)) {
+      return Promise.resolve();
+    }
+    
+    // 创建Promise等待节点完成
+    return new Promise<void>((resolve, reject) => {
+      this.pendingNodes.set(nodeId, { resolve, reject });
+      
+      // 设置超时保护（防止永久等待）
+      setTimeout(() => {
+        if (this.pendingNodes.has(nodeId)) {
+          this.pendingNodes.delete(nodeId);
+          reject(new Error(`节点 ${nodeId} 执行超时`));
+        }
+      }, 10 * 60 * 1000); // 10分钟超时
+    });
   }
 
   /**

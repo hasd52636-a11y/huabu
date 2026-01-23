@@ -2168,9 +2168,22 @@ const App: React.FC = () => {
         
         return updatedBlocks;
       });
+      
+      // 在setBlocks之后通知AutoExecutionService节点完成
+      if (result && result.trim()) {
+        // 使用动态导入但不在回调中使用await
+        import('./services/AutoExecutionService').then(({ autoExecutionService }) => {
+          autoExecutionService.notifyNodeCompletion(blockId, true);
+        });
+      }
     } catch (err) {
       console.error(err);
       setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, status: 'error' } : b));
+      
+      // 通知AutoExecutionService节点失败
+      import('./services/AutoExecutionService').then(({ autoExecutionService }) => {
+        autoExecutionService.notifyNodeCompletion(blockId, false, err as Error);
+      });
       
       // 显示错误提示
       if (err instanceof Error) {
