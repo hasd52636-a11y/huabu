@@ -563,24 +563,26 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
         {showSaveDialog && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[450]">
             <div className={`
-              bg-white rounded-lg p-6 max-w-md w-full mx-4
+              bg-white rounded-xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto
               ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}
+              shadow-2xl border-2 border-purple-200 dark:border-purple-700
             `}>
-              <h3 className="text-lg font-semibold mb-4">
+              <h3 className="text-2xl font-bold mb-6 text-purple-800 dark:text-purple-200">
                 {lang === 'zh' ? '保存工作流' : 'Save Workflow'}
               </h3>
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <input 
                   type="text" 
                   placeholder={lang === 'zh' ? '工作流名称' : 'Workflow Name'}
                   value={newTemplateName}
                   onChange={(e) => setNewTemplateName(e.target.value)}
                   className={`
-                    w-full p-2 border rounded-lg
+                    w-full p-4 border-2 rounded-xl text-lg font-medium
                     ${theme === 'dark' 
-                      ? 'bg-gray-700 border-gray-600 text-white' 
-                      : 'bg-white border-gray-300 text-gray-900'
+                      ? 'bg-gray-700 border-purple-600 text-white placeholder-gray-400' 
+                      : 'bg-white border-purple-300 text-gray-900 placeholder-gray-500'
                     }
+                    focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all
                   `}
                 />
                 <textarea 
@@ -588,11 +590,12 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
                   value={newTemplateDescription}
                   onChange={(e) => setNewTemplateDescription(e.target.value)}
                   className={`
-                    w-full p-2 border rounded-lg h-20
+                    w-full p-4 border-2 rounded-xl h-24 text-base resize-none
                     ${theme === 'dark' 
-                      ? 'bg-gray-700 border-gray-600 text-white' 
-                      : 'bg-white border-gray-300 text-gray-900'
+                      ? 'bg-gray-700 border-purple-600 text-white placeholder-gray-400' 
+                      : 'bg-white border-purple-300 text-gray-900 placeholder-gray-500'
                     }
+                    focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all
                   `}
                 />
                 

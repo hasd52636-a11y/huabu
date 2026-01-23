@@ -295,19 +295,52 @@ export class DownloadManager {
    */
   private async performDownload(item: DownloadItem, signal: AbortSignal): Promise<void> {
     try {
-      // In a real implementation, this would use the browser's download API
-      // For now, we'll simulate the download process
-      await this.simulateDownload(item, signal);
+      console.log(`[DownloadManager] 开始下载:`, {
+        filename: item.filename,
+        urlType: item.videoUrl.startsWith('data:') ? 'data-url' : 'http-url',
+        urlLength: item.videoUrl.length
+      });
       
-      // 使用实际的API调用
-      const response = await fetch(item.videoUrl, { signal });
-      const blob = await response.blob();
+      let blob: Blob;
+      
+      if (item.videoUrl.startsWith('data:')) {
+        // 处理 data URL (如 data:image/png;base64,...)
+        try {
+          const response = await fetch(item.videoUrl);
+          blob = await response.blob();
+        } catch (error) {
+          console.error('[DownloadManager] Data URL 处理失败:', error);
+          throw error;
+        }
+      } else if (item.videoUrl.startsWith('http')) {
+        // 处理 HTTP URL
+        try {
+          const response = await fetch(item.videoUrl, { signal });
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          blob = await response.blob();
+        } catch (error) {
+          console.error('[DownloadManager] HTTP URL 下载失败:', error);
+          throw error;
+        }
+      } else {
+        // 处理纯文本内容 - 创建文本文件
+        blob = new Blob([item.videoUrl], { type: 'text/plain;charset=utf-8' });
+        console.log(`[DownloadManager] 创建文本文件:`, {
+          filename: item.filename,
+          contentLength: item.videoUrl.length
+        });
+      }
+      
+      // 触发浏览器下载
       this.triggerBrowserDownload(blob, item.filename, item.downloadPath);
       
     } catch (error) {
       if (signal.aborted) {
         throw new Error('Download cancelled');
       }
+      console.error('[DownloadManager] 下载失败:', error);
       throw error;
     }
   }
