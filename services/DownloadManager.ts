@@ -58,6 +58,8 @@ export interface DownloadConfig {
   maxConcurrentDownloads?: number;
   createExecutionDirectories?: boolean;
   fileNamingPattern?: 'original' | 'sequential' | 'timestamp';
+  enableSilentDownload?: boolean; // 新增：启用静默下载
+  batchDownloadDelay?: number; // 新增：批量下载间隔（毫秒）
 }
 
 export class DownloadManager {
@@ -75,7 +77,9 @@ export class DownloadManager {
     autoDownload: true,
     maxConcurrentDownloads: 3,
     createExecutionDirectories: true,
-    fileNamingPattern: 'original'
+    fileNamingPattern: 'original',
+    enableSilentDownload: true, // 默认启用静默下载
+    batchDownloadDelay: 500 // 批量下载间隔500ms
   };
 
   /**
@@ -214,7 +218,7 @@ export class DownloadManager {
   }
 
   /**
-   * Process downloads for a specific batch
+   * Process downloads for a specific batch with delay between downloads
    */
   async processBatch(batchId: string): Promise<void> {
     const batchItems = this.downloadQueue.filter(item => 
@@ -223,13 +227,26 @@ export class DownloadManager {
     
     if (batchItems.length === 0) return;
 
-    const maxConcurrent = this.config.maxConcurrentDownloads || 3;
-    const chunks = this.chunkArray(batchItems, maxConcurrent);
-    
-    for (const chunk of chunks) {
-      await Promise.allSettled(
-        chunk.map(item => this.downloadItem(item))
-      );
+    // 对于自动化批量下载，使用顺序下载避免浏览器限制
+    if (this.config.enableSilentDownload) {
+      for (const item of batchItems) {
+        await this.downloadItem(item);
+        
+        // 在下载之间添加延迟，避免浏览器阻止
+        if (this.config.batchDownloadDelay && this.config.batchDownloadDelay > 0) {
+          await new Promise(resolve => setTimeout(resolve, this.config.batchDownloadDelay));
+        }
+      }
+    } else {
+      // 传统并发下载
+      const maxConcurrent = this.config.maxConcurrentDownloads || 3;
+      const chunks = this.chunkArray(batchItems, maxConcurrent);
+      
+      for (const chunk of chunks) {
+        await Promise.allSettled(
+          chunk.map(item => this.downloadItem(item))
+        );
+      }
     }
 
     this.checkBatchCompletion(batchId);
@@ -321,7 +338,7 @@ export class DownloadManager {
   }
 
   /**
-   * Trigger browser download (real implementation)
+   * Trigger browser download (enhanced for automation)
    */
   private triggerBrowserDownload(blob: Blob, filename: string, downloadPath?: string): void {
     const url = URL.createObjectURL(blob);
@@ -329,11 +346,91 @@ export class DownloadManager {
     link.href = url;
     link.download = filename;
     
+    // 静默下载优化：设置属性避免弹窗
+    link.style.display = 'none';
+    link.setAttribute('target', '_blank');
+    
     // If download path is specified, we can't directly control it in browsers
     // This would require a browser extension or native app integration
     if (downloadPath) {
       console.log(`Download path specified: ${downloadPath}/${filename}`);
     }
+    
+    // 使用更可靠的静默下载方法
+    try {
+      // 方法1：尝试使用 showSaveFilePicker API (Chrome 86+)
+      if ('showSaveFilePicker' in window && this.config.enableSilentDownload !== false) {
+        this.triggerSilentDownload(blob, filename, downloadPath);
+        return;
+      }
+      
+      // 方法2：传统方法但优化用户体验
+      document.body.appendChild(link);
+      
+      // 使用 setTimeout 确保在下一个事件循环中执行，避免阻塞
+      setTimeout(() => {
+        link.click();
+        
+        // 延迟清理，确保下载开始
+        setTimeout(() => {
+          if (document.body.contains(link)) {
+            document.body.removeChild(link);
+          }
+          URL.revokeObjectURL(url);
+        }, 100);
+      }, 0);
+      
+    } catch (error) {
+      console.warn('Download failed, falling back to standard method:', error);
+      
+      // 降级方案：标准下载
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  /**
+   * 静默下载方法 - 使用现代浏览器API
+   */
+  private async triggerSilentDownload(blob: Blob, filename: string, downloadPath?: string): Promise<void> {
+    try {
+      // 使用 File System Access API 实现真正的静默下载
+      if ('showSaveFilePicker' in window) {
+        const fileHandle = await (window as any).showSaveFilePicker({
+          suggestedName: filename,
+          types: [{
+            description: 'Video files',
+            accept: {
+              'video/*': ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm']
+            }
+          }]
+        });
+        
+        const writable = await fileHandle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        
+        console.log(`File saved silently: ${filename}`);
+        return;
+      }
+    } catch (error) {
+      // 用户取消或API不支持，降级到传统方法
+      console.log('Silent download not available, using traditional method');
+      this.triggerTraditionalDownload(blob, filename);
+    }
+  }
+
+  /**
+   * 传统下载方法（降级方案）
+   */
+  private triggerTraditionalDownload(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.style.display = 'none';
     
     document.body.appendChild(link);
     link.click();

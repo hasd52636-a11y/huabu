@@ -3749,7 +3749,46 @@ Canvas 智能创作平台
         (newBlock) => {
           // 使用现有的 addBlock 函数创建新模块，保持一致的布局逻辑
           // addBlock 函数会自动计算正确的位置（从左到右，从上到下，保持间距）
-          addBlock(newBlock.type, newBlock.content, newBlock.x, newBlock.y);
+          console.log('[App] 自动化执行创建新模块:', {
+            type: newBlock.type,
+            content: newBlock.content?.substring(0, 50) + '...',
+            batchIndex: newBlock.batchIndex
+          });
+          
+          // 传递完整的newBlock数据，让addBlock创建具有所有属性的新模块
+          const createdBlock = addBlock(
+            newBlock.type, 
+            newBlock.content || '', 
+            newBlock.x, // 如果AutoExecutionService提供了位置，使用它
+            newBlock.y  // 否则addBlock会自动计算位置
+          );
+          
+          // 如果有额外的属性需要设置，更新创建的块
+          if (createdBlock && (newBlock.batchIndex !== undefined || newBlock.originalPrompt)) {
+            setBlocks(prev => prev.map(b => 
+              b.id === createdBlock.id 
+                ? { 
+                    ...b, 
+                    batchIndex: newBlock.batchIndex,
+                    originalPrompt: newBlock.originalPrompt || b.originalPrompt,
+                    // 保留其他可能的属性
+                    aspectRatio: newBlock.aspectRatio || b.aspectRatio,
+                    duration: newBlock.duration || b.duration,
+                    characterId: newBlock.characterId || b.characterId,
+                    characterUrl: newBlock.characterUrl || b.characterUrl,
+                    characterTimestamps: newBlock.characterTimestamps || b.characterTimestamps
+                  } 
+                : b
+            ));
+          }
+          
+          console.log('[App] 新模块已创建:', {
+            id: createdBlock?.id,
+            number: createdBlock?.number,
+            x: createdBlock?.x,
+            y: createdBlock?.y,
+            batchIndex: newBlock.batchIndex
+          });
         }
       );
     } catch (error) {

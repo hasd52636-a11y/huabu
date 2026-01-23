@@ -4,8 +4,6 @@
  */
 
 import { Block, Connection, BlockType } from '../types';
-
-// 导入下载管理器
 import DownloadManager from './DownloadManager';
 
 export interface AutoExecutionConfig {
@@ -56,7 +54,7 @@ export class AutoExecutionService {
   private resultHandling?: 'canvas' | 'download'; // 结果处理方式
   private currentBatchIndex?: number; // 当前批次索引
   private isAutomationMode: boolean = false; // 是否为自动化模式
-  private downloadManager?: DownloadManager; // 下载管理器（可选）
+  private downloadManager: DownloadManager; // 下载管理器
   
   // 新增：事件驱动执行相关
   private pendingNodes: Map<string, { resolve: () => void; reject: (error: Error) => void }> = new Map();
@@ -85,21 +83,15 @@ export class AutoExecutionService {
       status: 'idle',
       executionHistory: []
     };
-  }
-
-  /**
-   * 初始化下载管理器
-   */
-  private initializeDownloadManager(): void {
-    if (!this.downloadManager) {
-      this.downloadManager = new DownloadManager();
-      this.downloadManager.updateConfig({
-        enableSilentDownload: true,
-        batchDownloadDelay: 500,
-        autoDownload: true,
-        enableNotifications: false // 自动化模式下禁用通知避免干扰
-      });
-    }
+    
+    // 初始化下载管理器，启用自动化优化
+    this.downloadManager = new DownloadManager();
+    this.downloadManager.updateConfig({
+      enableSilentDownload: true,
+      batchDownloadDelay: 500,
+      autoDownload: true,
+      enableNotifications: false // 自动化模式下禁用通知避免干扰
+    });
   }
 
   /**
@@ -171,11 +163,6 @@ export class AutoExecutionService {
     
     // 设置为自动化执行模式
     this.isAutomationMode = true;
-    
-    // 如果是下载模式，初始化下载管理器
-    if (resultHandling === 'download') {
-      this.initializeDownloadManager();
-    }
     
     // 分析工作流
     const executionPlan = this.analyzeWorkflow(blocks, connections);
@@ -581,10 +568,9 @@ export class AutoExecutionService {
       }
     }
     
-    // 执行完成后，根据结果处理方式决定是否创建新模块
-    // 只在 resultHandling 为 'canvas' 时创建新模块，保持二选一原则
+    // 执行完成后，根据结果处理方式决定是否创建新模块或下载
     if (this.resultHandling === 'canvas' && this.onCreateBlock) {
-      // 查找工作流的最后一个节点
+      // 只在 resultHandling 为 'canvas' 时创建新模块，保持二选一原则
       const finalNode = executionPlan[executionPlan.length - 1];
       const finalBlock = blocks.find(b => b.id === finalNode.blockId);
       
@@ -610,8 +596,8 @@ export class AutoExecutionService {
         // 等待一小段时间确保新模块创建完成，再继续下一轮
         await this.delay(1000); // 1秒缓冲时间
       }
-    } else if (this.resultHandling === 'download' && this.downloadManager) {
-      // 自动下载模式：收集生成的内容并下载
+    } else if (this.resultHandling === 'download') {
+      // 自动下载模式：收集所有生成的内容并下载
       await this.handleAutomaticDownload(executionPlan, blocks, batchDataItem, dataIndex);
     }
   }
@@ -657,8 +643,88 @@ export class AutoExecutionService {
   }
 
   /**
+   * 处理自动下载
+   */
+  private async handleAutomaticDownload(
+    executionPlan: ExecutionNode[],
+    blocks: Block[],
+    batchDataItem: string,
+    dataIndex: number
+  ): Promise<void> {
+    try {
+      const downloadableResults: Array<{ url: string; filename: string; type: string }> = [];
+      
+      // 收集所有可下载的内容
+      for (const node of executionPlan) {
+        const block = blocks.find(b => b.id === node.blockId);
+        if (!block || !block.content) continue;
+        
+        // 检查内容类型并准备下载
+        if (block.type === 'image' && block.content.startsWith('data:image/')) {
+          // 图片内容
+          const filename = `batch_${dataIndex + 1}_${node.blockNumber}_image.png`;
+          downloadableResults.push({
+            url: block.content,
+            filename,
+            type: 'image'
+          });
+        } else if (block.type === 'video' && (block.content.startsWith('http') || block.content.startsWith('data:video/'))) {
+          // 视频内容
+          const filename = `batch_${dataIndex + 1}_${node.blockNumber}_video.mp4`;
+          downloadableResults.push({
+            url: block.content,
+            filename,
+            type: 'video'
+          });
+        } else if (block.type === 'text' && block.content.trim()) {
+          // 文本内容
+          const filename = `batch_${dataIndex + 1}_${node.blockNumber}_text.txt`;
+          const textBlob = new Blob([block.content], { type: 'text/plain' });
+          const textUrl = URL.createObjectURL(textBlob);
+          downloadableResults.push({
+            url: textUrl,
+            filename,
+            type: 'text'
+          });
+        }
+      }
+      
+      // 如果有可下载的内容，添加到下载队列
+      if (downloadableResults.length > 0) {
+        const batchId = `automation_batch_${this.currentBatchIndex || 0}_${Date.now()}`;
+        
+        console.log(`[AutoExecutionService] 添加 ${downloadableResults.length} 个文件到下载队列`);
+        
+        // 添加到下载管理器
+        for (const result of downloadableResults) {
+          this.downloadManager.addDownload(
+            result.url,
+            result.filename,
+            undefined, // downloadPath
+            `automation_execution_${Date.now()}`,
+            batchId
+          );
+        }
+        
+        // 开始处理下载
+        await this.downloadManager.processBatch(batchId);
+        
+        console.log(`[AutoExecutionService] 批次 ${dataIndex + 1} 的文件下载已启动`);
+      }
+      
+    } catch (error) {
+      console.error('[AutoExecutionService] 自动下载处理失败:', error);
+      // 下载失败不应该中断整个自动化流程，只记录错误
+    }
+  }
+
+  /**
    * 延迟等待
    */
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+  }
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
@@ -784,69 +850,6 @@ export class AutoExecutionService {
    */
   getConfig(): AutoExecutionConfig {
     return { ...this.config };
-  }
-
-  /**
-   * 处理自动下载
-   */
-  private async handleAutomaticDownload(
-    executionPlan: ExecutionNode[],
-    blocks: Block[],
-    batchDataItem: string,
-    dataIndex: number
-  ): Promise<void> {
-    if (!this.downloadManager) return;
-    
-    try {
-      const downloadableResults: Array<{ url: string; filename: string }> = [];
-      
-      // 收集所有可下载的内容
-      for (const node of executionPlan) {
-        const block = blocks.find(b => b.id === node.blockId);
-        if (!block || !block.content) continue;
-        
-        // 检查内容类型并准备下载
-        if (block.type === 'video' && (block.content.startsWith('http') || block.content.startsWith('data:video/'))) {
-          // 视频内容 - 主要下载目标
-          const filename = `batch_${dataIndex + 1}_${node.blockNumber}_video.mp4`;
-          downloadableResults.push({
-            url: block.content,
-            filename
-          });
-        } else if (block.type === 'image' && block.content.startsWith('data:image/')) {
-          // 图片内容
-          const filename = `batch_${dataIndex + 1}_${node.blockNumber}_image.png`;
-          downloadableResults.push({
-            url: block.content,
-            filename
-          });
-        }
-      }
-      
-      // 如果有可下载的内容，添加到下载队列
-      if (downloadableResults.length > 0) {
-        const batchId = `automation_batch_${this.currentBatchIndex || 0}_${Date.now()}`;
-        
-        console.log(`[AutoExecutionService] 添加 ${downloadableResults.length} 个文件到下载队列`);
-        
-        // 添加到下载管理器
-        for (const result of downloadableResults) {
-          this.downloadManager.addDownload(
-            result.url,
-            result.filename,
-            undefined, // downloadPath
-            `automation_execution_${Date.now()}`,
-            batchId
-          );
-        }
-        
-        console.log(`[AutoExecutionService] 批次 ${dataIndex + 1} 的文件下载已启动`);
-      }
-      
-    } catch (error) {
-      console.error('[AutoExecutionService] 自动下载处理失败:', error);
-      // 下载失败不应该中断整个自动化流程，只记录错误
-    }
   }
 }
 
