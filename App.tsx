@@ -3691,6 +3691,28 @@ Canvas 智能创作平台
     }
 
     try {
+      // 解析批量输入数据
+      let batchData: string[] | undefined;
+      if (inputSource) {
+        const { batchInputSystem } = await import('./services/BatchInputSystem');
+        const parsedData = await batchInputSystem.parseBatchInput(inputSource, 'automation');
+        
+        if (parsedData.errors.length > 0) {
+          alert(lang === 'zh' ? `批量数据解析失败: ${parsedData.errors.join(', ')}` : `Batch data parsing failed: ${parsedData.errors.join(', ')}`);
+          return;
+        }
+        
+        // 提取文本内容作为批量数据
+        batchData = parsedData.items.map(item => item.content);
+        
+        if (batchData.length === 0) {
+          alert(lang === 'zh' ? '批量数据为空' : 'Batch data is empty');
+          return;
+        }
+        
+        console.log(`[AutoExecution] 解析到 ${batchData.length} 条批量数据`);
+      }
+
       // Start automation execution using the AutoExecutionService
       await autoExecutionService.startExecution(
         blocks,
@@ -3709,7 +3731,7 @@ Canvas 智能创作平台
             handleSaveBatchResults();
           }
         },
-        undefined, // batchData - 由AutoExecutionService内部处理
+        batchData, // 传递解析后的批量数据
         resultHandling, // 用户选择的结果处理方式
         (newBlock) => {
           // 使用现有的 addBlock 函数创建新模块，保持一致的布局逻辑
