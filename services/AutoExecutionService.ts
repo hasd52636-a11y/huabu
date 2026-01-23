@@ -544,8 +544,19 @@ export class AutoExecutionService {
 
         console.log(`[AutoExecutionService] 执行节点 ${currentNode.blockNumber} (${currentNode.blockType}), 提示词: ${prompt.substring(0, 100)}...`);
 
-        // 执行当前节点 - 等待完成
-        await this.onNodeExecute?.(currentNode.blockId, prompt);
+        // 自动化执行：标记为自动化模式，传递解析后的提示词
+        (globalThis as any).__automationMode = true;
+        (globalThis as any).__automationResolvedPrompt = prompt;
+        (globalThis as any).__automationOriginalPrompt = currentBlock.originalPrompt || currentBlock.content || '';
+        
+        try {
+          await this.onNodeExecute?.(currentNode.blockId, prompt);
+        } finally {
+          // 清理全局标记
+          delete (globalThis as any).__automationMode;
+          delete (globalThis as any).__automationResolvedPrompt;
+          delete (globalThis as any).__automationOriginalPrompt;
+        }
         
         // 使用事件驱动等待，而不是固定时间等待
         console.log(`[AutoExecutionService] 等待节点 ${currentNode.blockId} 完成信号...`);
@@ -559,6 +570,16 @@ export class AutoExecutionService {
         this.progress.executionHistory.push(executionRecord);
 
         console.log(`[AutoExecutionService] 节点 ${currentNode.blockNumber} 执行完成，耗时: ${executionRecord.duration}ms`);
+
+        // 检查内容是否生成完成（用于流程控制）
+        const isLastNode = nodeIndex === executionPlan.length - 1;
+        await this.checkContentGeneration(currentNode, currentBlock, isLastNode);
+
+        // 只在最后一个节点进行下载
+        if (isLastNode && this.resultHandling === 'download' && this.downloadManager) {
+          console.log(`[AutoExecutionService] 最后一个节点，开始下载检查...`);
+          await this.checkAndDownloadSingleNode(currentNode, currentBlock, dataIndex);
+        }
 
         // 只需要很短的缓冲时间，确保数据传播
         if (nodeIndex < executionPlan.length - 1) {
@@ -581,8 +602,8 @@ export class AutoExecutionService {
       }
     }
     
-    // 执行完成后，根据结果处理方式决定是否创建新模块
-    // 只在 resultHandling 为 'canvas' 时创建新模块，保持二选一原则
+    // 执行完成后，只处理画布模式的新模块创建
+    // 下载模式已经在每个节点完成后立即处理
     if (this.resultHandling === 'canvas' && this.onCreateBlock) {
       // 查找工作流的最后一个节点
       const finalNode = executionPlan[executionPlan.length - 1];
@@ -610,9 +631,6 @@ export class AutoExecutionService {
         // 等待一小段时间确保新模块创建完成，再继续下一轮
         await this.delay(1000); // 1秒缓冲时间
       }
-    } else if (this.resultHandling === 'download' && this.downloadManager) {
-      // 自动下载模式：收集生成的内容并下载
-      await this.handleAutomaticDownload(executionPlan, blocks, batchDataItem, dataIndex);
     }
   }
 
@@ -787,6 +805,170 @@ export class AutoExecutionService {
   }
 
   /**
+   * 检查内容生成状态 - 用于流程控制，确保内容已生成完成
+   */
+  private async checkContentGeneration(
+    node: ExecutionNode,
+    block: Block,
+    isLastNode: boolean,
+    maxRetries: number = 3
+  ): Promise<void> {
+    console.log(`[AutoExecutionService] 检查节点 ${node.blockNumber} 内容生成状态...`);
+    
+    // 重试逻辑确保内容已生成
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        // 重新获取最新的block内容
+        const { connectionEngine } = await import('./ConnectionEngine');
+        const latestBlock = connectionEngine.getBlockById(block.id);
+        const currentContent = latestBlock?.content || block.content;
+        
+        if (!currentContent || !currentContent.trim()) {
+          console.log(`[AutoExecutionService] 节点 ${node.blockNumber} 内容为空，等待 ${attempt * 500}ms 后重试...`);
+          if (attempt < maxRetries) {
+            await this.delay(attempt * 500); // 递增等待时间
+            continue;
+          } else {
+            console.warn(`[AutoExecutionService] 节点 ${node.blockNumber} 在 ${maxRetries} 次尝试后仍无内容`);
+            return;
+          }
+        }
+        
+        console.log(`[AutoExecutionService] ✓ 节点 ${node.blockNumber} 内容生成完成 (${currentContent.length} 字符)`);
+        
+        // 对于最后一个节点，给予额外缓冲时间确保内容完全稳定
+        if (isLastNode) {
+          console.log(`[AutoExecutionService] 最后一个节点，等待额外缓冲时间确保内容完全生成...`);
+          await this.delay(2000);
+        }
+        
+        return; // 内容检测成功，退出
+        
+      } catch (error) {
+        console.error(`[AutoExecutionService] 内容检测失败 (${node.blockNumber}, 尝试 ${attempt}/${maxRetries}):`, error);
+        
+        if (attempt < maxRetries) {
+          await this.delay(attempt * 500);
+        } else {
+          console.error(`[AutoExecutionService] 节点 ${node.blockNumber} 内容检测最终失败`);
+        }
+      }
+    }
+  }
+
+  /**
+   * 检查并下载单个节点的内容 - 增强版，支持重试和更详细的检测
+   */
+  private async checkAndDownloadSingleNode(
+    node: ExecutionNode,
+    block: Block,
+    dataIndex: number,
+    maxRetries: number = 3
+  ): Promise<void> {
+    if (!this.downloadManager) {
+      console.log(`[AutoExecutionService] 下载管理器未初始化`);
+      return;
+    }
+    
+    // 重试逻辑
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`[AutoExecutionService] 检查节点 ${node.blockNumber} 的下载内容 (尝试 ${attempt}/${maxRetries})...`);
+        
+        // 重新获取最新的block内容
+        const { connectionEngine } = await import('./ConnectionEngine');
+        const latestBlock = connectionEngine.getBlockById(block.id);
+        const currentContent = latestBlock?.content || block.content;
+        
+        if (!currentContent) {
+          console.log(`[AutoExecutionService] 节点 ${node.blockNumber} 内容为空，等待 ${attempt * 1000}ms 后重试...`);
+          if (attempt < maxRetries) {
+            await this.delay(attempt * 1000); // 递增等待时间
+            continue;
+          } else {
+            console.warn(`[AutoExecutionService] 节点 ${node.blockNumber} 在 ${maxRetries} 次尝试后仍无内容`);
+            return;
+          }
+        }
+        
+        console.log(`[AutoExecutionService] 节点 ${node.blockNumber} 内容检测:`, {
+          type: block.type,
+          contentLength: currentContent.length,
+          contentStart: currentContent.substring(0, 100) + '...',
+          hasValidContent: !!currentContent.trim()
+        });
+        
+        let shouldDownload = false;
+        let filename = '';
+        
+        // 检查内容类型并准备下载
+        if (block.type === 'video') {
+          // 视频内容 - 检查多种可能的URL格式
+          if (currentContent.startsWith('http') || 
+              currentContent.startsWith('https') || 
+              currentContent.startsWith('data:video/') ||
+              currentContent.includes('.mp4') ||
+              currentContent.includes('.avi') ||
+              currentContent.includes('.mov') ||
+              currentContent.includes('.webm')) {
+            
+            shouldDownload = true;
+            filename = `batch_${dataIndex + 1}_${node.blockNumber}_video.mp4`;
+          }
+        } else if (block.type === 'image') {
+          // 图片内容 - 检查多种可能的格式
+          if (currentContent.startsWith('data:image/') ||
+              currentContent.startsWith('http') ||
+              currentContent.startsWith('https') ||
+              currentContent.includes('.png') ||
+              currentContent.includes('.jpg') ||
+              currentContent.includes('.jpeg') ||
+              currentContent.includes('.gif') ||
+              currentContent.includes('.webp')) {
+            
+            shouldDownload = true;
+            filename = `batch_${dataIndex + 1}_${node.blockNumber}_image.png`;
+          }
+        } else if (block.type === 'text') {
+          // 文本内容 - 如果包含URL也可以下载
+          if (currentContent.startsWith('http') || currentContent.startsWith('https')) {
+            shouldDownload = true;
+            filename = `batch_${dataIndex + 1}_${node.blockNumber}_content.txt`;
+          }
+        }
+        
+        if (shouldDownload) {
+          const batchId = `automation_single_${this.currentBatchIndex || 0}_${Date.now()}`;
+          
+          this.downloadManager.addDownload(
+            currentContent,
+            filename,
+            undefined, // 使用浏览器默认下载路径
+            `automation_execution_${Date.now()}`,
+            batchId
+          );
+          
+          console.log(`[AutoExecutionService] ✓ 成功添加下载: ${filename}`);
+          return; // 成功，退出重试循环
+        } else {
+          console.log(`[AutoExecutionService] ℹ 节点 ${node.blockNumber} 内容不支持下载:`, currentContent.substring(0, 100));
+          return; // 内容不支持下载，无需重试
+        }
+        
+      } catch (error) {
+        console.error(`[AutoExecutionService] 单节点下载检查失败 (${node.blockNumber}, 尝试 ${attempt}/${maxRetries}):`, error);
+        
+        if (attempt < maxRetries) {
+          console.log(`[AutoExecutionService] 等待 ${attempt * 1000}ms 后重试...`);
+          await this.delay(attempt * 1000);
+        } else {
+          console.error(`[AutoExecutionService] 节点 ${node.blockNumber} 下载检查最终失败`);
+        }
+      }
+    }
+  }
+
+  /**
    * 处理自动下载
    */
   private async handleAutomaticDownload(
@@ -800,26 +982,83 @@ export class AutoExecutionService {
     try {
       const downloadableResults: Array<{ url: string; filename: string }> = [];
       
+      console.log(`[AutoExecutionService] 开始检查批次 ${dataIndex + 1} 的下载内容...`);
+      
       // 收集所有可下载的内容
       for (const node of executionPlan) {
         const block = blocks.find(b => b.id === node.blockId);
-        if (!block || !block.content) continue;
+        if (!block) {
+          console.log(`[AutoExecutionService] 未找到节点 ${node.blockId}`);
+          continue;
+        }
+        
+        if (!block.content) {
+          console.log(`[AutoExecutionService] 节点 ${node.blockNumber} 内容为空`);
+          continue;
+        }
+        
+        console.log(`[AutoExecutionService] 检查节点 ${node.blockNumber} (${block.type}):`, {
+          hasContent: !!block.content,
+          contentType: typeof block.content,
+          contentStart: block.content.substring(0, 50) + '...',
+          contentLength: block.content.length
+        });
         
         // 检查内容类型并准备下载
-        if (block.type === 'video' && (block.content.startsWith('http') || block.content.startsWith('data:video/'))) {
-          // 视频内容 - 主要下载目标
-          const filename = `batch_${dataIndex + 1}_${node.blockNumber}_video.mp4`;
-          downloadableResults.push({
-            url: block.content,
-            filename
-          });
-        } else if (block.type === 'image' && block.content.startsWith('data:image/')) {
-          // 图片内容
-          const filename = `batch_${dataIndex + 1}_${node.blockNumber}_image.png`;
-          downloadableResults.push({
-            url: block.content,
-            filename
-          });
+        if (block.type === 'video') {
+          // 视频内容 - 检查多种可能的URL格式
+          if (block.content.startsWith('http') || 
+              block.content.startsWith('https') || 
+              block.content.startsWith('data:video/') ||
+              block.content.includes('.mp4') ||
+              block.content.includes('.avi') ||
+              block.content.includes('.mov') ||
+              block.content.includes('.webm')) {
+            
+            const filename = `batch_${dataIndex + 1}_${node.blockNumber}_video.mp4`;
+            downloadableResults.push({
+              url: block.content,
+              filename
+            });
+            
+            console.log(`[AutoExecutionService] ✓ 添加视频下载: ${filename}`);
+          } else {
+            console.log(`[AutoExecutionService] ✗ 视频内容格式不支持下载:`, block.content.substring(0, 100));
+          }
+        } else if (block.type === 'image') {
+          // 图片内容 - 检查多种可能的格式
+          if (block.content.startsWith('data:image/') ||
+              block.content.startsWith('http') ||
+              block.content.startsWith('https') ||
+              block.content.includes('.png') ||
+              block.content.includes('.jpg') ||
+              block.content.includes('.jpeg') ||
+              block.content.includes('.gif') ||
+              block.content.includes('.webp')) {
+            
+            const filename = `batch_${dataIndex + 1}_${node.blockNumber}_image.png`;
+            downloadableResults.push({
+              url: block.content,
+              filename
+            });
+            
+            console.log(`[AutoExecutionService] ✓ 添加图片下载: ${filename}`);
+          } else {
+            console.log(`[AutoExecutionService] ✗ 图片内容格式不支持下载:`, block.content.substring(0, 100));
+          }
+        } else if (block.type === 'text') {
+          // 文本内容 - 如果包含URL也可以下载
+          if (block.content.startsWith('http') || block.content.startsWith('https')) {
+            const filename = `batch_${dataIndex + 1}_${node.blockNumber}_content.txt`;
+            downloadableResults.push({
+              url: block.content,
+              filename
+            });
+            
+            console.log(`[AutoExecutionService] ✓ 添加文本URL下载: ${filename}`);
+          } else {
+            console.log(`[AutoExecutionService] ℹ 文本内容不是URL，跳过下载`);
+          }
         }
       }
       
@@ -827,20 +1066,34 @@ export class AutoExecutionService {
       if (downloadableResults.length > 0) {
         const batchId = `automation_batch_${this.currentBatchIndex || 0}_${Date.now()}`;
         
-        console.log(`[AutoExecutionService] 添加 ${downloadableResults.length} 个文件到下载队列`);
+        console.log(`[AutoExecutionService] ✓ 找到 ${downloadableResults.length} 个可下载文件，添加到下载队列`);
         
-        // 添加到下载管理器
+        // 添加到下载管理器 - 使用默认下载路径
         for (const result of downloadableResults) {
           this.downloadManager.addDownload(
             result.url,
             result.filename,
-            undefined, // downloadPath
+            undefined, // 使用浏览器默认下载路径
             `automation_execution_${Date.now()}`,
             batchId
           );
         }
         
-        console.log(`[AutoExecutionService] 批次 ${dataIndex + 1} 的文件下载已启动`);
+        console.log(`[AutoExecutionService] ✓ 批次 ${dataIndex + 1} 的 ${downloadableResults.length} 个文件下载已启动`);
+      } else {
+        console.log(`[AutoExecutionService] ⚠ 批次 ${dataIndex + 1} 没有找到可下载的内容`);
+        
+        // 详细输出每个节点的内容用于调试
+        for (const node of executionPlan) {
+          const block = blocks.find(b => b.id === node.blockId);
+          if (block) {
+            console.log(`[AutoExecutionService] 调试 - 节点 ${node.blockNumber}:`, {
+              type: block.type,
+              hasContent: !!block.content,
+              contentPreview: block.content ? block.content.substring(0, 200) : 'null'
+            });
+          }
+        }
       }
       
     } catch (error) {

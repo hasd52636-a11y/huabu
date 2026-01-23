@@ -538,6 +538,13 @@ const BlockComponent: React.FC<BlockProps> = ({
 
   const handlePromptSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
+    
+    // Prevent manual generation in automation template mode
+    if (isAutomationTemplate) {
+      console.log('[BlockComponent] Manual generation blocked - automation template mode');
+      return;
+    }
+    
     if (!userInput.trim() && upstreamIds.length === 0) return;
     
     let finalPrompt = userInput;
@@ -2094,6 +2101,10 @@ const BlockComponent: React.FC<BlockProps> = ({
                     handleRemoveBackground();
                     break;
                   case 'image-generate':
+                    if (isAutomationTemplate) {
+                      console.log('[BlockComponent] Image generate blocked - automation template mode');
+                      return;
+                    }
                     console.log('Image generate feature clicked', block.id);
                     onGenerate(block.id, userInput || '生成一张图片');
                     break;
@@ -2120,6 +2131,10 @@ const BlockComponent: React.FC<BlockProps> = ({
                   
                   // Video features
                   case 'video-generate':
+                    if (isAutomationTemplate) {
+                      console.log('[BlockComponent] Video generate blocked - automation template mode');
+                      return;
+                    }
                     console.log('Video generate feature clicked', block.id);
                     onGenerate(block.id, userInput || '生成一个视频');
                     break;
@@ -2170,6 +2185,10 @@ const BlockComponent: React.FC<BlockProps> = ({
                   
                   // Text features
                   case 'text-generate':
+                    if (isAutomationTemplate) {
+                      console.log('[BlockComponent] Text generate blocked - automation template mode');
+                      return;
+                    }
                     console.log('Text generate feature clicked', block.id);
                     onGenerate(block.id, userInput || '生成文本内容');
                     break;
@@ -2305,6 +2324,10 @@ const BlockComponent: React.FC<BlockProps> = ({
                   fileInputRef.current?.click();
                   break;
                 case 'regenerate':
+                  if (isAutomationTemplate) {
+                    console.log('[BlockComponent] Regenerate blocked - automation template mode');
+                    return;
+                  }
                   onGenerate(block.id, block.originalPrompt || '');
                   break;
                 case 'delete':
@@ -3024,6 +3047,18 @@ const BlockComponent: React.FC<BlockProps> = ({
           </div>
         )}
 
+        {/* Automation Template Indicator */}
+        {isAutomationTemplate && (
+          <div className="mb-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl">
+            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm font-medium">
+              <Settings size={16} />
+              <span>
+                {lang === 'zh' ? '自动化模板模式 - 手动生成已禁用' : 'Automation Template Mode - Manual generation disabled'}
+              </span>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handlePromptSubmit} className="flex flex-col gap-2 px-4 py-3 border-2 border-slate-300 dark:border-slate-600 rounded-3xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
            <div className="flex items-center gap-3 w-full">
              <Sparkles size={24} className="text-amber-500 shrink-0" />
@@ -3103,14 +3138,23 @@ const BlockComponent: React.FC<BlockProps> = ({
              
              <button 
                type="submit" 
-               disabled={variableErrors.length > 0}
+               disabled={variableErrors.length > 0 || isAutomationTemplate}
                className={`p-4 w-14 h-14 flex items-center justify-center rounded-3xl transition-all shadow-md shrink-0 ${
-                 (userInput.trim() || upstreamIds.length > 0 || upstreamData.length > 0) && variableErrors.length === 0
-                   ? 'bg-amber-500 text-white hover:scale-105 active:scale-95' 
-                   : 'bg-slate-100 dark:bg-white/10 text-slate-400 cursor-not-allowed'
+                 isAutomationTemplate
+                   ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 cursor-not-allowed opacity-50'
+                   : (userInput.trim() || upstreamIds.length > 0 || upstreamData.length > 0) && variableErrors.length === 0
+                     ? 'bg-amber-500 text-white hover:scale-105 active:scale-95' 
+                     : 'bg-slate-100 dark:bg-white/10 text-slate-400 cursor-not-allowed'
                }`}
+               title={isAutomationTemplate ? (lang === 'zh' ? '自动化模板中手动生成已禁用' : 'Manual generation disabled in automation template') : ''}
              >
-               <Send size={24} fill={(userInput.trim() || upstreamIds.length > 0 || upstreamData.length > 0) && variableErrors.length === 0 ? "currentColor" : "none"} />
+               <Send size={24} fill={
+                 isAutomationTemplate 
+                   ? "none"
+                   : (userInput.trim() || upstreamIds.length > 0 || upstreamData.length > 0) && variableErrors.length === 0 
+                     ? "currentColor" 
+                     : "none"
+               } />
              </button>
            </div>
            

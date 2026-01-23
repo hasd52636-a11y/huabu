@@ -346,6 +346,13 @@ export class ConnectionEngine {
   getAllEnhancedConnections(): EnhancedConnection[] {
     return Array.from(this.connectionCache.values());
   }
+
+  /**
+   * Gets a block by its ID from the cache
+   */
+  getBlockById(blockId: string): BlockData | undefined {
+    return this.blockDataCache.get(blockId);
+  }
 }
 
 // Singleton instance for global use

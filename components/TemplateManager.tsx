@@ -494,6 +494,26 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
                     </div>
                   </label>
                 </div>
+
+                {/* 重要提醒：自动化模板不可编辑 */}
+                {isAutomationTemplate && (
+                  <div className="p-3 border-2 border-amber-400 dark:border-amber-500 rounded-lg bg-amber-50 dark:bg-amber-900/20">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" size={16} />
+                      <div className="text-sm">
+                        <div className="font-semibold text-amber-800 dark:text-amber-200 mb-1">
+                          {lang === 'zh' ? '⚠️ 重要提醒' : '⚠️ Important Notice'}
+                        </div>
+                        <div className="text-amber-700 dark:text-amber-300 leading-relaxed">
+                          {lang === 'zh' 
+                            ? '自动化模板保存后将锁定为只读模式，无法再次编辑模块内容和连接关系。如需修改，请重新创建新的工作流。' 
+                            : 'Automation templates will be locked in read-only mode after saving. Module content and connections cannot be edited. To modify, please create a new workflow.'
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-end gap-2">
                   <button 
                     onClick={() => {

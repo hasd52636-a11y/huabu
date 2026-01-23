@@ -39,7 +39,7 @@ const AutomationControlPanel: React.FC<AutomationControlPanelProps> = ({
   const [executionMode, setExecutionMode] = useState<'conservative' | 'standard' | 'fast' | 'custom'>('standard');
   const [customInterval, setCustomInterval] = useState(2000);
   const [enableSmartInterval, setEnableSmartInterval] = useState(true);
-  const [resultHandling, setResultHandling] = useState<'canvas' | 'download'>('canvas');
+  const [resultHandling, setResultHandling] = useState<'canvas' | 'download'>('download');
   const [downloadPath, setDownloadPath] = useState('');
 
   // 当加载自动化模板时，自动展开控制面板
@@ -314,17 +314,6 @@ const AutomationControlPanel: React.FC<AutomationControlPanelProps> = ({
               </label>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setResultHandling('canvas')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-                    resultHandling === 'canvas'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  }`}
-                >
-                  <Monitor className="w-4 h-4" />
-                  {t.displayOnCanvas}
-                </button>
-                <button
                   onClick={() => setResultHandling('download')}
                   className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                     resultHandling === 'download'
@@ -337,22 +326,6 @@ const AutomationControlPanel: React.FC<AutomationControlPanelProps> = ({
                 </button>
               </div>
             </div>
-
-            {/* Download Path */}
-            {resultHandling === 'download' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {t.downloadPath}
-                </label>
-                <input
-                  type="text"
-                  value={downloadPath}
-                  onChange={(e) => setDownloadPath(e.target.value)}
-                  placeholder="/path/to/download/folder"
-                  className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm"
-                />
-              </div>
-            )}
           </div>
 
           {/* Batch Input Source Info */}

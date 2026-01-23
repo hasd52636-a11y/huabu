@@ -2152,12 +2152,22 @@ const App: React.FC = () => {
       
       // 更新块内容，并设置originalPrompt
       setBlocks(prev => {
-        const updatedBlocks = prev.map(b => b.id === blockId ? {
-          ...b, 
-          content: result, 
-          status: 'idle',
-          originalPrompt: prompt // 设置originalPrompt为用户输入的原始提示词
-        } : b);
+        const updatedBlocks = prev.map(b => {
+          if (b.id === blockId) {
+            // 检查是否为自动化模式
+            const isAutomationMode = (globalThis as any).__automationMode;
+            const automationOriginalPrompt = (globalThis as any).__automationOriginalPrompt;
+            
+            return {
+              ...b, 
+              content: result, 
+              status: 'idle',
+              // 在自动化模式下保持原始模板不变
+              originalPrompt: isAutomationMode ? automationOriginalPrompt : prompt
+            };
+          }
+          return b;
+        });
         
         // 更新连接引擎的数据缓存，使下游模块能够获取到最新内容
         const updatedBlock = updatedBlocks.find(b => b.id === blockId);
