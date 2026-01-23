@@ -3361,13 +3361,13 @@ Canvas 智能创作平台
           seed: parameters.seed
         });
       } else if (type === 'video') {
-        result = await aiServiceAdapter.generateVideo(parameters.prompt, {
-          ...providerSettings,
+        result = await aiServiceAdapter.generateVideo({
+          prompt: parameters.prompt,
           duration: parameters.duration || 5,
           aspectRatio: parameters.aspectRatio || '16:9',
           fps: parameters.fps,
           quality: parameters.quality
-        });
+        }, providerSettings);
       }
 
       if (!result) {

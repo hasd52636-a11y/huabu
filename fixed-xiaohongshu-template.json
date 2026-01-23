@@ -1,0 +1,115 @@
+{
+  "id": "xiaohongshu_content_generator",
+  "name": "小红书内容生成器",
+  "description": "自动生成小红书爆款文案和封面图的完整工作流",
+  "version": "1.0.0",
+  "createdAt": "2024-01-23T10:00:00.000Z",
+  "blocks": [
+    {
+      "id": "input_topic_001",
+      "type": "text",
+      "x": 100,
+      "y": 120,
+      "width": 320,
+      "height": 180,
+      "content": "输入内容主题或原始素材，例如：AI 提升普通人赚钱效率",
+      "status": "idle",
+      "number": "A01",
+      "fontSize": 14,
+      "textColor": "#333333",
+      "originalPrompt": "用户输入的原始主题或提示词"
+    },
+    {
+      "id": "xiaohongshu_copy_001",
+      "type": "text",
+      "x": 520,
+      "y": 120,
+      "width": 380,
+      "height": 260,
+      "content": "",
+      "status": "idle",
+      "number": "A02",
+      "fontSize": 14,
+      "textColor": "#333333",
+      "originalPrompt": "基于 [A01] 生成符合小红书平台风格的爆款文案"
+    },
+    {
+      "id": "cover_prompt_001",
+      "type": "text",
+      "x": 520,
+      "y": 430,
+      "width": 380,
+      "height": 200,
+      "content": "",
+      "status": "idle",
+      "number": "A03",
+      "fontSize": 14,
+      "textColor": "#333333",
+      "originalPrompt": "根据 [A02] 提炼小红书封面图的视觉提示词"
+    },
+    {
+      "id": "cover_image_001",
+      "type": "image",
+      "x": 980,
+      "y": 260,
+      "width": 360,
+      "height": 480,
+      "content": "",
+      "status": "idle",
+      "number": "B01",
+      "aspectRatio": "3:4",
+      "originalPrompt": "小红书封面图生成"
+    }
+  ],
+  "connections": [
+    {
+      "id": "topic_to_copy_001",
+      "fromId": "input_topic_001",
+      "toId": "xiaohongshu_copy_001",
+      "instruction": "基于 [A01] 的主题，生成符合小红书爆款特征的文案：强情绪标题 + 分点正文 + 互动式结尾，语言口语化、利他、贴近日常生活，并结合当下热点表达。",
+      "dataFlow": {
+        "enabled": true,
+        "lastUpdate": 0,
+        "dataType": "text",
+        "lastData": ""
+      }
+    },
+    {
+      "id": "copy_to_cover_prompt_001",
+      "fromId": "xiaohongshu_copy_001",
+      "toId": "cover_prompt_001",
+      "instruction": "从 [A02] 中提取最吸引点击的核心观点，生成适合小红书封面图的视觉提示词，包括：主体、风格、情绪、文字氛围，强调年轻感、真实感和热点感。",
+      "dataFlow": {
+        "enabled": true,
+        "lastUpdate": 0,
+        "dataType": "text",
+        "lastData": ""
+      }
+    },
+    {
+      "id": "cover_prompt_to_image_001",
+      "fromId": "cover_prompt_001",
+      "toId": "cover_image_001",
+      "instruction": "根据 [A03] 的视觉提示词生成一张小红书风格封面图：竖版比例、强对比色、情绪化视觉、适合内容种草与经验分享场景。",
+      "dataFlow": {
+        "enabled": true,
+        "lastUpdate": 0,
+        "dataType": "text",
+        "lastData": ""
+      }
+    }
+  ],
+  "settings": {
+    "zoom": 0.9,
+    "pan": {
+      "x": 0,
+      "y": 0
+    }
+  },
+  "isAutomation": true,
+  "automationConfig": {
+    "mode": "standard",
+    "pauseOnError": true,
+    "enableSmartInterval": true
+  }
+}
