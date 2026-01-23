@@ -3664,17 +3664,129 @@ Canvas 智能创作平台
   };
 
   const handleLoadTemplate = (canvasState: CanvasState, isAutomation?: boolean) => {
-    setBlocks(canvasState.blocks);
-    setConnections(canvasState.connections);
-    setZoom(canvasState.settings.zoom);
-    setPan(canvasState.settings.pan);
-    setSelectedIds([]);
-    
-    // Set automation template state
-    setIsAutomationTemplate(isAutomation || false);
-    
-    // Update connection engine with loaded connections
-    connectionEngine.updateConnections(canvasState.connections);
+    try {
+      console.log('[App] Loading template:', { 
+        isAutomation, 
+        blocksCount: canvasState.blocks?.length, 
+        connectionsCount: canvasState.connections?.length,
+        hasSettings: !!canvasState.settings
+      });
+      
+      // Comprehensive validation of canvas state
+      if (!canvasState) {
+        throw new Error('Canvas state is null or undefined');
+      }
+      
+      if (!canvasState.blocks) {
+        console.warn('[App] Canvas state missing blocks, initializing empty array');
+        canvasState.blocks = [];
+      }
+      
+      if (!Array.isArray(canvasState.blocks)) {
+        throw new Error('Invalid canvas state: blocks must be an array');
+      }
+      
+      if (!canvasState.settings) {
+        console.warn('[App] Canvas state missing settings, using defaults');
+        canvasState.settings = {
+          zoom: 1,
+          pan: { x: 0, y: 0 }
+        };
+      }
+      
+      // Ensure connections array exists and is valid
+      const connections = canvasState.connections || [];
+      if (!Array.isArray(connections)) {
+        console.warn('[App] Invalid connections array, using empty array');
+        canvasState.connections = [];
+      }
+      
+      // Validate each block before setting state
+      canvasState.blocks.forEach((block, index) => {
+        if (!block.id) {
+          throw new Error(`Block at index ${index} missing id`);
+        }
+        if (!block.type) {
+          throw new Error(`Block at index ${index} missing type`);
+        }
+        if (typeof block.x !== 'number' || typeof block.y !== 'number') {
+          console.warn(`[App] Block ${block.id} has invalid position, using defaults`);
+          block.x = block.x || 100;
+          block.y = block.y || 100;
+        }
+        if (typeof block.width !== 'number' || typeof block.height !== 'number') {
+          console.warn(`[App] Block ${block.id} has invalid dimensions, using defaults`);
+          block.width = block.width || 300;
+          block.height = block.height || 200;
+        }
+      });
+      
+      // Set state with validated data
+      setBlocks([...canvasState.blocks]);
+      setConnections([...connections]);
+      setZoom(canvasState.settings.zoom || 1);
+      setPan(canvasState.settings.pan || { x: 0, y: 0 });
+      setSelectedIds([]);
+      
+      // Set automation template state
+      setIsAutomationTemplate(isAutomation || false);
+      
+      // Update connection engine with loaded connections (with error handling)
+      try {
+        if (connections.length > 0) {
+          connectionEngine.updateConnections(connections);
+          console.log('[App] Connection engine updated successfully');
+        }
+      } catch (connectionError) {
+        console.error('[App] Failed to update connection engine:', connectionError);
+        // Continue loading even if connection engine fails
+      }
+      
+      console.log('[App] Template loaded successfully:', {
+        blocksLoaded: canvasState.blocks.length,
+        connectionsLoaded: connections.length,
+        zoom: canvasState.settings.zoom,
+        isAutomation
+      });
+      
+    } catch (error) {
+      console.error('[App] Failed to load template:', error);
+      
+      // Provide more specific error messages
+      let errorMessage = '模板加载失败';
+      let errorDetails = '未知错误';
+      
+      if (error instanceof Error) {
+        errorDetails = error.message;
+        
+        if (error.message.includes('blocks')) {
+          errorMessage = '模板数据结构错误';
+          errorDetails = '模板中的模块数据格式不正确';
+        } else if (error.message.includes('connections')) {
+          errorMessage = '模板连接数据错误';
+          errorDetails = '模板中的连接数据格式不正确';
+        } else if (error.message.includes('settings')) {
+          errorMessage = '模板设置数据错误';
+          errorDetails = '模板中的设置数据格式不正确';
+        }
+      }
+      
+      // Show user-friendly error message
+      if (typeof showError === 'function') {
+        showError(errorMessage, `加载模板时出现错误: ${errorDetails}`);
+      } else {
+        console.error('showError function not available');
+        alert(`${errorMessage}: ${errorDetails}`);
+      }
+      
+      // Reset to safe state
+      setBlocks([]);
+      setConnections([]);
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+      setSelectedIds([]);
+      setIsAutomationTemplate(false);
+    }
   };
 
   const getSelectedPromptContent = (): string | null => {

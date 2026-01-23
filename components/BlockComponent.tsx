@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Block, BlockData, Character, MenuConfig } from '../types';
+import { Block, BlockData, Character, MenuConfig, MultiImageConfig } from '../types';
 import { COLORS, I18N } from '../constants.tsx';
 import { variableSystem } from '../services/VariableSystem';
 import { characterService } from '../services/CharacterService';
@@ -11,13 +11,14 @@ import {
   Palette, Square, Monitor, Smartphone, Clock,
   Sparkles, Send, Upload, Paperclip,
   Pencil, Check, X, Copy, Info, Eye, Download, PlayCircle,
-  Users, UserPlus, UserX, Grid3X3, FileText
+  Users, UserPlus, UserX, Grid3X3, FileText, Settings
 } from 'lucide-react';
 import AspectRatioButton from './AspectRatioButton';
 import PromptPreviewPopover from './PromptPreviewPopover';
 import MultiImageConfigModal from './MultiImageConfigModal';
 import ImageEditModal from './ImageEditModal';
 import DynamicMenu from './DynamicMenu';
+import VoiceSessionModal from './VoiceSessionModal';
 import TextFormatModal from './TextFormatModal';
 import VideoStyleModal from './VideoStyleModal';
 import LanguageSelectionModal from './LanguageSelectionModal';

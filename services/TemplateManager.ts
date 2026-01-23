@@ -57,36 +57,135 @@ export class TemplateManager {
    * Loads a template and returns its canvas state
    */
   async loadTemplate(templateId: string): Promise<CanvasState> {
-    const storage = this.getStorage();
-    const template = storage.templates.find(t => t.id === templateId);
-    
-    if (!template) {
-      throw new Error(`Template with ID ${templateId} not found`);
-    }
+    try {
+      console.log('[TemplateManager] Loading template:', templateId);
+      
+      const storage = this.getStorage();
+      const template = storage.templates.find(t => t.id === templateId);
+      
+      if (!template) {
+        throw new Error(`Template with ID ${templateId} not found`);
+      }
 
-    // Clone the canvas state to avoid mutations
-    const canvasState = this.cloneCanvasState(template.canvasState);
-    
-    // Update connection engine with loaded connections
-    connectionEngine.updateConnections(canvasState.connections);
-    
-    return canvasState;
+      console.log('[TemplateManager] Template found:', {
+        name: template.name,
+        isAutomation: template.isAutomation,
+        blocksCount: template.canvasState?.blocks?.length,
+        connectionsCount: template.canvasState?.connections?.length
+      });
+
+      // Validate template structure before processing
+      this.validateTemplateStructure(template);
+
+      // Clone the canvas state to avoid mutations
+      const canvasState = this.cloneCanvasState(template.canvasState);
+      
+      // Ensure connections array exists and is properly formatted
+      if (!canvasState.connections) {
+        canvasState.connections = [];
+      }
+      
+      // Ensure connections are properly formatted for EnhancedConnection
+      canvasState.connections = canvasState.connections.map((conn, index) => {
+        try {
+          // If connection already has dataFlow, keep it; otherwise add default
+          if ('dataFlow' in conn && conn.dataFlow) {
+            return conn as EnhancedConnection;
+          } else {
+            console.log('[TemplateManager] Adding dataFlow to connection:', index);
+            return {
+              ...conn,
+              dataFlow: {
+                enabled: true,
+                lastUpdate: 0,
+                dataType: 'text',
+                lastData: ''
+              }
+            } as EnhancedConnection;
+          }
+        } catch (error) {
+          console.error('[TemplateManager] Error processing connection:', index, error);
+          // Return a safe default connection
+          return {
+            id: conn.id || `conn_${index}`,
+            fromId: conn.fromId || '',
+            toId: conn.toId || '',
+            instruction: conn.instruction || '',
+            dataFlow: {
+              enabled: true,
+              lastUpdate: 0,
+              dataType: 'text',
+              lastData: ''
+            }
+          } as EnhancedConnection;
+        }
+      });
+      
+      // Validate blocks array
+      if (!canvasState.blocks || !Array.isArray(canvasState.blocks)) {
+        console.warn('[TemplateManager] Invalid blocks array, initializing empty array');
+        canvasState.blocks = [];
+      }
+      
+      // Validate settings
+      if (!canvasState.settings) {
+        console.warn('[TemplateManager] Missing settings, using defaults');
+        canvasState.settings = {
+          zoom: 1,
+          pan: { x: 0, y: 0 }
+        };
+      }
+      
+      // Update connection engine with loaded connections
+      try {
+        connectionEngine.updateConnections(canvasState.connections);
+        console.log('[TemplateManager] Connection engine updated successfully');
+      } catch (error) {
+        console.error('[TemplateManager] Failed to update connection engine:', error);
+        // Continue loading even if connection engine update fails
+      }
+      
+      console.log('[TemplateManager] Template loaded successfully:', {
+        blocksCount: canvasState.blocks.length,
+        connectionsCount: canvasState.connections.length,
+        zoom: canvasState.settings.zoom,
+        pan: canvasState.settings.pan
+      });
+      
+      return canvasState;
+    } catch (error) {
+      console.error('[TemplateManager] Failed to load template:', templateId, error);
+      throw new Error(`Failed to load template: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   /**
    * Lists all available templates
    */
   async listTemplates(): Promise<Template[]> {
-    const storage = this.getStorage();
-    
-    // If no templates found, check if we need to initialize default templates
-    if (storage.templates.length === 0) {
-      await this.initializeDefaultTemplates();
-      // Reload storage after initialization
-      return this.listTemplates();
+    try {
+      const storage = this.getStorage();
+      
+      // Temporarily disable default template initialization to fix white screen issue
+      // This prevents potential conflicts with malformed default templates
+      // TODO: Re-enable after fixing template structure validation
+      // if (storage.templates.length === 0) {
+      //   await this.initializeDefaultTemplates();
+      //   // Reload storage after initialization
+      //   return this.listTemplates();
+      // }
+      
+      console.log('[TemplateManager] Listing templates:', {
+        count: storage.templates.length,
+        templates: storage.templates.map(t => ({ id: t.id, name: t.name, isAutomation: t.isAutomation }))
+      });
+      
+      return [...storage.templates].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    } catch (error) {
+      console.error('[TemplateManager] Failed to list templates:', error);
+      // Return empty array instead of throwing to prevent UI crashes
+      return [];
     }
-    
-    return [...storage.templates].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   }
 
   /**
@@ -550,9 +649,7 @@ export class TemplateManager {
    * Lists automation templates only
    */
   async listAutomationTemplates(): Promise<Template[]> {
-    // Ensure default templates are initialized
-    await this.listTemplates();
-    
+    // Get all templates without initializing defaults
     const storage = this.getStorage();
     return storage.templates
       .filter(t => t.isAutomation)
@@ -595,19 +692,57 @@ export class TemplateManager {
       const stored = localStorage.getItem(TemplateManager.STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
+        
+        // Validate parsed data structure
+        if (!parsed || typeof parsed !== 'object') {
+          console.warn('[TemplateManager] Invalid storage data, using defaults');
+          return this.getDefaultStorage();
+        }
+        
+        if (!parsed.templates || !Array.isArray(parsed.templates)) {
+          console.warn('[TemplateManager] Invalid templates array, using defaults');
+          return this.getDefaultStorage();
+        }
+        
         // Convert date strings back to Date objects
         parsed.lastUpdated = new Date(parsed.lastUpdated);
         parsed.templates.forEach((template: any) => {
-          template.createdAt = new Date(template.createdAt);
-          template.updatedAt = new Date(template.updatedAt);
+          try {
+            template.createdAt = new Date(template.createdAt);
+            template.updatedAt = new Date(template.updatedAt);
+          } catch (dateError) {
+            console.warn('[TemplateManager] Invalid date in template:', template.id, dateError);
+            // Use current date as fallback
+            template.createdAt = new Date();
+            template.updatedAt = new Date();
+          }
         });
+        
+        console.log('[TemplateManager] Storage loaded successfully:', {
+          version: parsed.version,
+          templateCount: parsed.templates.length,
+          lastUpdated: parsed.lastUpdated
+        });
+        
         return parsed;
       }
     } catch (error) {
-      console.warn('Failed to load template storage:', error);
+      console.error('[TemplateManager] Failed to load template storage:', error);
+      
+      // Try to clear corrupted storage
+      try {
+        localStorage.removeItem(TemplateManager.STORAGE_KEY);
+        console.log('[TemplateManager] Cleared corrupted storage');
+      } catch (clearError) {
+        console.error('[TemplateManager] Failed to clear corrupted storage:', clearError);
+      }
     }
 
     // Return default storage
+    return this.getDefaultStorage();
+  }
+
+  private getDefaultStorage(): TemplateStorage {
     return {
       version: TemplateManager.VERSION,
       templates: [],
@@ -657,6 +792,58 @@ export class TemplateManager {
 
     if (!template.canvasState.settings || typeof template.canvasState.settings !== 'object') {
       throw new Error('Invalid canvas state: settings must be an object');
+    }
+  }
+
+  /**
+   * Validates template structure for loading
+   */
+  private validateTemplateStructure(template: Template): void {
+    if (!template) {
+      throw new Error('Template is null or undefined');
+    }
+
+    if (!template.canvasState) {
+      throw new Error('Template missing canvas state');
+    }
+
+    if (!template.canvasState.blocks) {
+      console.warn('[TemplateManager] Template missing blocks array, will initialize empty array');
+    }
+
+    if (!template.canvasState.connections) {
+      console.warn('[TemplateManager] Template missing connections array, will initialize empty array');
+    }
+
+    if (!template.canvasState.settings) {
+      console.warn('[TemplateManager] Template missing settings, will use defaults');
+    }
+
+    // Validate each block has required properties
+    if (template.canvasState.blocks) {
+      template.canvasState.blocks.forEach((block, index) => {
+        if (!block.id) {
+          throw new Error(`Block at index ${index} missing id`);
+        }
+        if (!block.type) {
+          throw new Error(`Block at index ${index} missing type`);
+        }
+        if (typeof block.x !== 'number' || typeof block.y !== 'number') {
+          throw new Error(`Block at index ${index} has invalid position`);
+        }
+      });
+    }
+
+    // Validate each connection has required properties
+    if (template.canvasState.connections) {
+      template.canvasState.connections.forEach((conn, index) => {
+        if (!conn.id) {
+          throw new Error(`Connection at index ${index} missing id`);
+        }
+        if (!conn.fromId || !conn.toId) {
+          throw new Error(`Connection at index ${index} missing fromId or toId`);
+        }
+      });
     }
   }
 

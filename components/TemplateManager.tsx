@@ -173,16 +173,53 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
 
   const handleLoadTemplate = async (templateId: string) => {
     try {
+      console.log('[TemplateManager] Starting template load:', templateId);
       setIsLoading(true);
+      setError(null);
+      
+      // Load template with comprehensive error handling
       const canvas = await templateManager.loadTemplate(templateId);
-      // 直接从templateManager中获取所有模板，确保获取最新的模板数据
+      console.log('[TemplateManager] Template data loaded successfully');
+      
+      // Get template metadata
       const allTemplates = await templateManager.listTemplates();
       const template = allTemplates.find(t => t.id === templateId);
-      onLoadTemplate(canvas, template?.isAutomation);
+      
+      if (!template) {
+        throw new Error('Template metadata not found after loading');
+      }
+      
+      console.log('[TemplateManager] Calling onLoadTemplate with:', {
+        blocksCount: canvas.blocks?.length,
+        connectionsCount: canvas.connections?.length,
+        isAutomation: template.isAutomation
+      });
+      
+      // Call the parent component's load handler
+      onLoadTemplate(canvas, template.isAutomation);
+      
+      // Close the modal and show success
       onClose();
       showSuccess(t.loadSuccess);
+      
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.error);
+      console.error('[TemplateManager] Template loading failed:', err);
+      
+      // Provide detailed error information
+      let errorMessage = t.error;
+      if (err instanceof Error) {
+        if (err.message.includes('not found')) {
+          errorMessage = lang === 'zh' ? '模板不存在或已被删除' : 'Template not found or deleted';
+        } else if (err.message.includes('Invalid')) {
+          errorMessage = lang === 'zh' ? '模板数据格式错误' : 'Invalid template data format';
+        } else if (err.message.includes('connection')) {
+          errorMessage = lang === 'zh' ? '模板连接数据错误' : 'Template connection data error';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -332,13 +369,26 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
           {error && (
             <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-3">
               <AlertCircle className="text-red-600 dark:text-red-400" size={20} />
-              <span className="text-red-700 dark:text-red-300">{error}</span>
+              <div className="flex-1">
+                <span className="text-red-700 dark:text-red-300">{error}</span>
+                <div className="text-sm text-red-600 dark:text-red-400 mt-1">
+                  {lang === 'zh' 
+                    ? '如果问题持续存在，请尝试刷新页面或清除浏览器缓存' 
+                    : 'If the problem persists, try refreshing the page or clearing browser cache'
+                  }
+                </div>
+              </div>
             </div>
           )}
 
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <div className="text-sm text-slate-600 dark:text-slate-400">
+                  {lang === 'zh' ? '正在加载模板...' : 'Loading templates...'}
+                </div>
+              </div>
             </div>
           ) : templates.length === 0 ? (
             <div className="text-center py-12">
@@ -371,9 +421,17 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
                     </h3>
                     <div className="flex items-center gap-1 ml-2">
                       <button
-                        onClick={() => handleLoadTemplate(template.id)}
+                        onClick={() => {
+                          try {
+                            handleLoadTemplate(template.id);
+                          } catch (err) {
+                            console.error('[TemplateManager] Load button error:', err);
+                            setError(lang === 'zh' ? '加载模板时出现错误' : 'Error loading template');
+                          }
+                        }}
                         className="p-1 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/20 rounded transition-colors"
                         title={t.loadTemplate}
+                        disabled={isLoading}
                       >
                         <FolderOpen size={16} />
                       </button>
@@ -381,6 +439,7 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
                         onClick={() => handleDuplicateTemplate(template.id)}
                         className="p-1 text-green-600 hover:bg-green-100 dark:hover:bg-green-900/20 rounded transition-colors"
                         title={t.duplicate}
+                        disabled={isLoading}
                       >
                         <Copy size={16} />
                       </button>
@@ -388,6 +447,7 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
                         onClick={() => handleExportTemplate(template.id)}
                         className="p-1 text-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/20 rounded transition-colors"
                         title={t.export}
+                        disabled={isLoading}
                       >
                         <Download size={16} />
                       </button>
@@ -395,6 +455,7 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
                         onClick={() => handleDeleteTemplate(template.id)}
                         className="p-1 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/20 rounded transition-colors"
                         title={t.delete}
+                        disabled={isLoading}
                       >
                         <Trash2 size={16} />
                       </button>
@@ -410,11 +471,11 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
                   <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 mb-3">
                     <div className="flex items-center gap-1">
                       <Layers size={12} />
-                      {template.metadata.blockCount}{t.blocks}
+                      {template.metadata?.blockCount || 0}{t.blocks}
                     </div>
                     <div className="flex items-center gap-1">
                       <Link size={12} />
-                      {template.metadata.connectionCount}{t.connections}
+                      {template.metadata?.connectionCount || 0}{t.connections}
                     </div>
                   </div>
 
