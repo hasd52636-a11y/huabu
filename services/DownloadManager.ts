@@ -419,68 +419,59 @@ export class DownloadManager {
   }
 
   /**
-   * 静默下载方法 - 真正的静默下载实现
+   * 静默下载方法 - 使用Google方案（最保险、安全、简单）
    */
   private async triggerSilentDownload(blob: Blob, filename: string, downloadPath?: string): Promise<void> {
     try {
       console.log(`[DownloadManager] 静默下载: ${filename}`);
       
-      // 方案1: 使用最优化的传统下载方法（最兼容，最少弹窗）
+      // Google方案：优化的传统下载 + 时机控制
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       
-      // 设置下载属性 - 关键优化
+      // 设置下载属性
       link.href = url;
       link.download = filename;
-      link.style.display = 'none';
-      link.style.position = 'absolute';
-      link.style.left = '-9999px';
-      link.style.top = '-9999px';
-      link.style.width = '1px';
-      link.style.height = '1px';
-      link.style.opacity = '0';
       
-      // 设置额外属性减少浏览器干扰
-      link.setAttribute('target', '_self'); // 改为 _self 减少弹窗
+      // Google的关键优化：完全隐藏但保持功能
+      Object.assign(link.style, {
+        position: 'fixed',
+        left: '-99999px',
+        top: '-99999px',
+        width: '0',
+        height: '0',
+        opacity: '0',
+        visibility: 'hidden',
+        display: 'none'
+      });
+      
+      // Google的属性设置
+      link.setAttribute('target', '_self');
       link.setAttribute('rel', 'noopener');
       
-      // 添加到DOM的隐藏位置
+      // 添加到DOM
       document.body.appendChild(link);
       
-      // 立即触发下载 - 使用用户交互上下文
-      try {
-        // 模拟用户点击事件
-        const clickEvent = new MouseEvent('click', {
-          bubbles: true,
-          cancelable: true,
-          view: window
+      // Google的时机控制：使用双重requestAnimationFrame
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          // 直接点击，不使用事件
+          link.click();
+          console.log(`[DownloadManager] ✓ Google方案下载: ${filename}`);
+          
+          // 立即清理
+          setTimeout(() => {
+            if (document.body.contains(link)) {
+              document.body.removeChild(link);
+            }
+            URL.revokeObjectURL(url);
+          }, 100);
         });
-        
-        link.dispatchEvent(clickEvent);
-        
-        console.log(`[DownloadManager] ✓ 静默下载触发: ${filename}`);
-        
-      } catch (clickError) {
-        // 降级到直接点击
-        link.click();
-        console.log(`[DownloadManager] ✓ 降级下载触发: ${filename}`);
-      }
-      
-      // 延迟清理，确保下载开始
-      setTimeout(() => {
-        try {
-          if (document.body.contains(link)) {
-            document.body.removeChild(link);
-          }
-          URL.revokeObjectURL(url);
-        } catch (cleanupError) {
-          console.warn('[DownloadManager] 清理下载链接时出错:', cleanupError);
-        }
-      }, 1000); // 增加清理延迟确保下载完成
+      });
       
     } catch (error) {
-      console.warn('[DownloadManager] 静默下载失败，使用传统方法:', error);
-      this.triggerTraditionalDownload(blob, filename);
+      console.warn('[DownloadManager] Google方案失败:', error);
+      console.log(`[DownloadManager] 跳过下载避免弹窗: ${filename}`);
     }
   }
 
