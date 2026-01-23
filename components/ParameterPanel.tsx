@@ -11,7 +11,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { X, Settings, Save, Upload, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
+import { X, Settings, Upload, AlertCircle, CheckCircle, AlertTriangle, ImageIcon, Video } from 'lucide-react';
 import { 
   ParameterPanelProps,
   GenerationParameters,
@@ -36,6 +36,8 @@ const ParameterPanel: React.FC<ParameterPanelProps> = ({
   generationType,
   onParametersChange,
   initialParameters,
+  contentSyncService,
+  resultsManager,
   theme = 'light',
   lang = 'zh'
 }) => {
@@ -56,6 +58,10 @@ const ParameterPanel: React.FC<ParameterPanelProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   
+  // Content sync state
+  const [syncedContent, setSyncedContent] = useState<any>(null);
+  const [isSynced, setIsSynced] = useState(false);
+  
   // 标签状态保持 - 为每个标签保存独立的参数状态
   const [tabParameters, setTabParameters] = useState<{
     image: GenerationParameters;
@@ -75,7 +81,8 @@ const ParameterPanel: React.FC<ParameterPanelProps> = ({
     removeNotification, 
     showSuccess, 
     showError, 
-    showWarning 
+    showWarning,
+    showInfo 
   } = useNotifications();
 
   // Translations
@@ -145,12 +152,112 @@ const ParameterPanel: React.FC<ParameterPanelProps> = ({
     }
   }, [selectedModel, activeTab, isOpen]);
 
-  // Load presets when tab changes
+  // Content sync effect with auto-save
   useEffect(() => {
-    if (isOpen) {
-      loadPresets();
+    if (contentSyncService && isOpen) {
+      let unsubscribe: (() => void) | null = null;
+      
+      try {
+        unsubscribe = contentSyncService.subscribe((state: any) => {
+          setSyncedContent(state);
+          setIsSynced(true);
+          
+          // Update parameters with synced content
+          setParameters(prev => ({
+            ...prev,
+            prompt: state.prompt || prev.prompt,
+            negativePrompt: state.negativePrompt || prev.negativePrompt,
+            // Map attachments to reference parameters
+            referenceImage: state.attachments?.image || prev.referenceImage,
+            referenceVideo: state.attachments?.video || prev.referenceVideo,
+            // Map other synced properties as needed
+          }));
+
+          // Update tab parameters as well
+          setTabParameters(prevTab => ({
+            ...prevTab,
+            [activeTab]: {
+              ...prevTab[activeTab],
+              prompt: state.prompt || prevTab[activeTab].prompt,
+              negativePrompt: state.negativePrompt || prevTab[activeTab].negativePrompt,
+              referenceImage: state.attachments?.image || prevTab[activeTab].referenceImage,
+              referenceVideo: state.attachments?.video || prevTab[activeTab].referenceVideo,
+            }
+          }));
+
+          // Show sync notification
+          if (state.source === 'chat') {
+            showInfo({
+              title: lang === 'zh' ? '内容已同步' : 'Content Synced',
+              message: lang === 'zh' ? '聊天内容已同步到参数面板' : 'Chat content synced to parameter panel'
+            });
+          }
+        });
+      } catch (error) {
+        console.error('[ParameterPanel] Failed to subscribe to content sync service:', error);
+      }
+
+      return () => {
+        if (unsubscribe) {
+          try {
+            unsubscribe();
+          } catch (error) {
+            console.error('[ParameterPanel] Failed to unsubscribe from content sync service:', error);
+          }
+        }
+      };
     }
-  }, [activeTab, isOpen]);
+  }, [contentSyncService, isOpen, activeTab, lang, showInfo]);
+
+  // Auto-save functionality
+  useEffect(() => {
+    if (isOpen && parameters.prompt) {
+      const autoSaveTimer = setTimeout(() => {
+        // Auto-save current parameters to localStorage
+        const autoSaveKey = `parameter-panel-autosave-${activeTab}-${selectedModel}`;
+        localStorage.setItem(autoSaveKey, JSON.stringify({
+          parameters,
+          timestamp: Date.now(),
+          generationType: activeTab,
+          modelId: selectedModel
+        }));
+        
+        console.log('[ParameterPanel] Auto-saved parameters');
+      }, 2000); // Auto-save after 2 seconds of inactivity
+
+      return () => clearTimeout(autoSaveTimer);
+    }
+  }, [parameters, activeTab, selectedModel, isOpen]);
+
+  // Load auto-saved parameters on open
+  useEffect(() => {
+    if (isOpen && selectedModel) {
+      const autoSaveKey = `parameter-panel-autosave-${activeTab}-${selectedModel}`;
+      const autoSaved = localStorage.getItem(autoSaveKey);
+      
+      if (autoSaved) {
+        try {
+          const { parameters: savedParams, timestamp } = JSON.parse(autoSaved);
+          const isRecent = Date.now() - timestamp < 24 * 60 * 60 * 1000; // 24 hours
+          
+          if (isRecent && savedParams.prompt && !isSynced) {
+            // Only restore if no synced content and parameters exist
+            setParameters(prev => ({
+              ...prev,
+              ...savedParams
+            }));
+            
+            showInfo({
+              title: lang === 'zh' ? '已恢复自动保存' : 'Auto-save Restored',
+              message: lang === 'zh' ? '已恢复之前的参数设置' : 'Previous parameter settings restored'
+            });
+          }
+        } catch (error) {
+          console.error('Failed to load auto-saved parameters:', error);
+        }
+      }
+    }
+  }, [isOpen, selectedModel, activeTab, isSynced, lang, showInfo]);
 
   // Validate parameters when they change
   useEffect(() => {
@@ -276,7 +383,21 @@ const ParameterPanel: React.FC<ParameterPanelProps> = ({
         [key]: value
       }
     }));
-  }, [activeTab]);
+
+    // Sync changes back to chat dialog if content sync service is available
+    if (contentSyncService && (key === 'prompt' || key === 'negativePrompt')) {
+      const updatedParameters = { ...parameters, [key]: value };
+      contentSyncService.syncToChatDialog(
+        updatedParameters.prompt || '',
+        {
+          negativePrompt: updatedParameters.negativePrompt,
+          // Include other relevant parameters
+        },
+        activeTab,
+        selectedModel
+      );
+    }
+  }, [activeTab, parameters, contentSyncService, selectedModel]);
 
   // 处理标签切换
   const handleTabChange = useCallback((newTab: 'image' | 'video') => {
@@ -361,11 +482,25 @@ const ParameterPanel: React.FC<ParameterPanelProps> = ({
     setError(null);
     
     try {
-      await onParametersChange(parameters);
-      showSuccess({
-        title: lang === 'zh' ? '生成已开始' : 'Generation Started',
-        message: lang === 'zh' ? '参数已提交，正在生成内容...' : 'Parameters submitted, generating content...'
+      // 显示开始生成的通知
+      showInfo({
+        title: lang === 'zh' ? '开始生成' : 'Starting Generation',
+        message: lang === 'zh' ? '正在处理您的参数...' : 'Processing your parameters...'
       });
+
+      await onParametersChange(parameters);
+      
+      // 生成成功的反馈
+      showSuccess({
+        title: lang === 'zh' ? '生成已提交' : 'Generation Submitted',
+        message: lang === 'zh' ? '内容正在生成中，请查看结果区域' : 'Content is being generated, check the results area'
+      });
+
+      // 自动关闭参数面板（延迟一点让用户看到成功消息）
+      setTimeout(() => {
+        onClose();
+      }, 1500);
+
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '生成失败';
       console.error('Generation failed:', error);
@@ -486,6 +621,85 @@ const ParameterPanel: React.FC<ParameterPanelProps> = ({
 
         {/* Content */}
         <div className="p-6 space-y-6" role="tabpanel" id={`${activeTab}-panel`} aria-labelledby={`${activeTab}-tab`}>
+          {/* Enhanced Content Sync Indicator */}
+          {isSynced && syncedContent && (
+            <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-2 border-blue-200 dark:border-blue-700 rounded-xl shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                    <div className="absolute inset-0 w-3 h-3 bg-blue-400 rounded-full animate-ping opacity-75"></div>
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                      {lang === 'zh' ? '内容已同步' : 'Content Synced'}
+                    </span>
+                    <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                      {syncedContent.source === 'chat' 
+                        ? (lang === 'zh' ? '来源：聊天对话框' : 'Source: Chat Dialog')
+                        : (lang === 'zh' ? '来源：参数面板' : 'Source: Parameter Panel')
+                      }
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {syncedContent.attachments?.image && (
+                    <div className="w-6 h-6 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
+                      <ImageIcon size={12} className="text-green-600 dark:text-green-400" />
+                    </div>
+                  )}
+                  {syncedContent.attachments?.video && (
+                    <div className="w-6 h-6 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center">
+                      <Video size={12} className="text-purple-600 dark:text-purple-400" />
+                    </div>
+                  )}
+                  <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 rounded-full font-medium">
+                    {new Date(syncedContent.timestamp || Date.now()).toLocaleTimeString()}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Attachment Previews */}
+              {(syncedContent.attachments?.image || syncedContent.attachments?.video) && (
+                <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-700">
+                  <div className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-2">
+                    {lang === 'zh' ? '同步的附件' : 'Synced Attachments'}
+                  </div>
+                  <div className="flex gap-2">
+                    {syncedContent.attachments?.image && (
+                      <div className="relative group">
+                        <img 
+                          src={syncedContent.attachments.image} 
+                          alt="Synced image"
+                          className="w-16 h-16 object-cover rounded-lg border-2 border-blue-200 dark:border-blue-600 cursor-pointer hover:scale-105 transition-transform"
+                          onClick={() => window.open(syncedContent.attachments.image, '_blank')}
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-lg transition-colors"></div>
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white dark:border-slate-900 flex items-center justify-center">
+                          <CheckCircle size={8} className="text-white" />
+                        </div>
+                      </div>
+                    )}
+                    {syncedContent.attachments?.video && (
+                      <div className="relative group">
+                        <video 
+                          src={syncedContent.attachments.video}
+                          className="w-16 h-16 object-cover rounded-lg border-2 border-blue-200 dark:border-blue-600 cursor-pointer hover:scale-105 transition-transform"
+                          muted
+                          onClick={() => window.open(syncedContent.attachments.video, '_blank')}
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-lg transition-colors"></div>
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-purple-500 rounded-full border-2 border-white dark:border-slate-900 flex items-center justify-center">
+                          <Video size={8} className="text-white" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {error && (
             <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
               <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
@@ -511,6 +725,7 @@ const ParameterPanel: React.FC<ParameterPanelProps> = ({
                   availableParameters={availableParameters}
                   onParameterChange={handleParameterChange}
                   validationErrors={validationResults.flatMap(result => result.errors)}
+                  syncedParameters={isSynced && syncedContent ? ['prompt', 'negativePrompt'] : []}
                   theme={theme}
                   lang={lang}
                 />

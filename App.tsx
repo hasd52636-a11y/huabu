@@ -5,7 +5,7 @@ import {
   MessageSquare, LayoutGrid, X, Key, Upload, Cpu, HelpCircle, Save, FilePlus, Paperclip, Eraser, Copy, Check,
   Trash2, Layers, Languages, Globe, RotateCcw, MonitorX, Send, Play, Download, Hand, Brain,
   Type as TextIcon, BrainCircuit, Sparkles, ChevronLeft, ChevronRight, ImagePlus, FileText, Info, Loader2, ArrowUpRight,
-  ChevronDown, Database, Sliders, ExternalLink, ShieldCheck, ListOrdered, FolderOpen, User, PanelLeft, PanelRight, Share2, Volume2
+  ChevronDown, Database, Sliders, ExternalLink, ShieldCheck, ListOrdered, FolderOpen, User, PanelLeft, PanelRight, Share2, Volume2, Grid
 } from 'lucide-react';
 import { Block, Connection, BlockType, ModelConfig, ProviderType, ProviderSettings, BatchConfig, BatchGenerationState, ExportLayout, FrameData, PresetPrompt, CanvasState, BatchInputSource, Character, NewModelConfig, getProviderSettings, convertLegacyToNewConfig, convertNewToLegacyConfig, MenuConfig } from './types';
 
@@ -101,6 +101,12 @@ import { voiceSettingsService } from './services/VoiceSettingsService';
 import SmartViewerRouter from './components/SmartViewerRouter';
 import { getShareIdFromUrl } from './real-time-share-kit/utils';
 
+// 新的内容同步和结果管理服务
+import { contentSyncService } from './services/ContentSyncService';
+import { resultsManagerService } from './services/ResultsManagerService';
+import { thumbnailGenerator } from './services/ThumbnailGenerator';
+import SidebarResultsArea from './components/SidebarResultsArea';
+
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -152,7 +158,7 @@ const App: React.FC = () => {
   const [isVoiceRecording, setIsVoiceRecording] = useState<boolean>(false);
   const [isVoiceProcessing, setIsVoiceProcessing] = useState<boolean>(false);
   const [wasVoiceInput, setWasVoiceInput] = useState<boolean>(false); // 跟踪是否是语音输入
-  const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
+  const [recognition, setRecognition] = useState<any | null>(null);
   const [voiceTimeout, setVoiceTimeout] = useState<NodeJS.Timeout | null>(null); // 语音超时定时器
   const [wakeWord] = useState<string>('曹操'); // 唤醒词
   const [showVoiceHelp, setShowVoiceHelp] = useState<boolean>(false);
@@ -249,7 +255,7 @@ const App: React.FC = () => {
   const [selectedCharacter, setSelectedCharacter] = useState<Character | undefined>();
   
   // Feature Assembly State
-  const [sidebarTab, setSidebarTab] = useState<'chat' | 'caocao' | 'assembly'>('chat');
+  const [sidebarTab, setSidebarTab] = useState<'chat' | 'results' | 'caocao' | 'assembly'>('chat');
   const [currentMenuConfig, setCurrentMenuConfig] = useState<MenuConfig | undefined>();
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   
@@ -270,6 +276,10 @@ const App: React.FC = () => {
   
   // Voice Settings State
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  
+  // Content Sync and Results Management State
+  const [generationResults, setGenerationResults] = useState<any[]>([]);
+  const [isResultsLoading, setIsResultsLoading] = useState(false);
   
   // 获取token context
   const { updateConsumption, checkTokenLimit, showTokenLimitModal } = useTokenContext();
@@ -308,7 +318,7 @@ const App: React.FC = () => {
   // 新的 ShareKit 会自动处理 URL 参数中的观看模式
 
   // Enhanced text formatting function with more features
-  const formatText = (text: string): JSX.Element[] => {
+  const formatText = (text: string): React.ReactElement[] => {
     const lines = text.split('\n');
     return lines.map((line, lineIndex) => {
       // Check for special line types first
@@ -319,12 +329,11 @@ const App: React.FC = () => {
       if (headerMatch) {
         const level = headerMatch[1].length;
         const headerText = headerMatch[2];
-        const HeaderTag = `h${level + 2}` as keyof JSX.IntrinsicElements; // h3, h4, h5
-        return (
-          <HeaderTag key={lineIndex} className={`font-bold mb-2 mt-4 ${level === 1 ? 'text-lg' : level === 2 ? 'text-base' : 'text-sm'}`}>
-            {headerText}
-          </HeaderTag>
-        );
+        const HeaderTag = `h${level + 2}` as keyof React.JSX.IntrinsicElements; // h3, h4, h5
+        return React.createElement(HeaderTag, {
+          key: lineIndex,
+          className: `font-bold mb-2 mt-4 ${level === 1 ? 'text-lg' : level === 2 ? 'text-base' : 'text-sm'}`
+        }, headerText);
       }
       
       // Handle bullet points (- or *)
@@ -379,10 +388,10 @@ const App: React.FC = () => {
   };
 
   // Helper function for inline text formatting
-  const formatInlineText = (text: string, lineIndex: number): (string | JSX.Element)[] => {
+  const formatInlineText = (text: string, lineIndex: number): (string | React.ReactElement)[] => {
     if (!text.trim()) return ['\u00A0'];
     
-    const parts: (string | JSX.Element)[] = [];
+    const parts: (string | React.ReactElement)[] = [];
     let currentIndex = 0;
     
     // Handle **bold** text
@@ -409,10 +418,10 @@ const App: React.FC = () => {
     }
     
     // Handle `code` text in the processed parts
-    const processedParts: (string | JSX.Element)[] = [];
+    const processedParts: (string | React.ReactElement)[] = [];
     parts.forEach((part, partIndex) => {
       if (typeof part === 'string') {
-        const codeParts: (string | JSX.Element)[] = [];
+        const codeParts: (string | React.ReactElement)[] = [];
         let codeIndex = 0;
         const codeRegex = /`(.*?)`/g;
         let codeMatch;
@@ -1259,6 +1268,29 @@ const App: React.FC = () => {
     }
   }, [isCharacterPanelOpen]);
 
+  // 初始化结果管理器订阅
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+    
+    try {
+      unsubscribe = resultsManagerService.subscribe((results) => {
+        setGenerationResults(results);
+      });
+    } catch (error) {
+      console.error('[App] Failed to subscribe to results manager:', error);
+    }
+
+    return () => {
+      if (unsubscribe) {
+        try {
+          unsubscribe();
+        } catch (error) {
+          console.error('[App] Failed to unsubscribe from results manager:', error);
+        }
+      }
+    };
+  }, []);
+
   // 初始化自动化模板库
   useEffect(() => {
     const initTemplates = async () => {
@@ -1272,13 +1304,13 @@ const App: React.FC = () => {
               "blocks": [
                 {
                   "id": "text_prompt_block",
-                  "type": "text",
+                  "type": "text" as BlockType,
                   "x": 100,
                   "y": 100,
                   "width": 300,
                   "height": 150,
                   "content": "一只可爱的柴犬在草地上奔跑，阳光明媚，高清细节",
-                  "status": "idle",
+                  "status": "idle" as const,
                   "number": "A01",
                   "fontSize": 14,
                   "textColor": "#333333",
@@ -1286,15 +1318,15 @@ const App: React.FC = () => {
                 },
                 {
                   "id": "image_output_block",
-                  "type": "image",
+                  "type": "image" as BlockType,
                   "x": 500,
                   "y": 100,
                   "width": 400,
                   "height": 400,
                   "content": "",
-                  "status": "idle",
+                  "status": "idle" as const,
                   "number": "B01",
-                  "aspectRatio": "1:1",
+                  "aspectRatio": "1:1" as const,
                   "originalPrompt": ""
                 }
               ],
@@ -1307,7 +1339,7 @@ const App: React.FC = () => {
                   "dataFlow": {
                     "enabled": true,
                     "lastUpdate": 0,
-                    "dataType": "text",
+                    "dataType": "text" as const,
                     "lastData": ""
                   }
                 }
@@ -1326,13 +1358,13 @@ const App: React.FC = () => {
               "blocks": [
                 {
                   "id": "text_prompt_multi",
-                  "type": "text",
+                  "type": "text" as BlockType,
                   "x": 100,
                   "y": 100,
                   "width": 300,
                   "height": 150,
                   "content": "不同风格的城市夜景，高清细节，4K分辨率",
-                  "status": "idle",
+                  "status": "idle" as const,
                   "number": "A01",
                   "fontSize": 14,
                   "textColor": "#333333",
@@ -1340,15 +1372,15 @@ const App: React.FC = () => {
                 },
                 {
                   "id": "image_output_multi",
-                  "type": "image",
+                  "type": "image" as BlockType,
                   "x": 500,
                   "y": 100,
                   "width": 300,
                   "height": 300,
                   "content": "",
-                  "status": "idle",
+                  "status": "idle" as const,
                   "number": "B01",
-                  "aspectRatio": "16:9",
+                  "aspectRatio": "16:9" as const,
                   "originalPrompt": "",
                   "multiImageGroupId": "multi_images_1",
                   "multiImageIndex": 0,
@@ -1364,7 +1396,7 @@ const App: React.FC = () => {
                   "dataFlow": {
                     "enabled": true,
                     "lastUpdate": 0,
-                    "dataType": "text",
+                    "dataType": "text" as const,
                     "lastData": ""
                   }
                 }
@@ -1383,13 +1415,13 @@ const App: React.FC = () => {
               "blocks": [
                 {
                   "id": "text_prompt_download",
-                  "type": "text",
+                  "type": "text" as BlockType,
                   "x": 100,
                   "y": 100,
                   "width": 350,
                   "height": 200,
                   "content": "未来科技感城市，飞行汽车，霓虹灯光，高清4K",
-                  "status": "idle",
+                  "status": "idle" as const,
                   "number": "A01",
                   "fontSize": 14,
                   "textColor": "#333333",
@@ -1397,15 +1429,15 @@ const App: React.FC = () => {
                 },
                 {
                   "id": "image_output_download",
-                  "type": "image",
+                  "type": "image" as BlockType,
                   "x": 550,
                   "y": 100,
                   "width": 450,
                   "height": 250,
                   "content": "",
-                  "status": "idle",
+                  "status": "idle" as const,
                   "number": "B01",
-                  "aspectRatio": "16:9",
+                  "aspectRatio": "16:9" as const,
                   "originalPrompt": ""
                 }
               ],
@@ -1418,7 +1450,7 @@ const App: React.FC = () => {
                   "dataFlow": {
                     "enabled": true,
                     "lastUpdate": 0,
-                    "dataType": "text",
+                    "dataType": "text" as const,
                     "lastData": ""
                   }
                 }
@@ -1437,26 +1469,26 @@ const App: React.FC = () => {
               "blocks": [
                 {
                   "id": "input_image_block",
-                  "type": "image",
+                  "type": "image" as BlockType,
                   "x": 100,
                   "y": 100,
                   "width": 400,
                   "height": 300,
                   "content": "",
-                  "status": "idle",
+                  "status": "idle" as const,
                   "number": "A01",
-                  "aspectRatio": "4:3",
+                  "aspectRatio": "4:3" as const,
                   "originalPrompt": "上传需要编辑的图片"
                 },
                 {
                   "id": "edit_prompt_block",
-                  "type": "text",
+                  "type": "text" as BlockType,
                   "x": 100,
                   "y": 500,
                   "width": 300,
                   "height": 120,
                   "content": "将图片转换为水彩画风格，增加艺术感",
-                  "status": "idle",
+                  "status": "idle" as const,
                   "number": "B01",
                   "fontSize": 14,
                   "textColor": "#333333",
@@ -1464,15 +1496,15 @@ const App: React.FC = () => {
                 },
                 {
                   "id": "edited_output_block",
-                  "type": "image",
+                  "type": "image" as BlockType,
                   "x": 600,
                   "y": 100,
                   "width": 400,
                   "height": 300,
                   "content": "",
-                  "status": "idle",
+                  "status": "idle" as const,
                   "number": "C01",
-                  "aspectRatio": "4:3",
+                  "aspectRatio": "4:3" as const,
                   "originalPrompt": ""
                 }
               ],
@@ -1485,7 +1517,7 @@ const App: React.FC = () => {
                   "dataFlow": {
                     "enabled": true,
                     "lastUpdate": 0,
-                    "dataType": "image",
+                    "dataType": "image" as const,
                     "lastData": ""
                   }
                 },
@@ -1497,205 +1529,7 @@ const App: React.FC = () => {
                   "dataFlow": {
                     "enabled": true,
                     "lastUpdate": 0,
-                    "dataType": "text",
-                    "lastData": ""
-                  }
-                }
-              ],
-              "settings": {
-                "zoom": 1,
-                "pan": { "x": 0, "y": 0 }
-              }
-            },
-            "isAutomation": true
-          },
-          {
-            "name": "文本链式生成（最终图像）",
-            "description": "先从创意生成详细大纲，再根据大纲生成图像。适合需要结构化内容生成的场景。",
-            "canvasState": {
-              "blocks": [
-                {
-                  "id": "story_idea_block",
-                  "type": "text",
-                  "x": 100,
-                  "y": 100,
-                  "width": 300,
-                  "height": 180,
-                  "content": "科幻冒险故事：宇航员在未知星球发现神秘文明遗迹",
-                  "status": "idle",
-                  "number": "A01",
-                  "fontSize": 14,
-                  "textColor": "#333333",
-                  "originalPrompt": "科幻冒险故事创意"
-                },
-                {
-                  "id": "story_outline_block",
-                  "type": "text",
-                  "x": 100,
-                  "y": 350,
-                  "width": 350,
-                  "height": 200,
-                  "content": "",
-                  "status": "idle",
-                  "number": "B01",
-                  "fontSize": 12,
-                  "textColor": "#333333",
-                  "originalPrompt": ""
-                },
-                {
-                  "id": "story_image_block",
-                  "type": "image",
-                  "x": 550,
-                  "y": 100,
-                  "width": 450,
-                  "height": 300,
-                  "content": "",
-                  "status": "idle",
-                  "number": "C01",
-                  "aspectRatio": "16:9",
-                  "originalPrompt": ""
-                }
-              ],
-              "connections": [
-                {
-                  "id": "idea_to_outline_conn",
-                  "fromId": "story_idea_block",
-                  "toId": "story_outline_block",
-                  "instruction": "根据故事创意生成详细大纲",
-                  "dataFlow": {
-                    "enabled": true,
-                    "lastUpdate": 0,
-                    "dataType": "text",
-                    "lastData": ""
-                  }
-                },
-                {
-                  "id": "outline_to_image_conn",
-                  "fromId": "story_outline_block",
-                  "toId": "story_image_block",
-                  "instruction": "根据故事大纲生成场景图像",
-                  "dataFlow": {
-                    "enabled": true,
-                    "lastUpdate": 0,
-                    "dataType": "text",
-                    "lastData": ""
-                  }
-                }
-              ],
-              "settings": {
-                "zoom": 1,
-                "pan": { "x": 0, "y": 0 }
-              }
-            },
-            "isAutomation": true
-          },
-          {
-            "name": "多模块拼接（含视频）",
-            "description": "文本生成故事大纲，图像生成封面图，最终生成视频。这是唯一包含视频的模板。",
-            "canvasState": {
-              "blocks": [
-                {
-                  "id": "story_idea_block",
-                  "type": "text",
-                  "x": 100,
-                  "y": 100,
-                  "width": 300,
-                  "height": 180,
-                  "content": "科幻冒险故事：宇航员在未知星球发现神秘文明遗迹",
-                  "status": "idle",
-                  "number": "A01",
-                  "fontSize": 14,
-                  "textColor": "#333333",
-                  "originalPrompt": "科幻冒险故事创意"
-                },
-                {
-                  "id": "story_outline_block",
-                  "type": "text",
-                  "x": 100,
-                  "y": 350,
-                  "width": 350,
-                  "height": 200,
-                  "content": "",
-                  "status": "idle",
-                  "number": "B01",
-                  "fontSize": 12,
-                  "textColor": "#333333",
-                  "originalPrompt": ""
-                },
-                {
-                  "id": "cover_image_block",
-                  "type": "image",
-                  "x": 550,
-                  "y": 100,
-                  "width": 400,
-                  "height": 400,
-                  "content": "",
-                  "status": "idle",
-                  "number": "C01",
-                  "aspectRatio": "1:1",
-                  "originalPrompt": ""
-                },
-                {
-                  "id": "video_output_block",
-                  "type": "video",
-                  "x": 1050,
-                  "y": 100,
-                  "width": 500,
-                  "height": 300,
-                  "content": "",
-                  "status": "idle",
-                  "number": "D01",
-                  "aspectRatio": "16:9",
-                  "duration": "15",
-                  "originalPrompt": ""
-                }
-              ],
-              "connections": [
-                {
-                  "id": "idea_to_outline_conn",
-                  "fromId": "story_idea_block",
-                  "toId": "story_outline_block",
-                  "instruction": "根据故事创意生成详细大纲",
-                  "dataFlow": {
-                    "enabled": true,
-                    "lastUpdate": 0,
-                    "dataType": "text",
-                    "lastData": ""
-                  }
-                },
-                {
-                  "id": "outline_to_cover_conn",
-                  "fromId": "story_outline_block",
-                  "toId": "cover_image_block",
-                  "instruction": "根据故事大纲生成封面图片",
-                  "dataFlow": {
-                    "enabled": true,
-                    "lastUpdate": 0,
-                    "dataType": "text",
-                    "lastData": ""
-                  }
-                },
-                {
-                  "id": "outline_to_video_conn",
-                  "fromId": "story_outline_block",
-                  "toId": "video_output_block",
-                  "instruction": "根据故事大纲生成视频",
-                  "dataFlow": {
-                    "enabled": true,
-                    "lastUpdate": 0,
-                    "dataType": "text",
-                    "lastData": ""
-                  }
-                },
-                {
-                  "id": "cover_to_video_conn",
-                  "fromId": "cover_image_block",
-                  "toId": "video_output_block",
-                  "instruction": "使用封面图片作为视频的参考图像",
-                  "dataFlow": {
-                    "enabled": true,
-                    "lastUpdate": 0,
-                    "dataType": "image",
+                    "dataType": "text" as const,
                     "lastData": ""
                   }
                 }
@@ -1748,11 +1582,13 @@ const App: React.FC = () => {
       if (!validation.valid) {
         // 收集所有错误
         const allErrors: string[] = [];
-        Object.entries(validation.issues).forEach(([provider, issue]) => {
-          if (issue && issue.errors && issue.errors.length > 0) {
-            allErrors.push(`${provider}: ${issue.errors.join(', ')}`);
-          }
-        });
+        if (validation.issues) {
+          Object.entries(validation.issues).forEach(([provider, issue]) => {
+            if (issue && typeof issue === 'object' && 'errors' in issue && Array.isArray(issue.errors) && issue.errors.length > 0) {
+              allErrors.push(`${provider}: ${issue.errors.join(', ')}`);
+            }
+          });
+        }
         
         if (allErrors.length > 0) {
           alert(`配置验证失败:\n${allErrors.join('\n')}`);
@@ -2277,6 +2113,28 @@ const App: React.FC = () => {
     if (!checkTokenLimit()) {
       showTokenLimitModal();
       return;
+    }
+
+    // 始终同步当前内容到ContentSyncService以保持状态一致
+    if (contentSyncService) {
+      try {
+        contentSyncService.syncFromChatDialog(
+          sidebarInput,
+          {
+            image: pendingChatImage || undefined,
+            video: pendingChatVideo || undefined,
+            file: pendingChatFile || undefined,
+            videoUrl: pendingVideoUrl || undefined
+          },
+          chatMode,
+          chatMode === 'text' ? selectedTextModel : 
+          chatMode === 'image' ? modelConfig.image.modelId : 
+          modelConfig.video.modelId
+        );
+      } catch (syncError) {
+        console.warn('[handleSidebarSend] Content sync failed:', syncError);
+        // 同步失败不应阻止消息发送，只记录警告
+      }
     }
 
     // 保存语音输入状态，用于后续判断是否需要播放语音
@@ -3338,6 +3196,19 @@ Canvas 智能创作平台
       return;
     }
     
+    // 同步当前聊天对话框内容到参数面板
+    contentSyncService.syncFromChatDialog(
+      sidebarInput,
+      {
+        image: pendingChatImage || undefined,
+        video: pendingChatVideo || undefined,
+        file: pendingChatFile || undefined,
+        videoUrl: pendingVideoUrl || undefined
+      },
+      type,
+      selectedModelId
+    );
+    
     setParameterPanelType(type);
     setParameterPanelModel(selectedModelId);
     setShowParameterPanel(true);
@@ -3349,43 +3220,259 @@ Canvas 智能创作平台
 
   const handleParametersChange = async (parameters: any) => {
     try {
-      // 在画布中心创建新块
-      const centerX = -pan.x / zoom + (window.innerWidth * 0.7) / (2 * zoom);
-      const centerY = -pan.y / zoom + window.innerHeight / (2 * zoom);
-
-      const newBlock = addBlock(parameterPanelType, '', centerX, centerY);
+      setIsResultsLoading(true);
       
-      if (newBlock) {
-        // 应用参数到新块
-        setBlocks(prev => prev.map(b => 
-          b.id === newBlock.id 
-            ? { 
-                ...b, 
-                aspectRatio: parameters.aspectRatio || (parameterPanelType === 'image' ? '16:9' : '16:9'),
-                duration: parameters.duration || (parameterPanelType === 'video' ? '10' : undefined),
-                originalPrompt: parameters.prompt || ''
-              }
-            : b
-        ));
+      // 显示开始生成的通知
+      showInfo(
+        lang === 'zh' ? '开始生成' : 'Generation Started',
+        lang === 'zh' ? '正在生成内容，请稍候...' : 'Generating content, please wait...'
+      );
+      
+      // 创建结果条目
+      const resultId = resultsManagerService.addResult({
+        type: parameterPanelType,
+        content: '', // 将在生成完成后更新
+        metadata: {
+          prompt: parameters.prompt || '',
+          model: parameterPanelModel,
+          parameters,
+          source: 'parameter-panel'
+        },
+        status: 'generating'
+      });
 
-        // 如果有提示词，立即开始生成
-        if (parameters.prompt && parameters.prompt.trim()) {
-          await handleGenerate(newBlock.id, parameters.prompt);
+      // 切换到结果标签页以显示生成进度
+      setSidebarTab('results');
+
+      // 开始生成内容
+      try {
+        const result = await generateContentToResults(parameters, parameterPanelType, parameterPanelModel, resultId);
+        
+        // 更新结果状态
+        resultsManagerService.updateResult(resultId, {
+          content: result.content,
+          status: 'completed'
+        });
+
+        // 为媒体内容生成缩略图
+        if (parameterPanelType !== 'text' && result.content) {
+          try {
+            const thumbnail = parameterPanelType === 'image' 
+              ? await thumbnailGenerator.generateImageThumbnail(result.content)
+              : await thumbnailGenerator.generateVideoThumbnail(result.content);
+            
+            resultsManagerService.updateResult(resultId, { thumbnail });
+          } catch (thumbnailError) {
+            console.warn('[ParametersChange] Failed to generate thumbnail:', thumbnailError);
+            // 缩略图生成失败不应影响主要流程
+          }
         }
 
         showSuccess(
-          lang === 'zh' ? '参数已应用' : 'Parameters Applied',
-          lang === 'zh' ? `已创建${parameterPanelType === 'image' ? '图像' : '视频'}模块并应用参数` : `Created ${parameterPanelType} module with parameters`
+          lang === 'zh' ? '生成完成' : 'Generation Complete',
+          lang === 'zh' ? `${parameterPanelType === 'text' ? '文本' : parameterPanelType === 'image' ? '图片' : '视频'}内容已生成到结果区域` : `${parameterPanelType} content generated to results area`
+        );
+
+      } catch (generationError) {
+        console.error('[ParametersChange] Generation failed:', generationError);
+        
+        // 更新结果为失败状态
+        resultsManagerService.updateResult(resultId, {
+          status: 'failed',
+          error: generationError instanceof Error ? generationError.message : (lang === 'zh' ? '生成失败' : 'Generation failed')
+        });
+        
+        showError(
+          lang === 'zh' ? '生成失败' : 'Generation Failed',
+          generationError instanceof Error ? generationError.message : (lang === 'zh' ? '未知错误' : 'Unknown error')
         );
       }
 
       // 关闭参数面板
       setShowParameterPanel(false);
+      
     } catch (error) {
-      console.error('Failed to apply parameters:', error);
+      console.error('[ParametersChange] Failed to apply parameters:', error);
       showError(
         lang === 'zh' ? '参数应用失败' : 'Parameter Application Failed',
-        error instanceof Error ? error.message : '未知错误'
+        error instanceof Error ? error.message : (lang === 'zh' ? '未知错误' : 'Unknown error')
+      );
+    } finally {
+      setIsResultsLoading(false);
+    }
+  };
+
+  // 生成内容到结果区域
+  const generateContentToResults = async (
+    parameters: any,
+    type: 'text' | 'image' | 'video',
+    modelId: string,
+    resultId: string
+  ): Promise<{ content: string }> => {
+    try {
+      // 验证参数
+      if (!parameters || !parameters.prompt) {
+        throw new Error(lang === 'zh' ? '缺少提示词参数' : 'Missing prompt parameter');
+      }
+
+      if (!modelId) {
+        throw new Error(lang === 'zh' ? '缺少模型ID' : 'Missing model ID');
+      }
+
+      // 使用现有的AI服务适配器生成内容
+      let result: string;
+
+      if (type === 'text') {
+        result = await aiServiceAdapter.generateText(
+          { parts: [{ text: parameters.prompt }] }, 
+          { modelId }
+        );
+      } else if (type === 'image') {
+        result = await aiServiceAdapter.generateImage(parameters.prompt, {
+          aspectRatio: parameters.aspectRatio || '1:1',
+          modelId,
+          negativePrompt: parameters.negativePrompt,
+          steps: parameters.steps,
+          guidance: parameters.guidance,
+          seed: parameters.seed
+        });
+      } else if (type === 'video') {
+        result = await aiServiceAdapter.generateVideo(parameters.prompt, {
+          duration: parameters.duration || 5,
+          aspectRatio: parameters.aspectRatio || '16:9',
+          modelId,
+          fps: parameters.fps,
+          quality: parameters.quality
+        });
+      } else {
+        throw new Error(`${lang === 'zh' ? '不支持的内容类型' : 'Unsupported content type'}: ${type}`);
+      }
+
+      if (!result) {
+        throw new Error(lang === 'zh' ? '生成结果为空' : 'Generated result is empty');
+      }
+
+      return { content: result };
+    } catch (error) {
+      console.error(`[generateContentToResults] Failed to generate ${type} content:`, error);
+      
+      // 提供更具体的错误信息
+      let errorMessage = lang === 'zh' ? '生成失败' : 'Generation failed';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = lang === 'zh' ? '网络连接失败，请检查网络设置' : 'Network connection failed, please check network settings';
+        } else if (error.message.includes('quota') || error.message.includes('limit')) {
+          errorMessage = lang === 'zh' ? '已达到使用限制，请稍后再试' : 'Usage limit reached, please try again later';
+        } else if (error.message.includes('model') || error.message.includes('Model')) {
+          errorMessage = lang === 'zh' ? '模型配置错误，请检查模型设置' : 'Model configuration error, please check model settings';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      throw new Error(errorMessage);
+    }
+  };
+
+  // 投射结果到画布
+  const handleProjectToCanvas = (resultId: string) => {
+    const result = resultsManagerService.getResult(resultId);
+    if (!result) {
+      showError(
+        lang === 'zh' ? '结果不存在' : 'Result not found',
+        lang === 'zh' ? '无法找到指定的结果，可能已被删除' : 'Cannot find the specified result, it may have been deleted'
+      );
+      return;
+    }
+
+    if (result.status !== 'completed') {
+      showError(
+        lang === 'zh' ? '无法投射' : 'Cannot project',
+        lang === 'zh' ? '只能投射已完成的结果到画布' : 'Only completed results can be projected to canvas'
+      );
+      return;
+    }
+
+    if (!result.content) {
+      showError(
+        lang === 'zh' ? '内容为空' : 'Empty content',
+        lang === 'zh' ? '结果内容为空，无法投射到画布' : 'Result content is empty, cannot project to canvas'
+      );
+      return;
+    }
+
+    try {
+      // 计算画布中心位置
+      const centerX = -pan.x / zoom + (window.innerWidth * 0.7) / (2 * zoom);
+      const centerY = -pan.y / zoom + window.innerHeight / (2 * zoom);
+
+      // 创建新块
+      const newBlock = addBlock(result.type, result.content, centerX, centerY);
+      
+      if (newBlock) {
+        // 应用原始生成参数
+        setBlocks(prev => prev.map(b => 
+          b.id === newBlock.id 
+            ? { 
+                ...b, 
+                ...result.metadata.parameters,
+                originalPrompt: result.metadata.prompt,
+                generatedFrom: 'results-area',
+                resultId: result.id
+              }
+            : b
+        ));
+
+        showSuccess(
+          lang === 'zh' ? '已投射到画布' : 'Projected to Canvas',
+          lang === 'zh' ? `${result.type === 'text' ? '文本' : result.type === 'image' ? '图片' : '视频'}内容已添加到画布` : `${result.type} content added to canvas`
+        );
+
+        // 记录投射操作
+        console.log(`[ProjectToCanvas] Successfully projected ${result.type} result ${resultId} to canvas as block ${newBlock.id}`);
+      } else {
+        throw new Error(lang === 'zh' ? '创建画布块失败' : 'Failed to create canvas block');
+      }
+    } catch (error) {
+      console.error('[ProjectToCanvas] Failed to project to canvas:', error);
+      
+      let errorMessage = lang === 'zh' ? '投射失败' : 'Projection failed';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('memory') || error.message.includes('Memory')) {
+          errorMessage = lang === 'zh' ? '内存不足，请关闭其他应用后重试' : 'Insufficient memory, please close other applications and try again';
+        } else if (error.message.includes('canvas') || error.message.includes('Canvas')) {
+          errorMessage = lang === 'zh' ? '画布操作失败，请刷新页面后重试' : 'Canvas operation failed, please refresh the page and try again';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      showError(
+        lang === 'zh' ? '投射失败' : 'Projection Failed',
+        errorMessage
+      );
+    }
+  };
+
+  // 删除单个结果
+  const handleDeleteResult = (resultId: string) => {
+    if (resultsManagerService.deleteResult(resultId)) {
+      showSuccess(
+        lang === 'zh' ? '已删除' : 'Deleted',
+        lang === 'zh' ? '结果已删除' : 'Result deleted'
+      );
+    }
+  };
+
+  // 批量删除结果
+  const handleDeleteResults = (resultIds: string[]) => {
+    const deletedCount = resultsManagerService.deleteResults(resultIds);
+    if (deletedCount > 0) {
+      showSuccess(
+        lang === 'zh' ? '批量删除完成' : 'Batch Delete Complete',
+        lang === 'zh' ? `已删除 ${deletedCount} 个结果` : `Deleted ${deletedCount} results`
       );
     }
   };
@@ -4264,26 +4351,38 @@ ${block.content}
                </div>
 
                {/* Sidebar Tabs */}
-               <div className="flex gap-2">
+               <div className="flex gap-1">
                  <button
                    onClick={() => setSidebarTab('chat')}
-                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-black uppercase transition-all ${sidebarTab === 'chat' ? (theme === 'dark' ? 'bg-slate-700 text-amber-400' : 'bg-amber-100 text-amber-600') : (theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-400 hover:text-slate-600')}`}
+                   className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-black uppercase transition-all ${sidebarTab === 'chat' ? (theme === 'dark' ? 'bg-slate-700 text-amber-400' : 'bg-amber-100 text-amber-600') : (theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-400 hover:text-slate-600')}`}
                  >
-                   <MessageSquare size={16} />
+                   <MessageSquare size={14} />
                    {t.chat}
                  </button>
                  <button
-                   onClick={() => setSidebarTab('caocao')}
-                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-black uppercase transition-all ${sidebarTab === 'caocao' ? (theme === 'dark' ? 'bg-slate-700 text-purple-400' : 'bg-purple-100 text-purple-600') : (theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-400 hover:text-slate-600')}`}
+                   onClick={() => setSidebarTab('results')}
+                   className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-black uppercase transition-all relative ${sidebarTab === 'results' ? (theme === 'dark' ? 'bg-slate-700 text-green-400' : 'bg-green-100 text-green-600') : (theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-400 hover:text-slate-600')}`}
                  >
-                   <Brain size={16} />
+                   <Grid size={14} />
+                   {lang === 'zh' ? '结果' : 'Results'}
+                   {generationResults.filter(r => r.status === 'completed').length > 0 && (
+                     <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                       {generationResults.filter(r => r.status === 'completed').length > 99 ? '99+' : generationResults.filter(r => r.status === 'completed').length}
+                     </span>
+                   )}
+                 </button>
+                 <button
+                   onClick={() => setSidebarTab('caocao')}
+                   className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-black uppercase transition-all ${sidebarTab === 'caocao' ? (theme === 'dark' ? 'bg-slate-700 text-purple-400' : 'bg-purple-100 text-purple-600') : (theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-400 hover:text-slate-600')}`}
+                 >
+                   <Brain size={14} />
                    曹操
                  </button>
                  <button
                    onClick={() => setSidebarTab('assembly')}
-                   className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-black uppercase transition-all ${sidebarTab === 'assembly' ? (theme === 'dark' ? 'bg-slate-700 text-amber-400' : 'bg-amber-100 text-amber-600') : (theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-400 hover:text-slate-600')}`}
+                   className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-black uppercase transition-all ${sidebarTab === 'assembly' ? (theme === 'dark' ? 'bg-slate-700 text-amber-400' : 'bg-amber-100 text-amber-600') : (theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-400 hover:text-slate-600')}`}
                  >
-                   <Layers size={16} />
+                   <Layers size={14} />
                    {t.featureAssembly}
                  </button>
                </div>
@@ -4357,6 +4456,21 @@ ${block.content}
               </div>
             ))}
           </div>
+          )}
+
+          {/* Results Panel */}
+          {sidebarTab === 'results' && (
+            <div className="flex-1 overflow-hidden">
+              <SidebarResultsArea
+                results={generationResults}
+                onProjectToCanvas={handleProjectToCanvas}
+                onDeleteResult={handleDeleteResult}
+                onDeleteResults={handleDeleteResults}
+                theme={theme}
+                lang={lang}
+                isLoading={isResultsLoading}
+              />
+            </div>
           )}
 
           {/* Feature Assembly Panel */}
@@ -4596,19 +4710,70 @@ ${block.content}
             </div>
 
             <div className="relative">
+              {/* Content Sync Indicator */}
+              {contentSyncService.getCurrentState().prompt && (
+                <div className="absolute -top-3 left-6 px-3 py-1 bg-blue-500 text-white text-[8px] font-black uppercase rounded-full shadow-lg flex items-center gap-1 z-10">
+                  <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                  {lang === 'zh' ? '内容已同步到参数面板' : 'CONTENT SYNCED TO PARAMETER PANEL'}
+                </div>
+              )}
+              
               {/* Preset Prompt Active Indicator */}
               {getSelectedPromptContent() && (
-                <div className="absolute -top-3 left-6 px-3 py-1 bg-amber-500 text-white text-[8px] font-black uppercase rounded-full shadow-lg flex items-center gap-1">
+                <div className="absolute -top-3 right-6 px-3 py-1 bg-amber-500 text-white text-[8px] font-black uppercase rounded-full shadow-lg flex items-center gap-1">
                   <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
                   {lang === 'zh' ? '预设提示词已激活' : 'PRESET PROMPT ACTIVE'}
                 </div>
               )}
-              <textarea rows={5} value={sidebarInput} onChange={e => setSidebarInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSidebarSend())} placeholder={t.inputPlaceholder} className="w-full p-4 bg-transparent outline-none text-lg font-bold resize-none scrollbar-hide pr-20 border-2 border-amber-500/30 rounded-[2rem] focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 transition-all duration-300" />
+              
+              <textarea 
+                rows={5} 
+                value={sidebarInput} 
+                onChange={e => {
+                  setSidebarInput(e.target.value);
+                  // Auto-sync to parameter panel if it's open
+                  if (showParameterPanel && contentSyncService) {
+                    contentSyncService.syncFromChatDialog(
+                      e.target.value,
+                      {
+                        image: pendingChatImage || undefined,
+                        video: pendingChatVideo || undefined,
+                        file: pendingChatFile || undefined,
+                        videoUrl: pendingVideoUrl || undefined
+                      },
+                      parameterPanelType,
+                      parameterPanelModel
+                    );
+                  }
+                }} 
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSidebarSend())} 
+                placeholder={t.inputPlaceholder} 
+                className="w-full p-4 bg-transparent outline-none text-lg font-bold resize-none scrollbar-hide pr-20 border-2 border-amber-500/30 rounded-[2rem] focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 transition-all duration-300" 
+              />
+              
               <div className="absolute bottom-4 right-4 flex items-center gap-2">
                  {/* Clear Chat Button */}
                  <button onClick={() => setMessages([])} className="p-3 text-slate-400 hover:text-red-500 transition-colors" title={t.ctxClear}><Eraser size={22} /></button>
+                 
+                 {/* Parameter Panel Quick Access */}
+                 <button 
+                   onClick={() => {
+                     if (chatMode === 'image' || chatMode === 'video') {
+                       handleOpenParameterPanel(chatMode);
+                     } else {
+                       // Default to image if in text mode
+                       handleOpenParameterPanel('image');
+                     }
+                   }}
+                   className="p-3 text-slate-400 hover:text-violet-500 transition-colors" 
+                   title={lang === 'zh' ? '打开参数面板（自动同步当前内容）' : 'Open Parameter Panel (auto-sync current content)'}
+                 >
+                   <Sliders size={22} />
+                 </button>
+                 
                  <button onClick={() => chatImageInputRef.current?.click()} className="p-3 text-slate-400 hover:text-emerald-500 transition-colors" title={t.tips.upload}><ImagePlus size={22} /></button>
                  <button onClick={() => chatTextInputRef.current?.click()} className="p-3 text-slate-400 hover:text-blue-500 transition-colors" title={chatMode === 'text' && modelCapabilityDetector.isVideoUploadEnabled(chatMode, modelConfig) ? (lang === 'zh' ? '上传文件或视频' : 'Upload File or Video') : (lang === 'zh' ? '上传文件' : 'Upload File')}><Paperclip size={22} /></button>
+                 
                  {/* Voice Input Button - Voice to Text Input */}
                  <button 
                    onClick={toggleVoiceRecording}
@@ -4638,6 +4803,7 @@ ${block.content}
                      <span className="text-xl">🎤</span>
                    )}
                  </button>
+                 
                  <button onClick={handleSidebarSend} className="p-4 bg-slate-900 text-amber-400 rounded-2xl hover:scale-110 active:scale-95 transition-all shadow-lg"><Send size={24} fill="currentColor" /></button>
               </div>
             </div>
@@ -4703,6 +4869,8 @@ ${block.content}
           selectedModel={parameterPanelModel}
           generationType={parameterPanelType}
           onParametersChange={handleParametersChange}
+          contentSyncService={contentSyncService}
+          resultsManager={resultsManagerService}
           theme={theme}
           lang={lang}
         />

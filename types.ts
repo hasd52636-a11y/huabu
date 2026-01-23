@@ -2182,3 +2182,164 @@ export const DEFAULT_PARAMETER_PRESETS: ParameterPreset[] = [
     isDefault: true
   }
 ];
+
+/**
+ * Content Sync Service Interfaces
+ * 内容同步服务接口
+ */
+export interface ContentSyncState {
+  prompt: string;
+  attachments: {
+    image?: string;
+    video?: string;
+    file?: { name: string; content: string };
+    videoUrl?: string;
+  };
+  mode: 'text' | 'image' | 'video';
+  modelId: string;
+  lastSyncTimestamp: number;
+  source: 'chat' | 'parameter-panel';
+}
+
+export type ContentSyncListener = (state: ContentSyncState) => void;
+
+/**
+ * Results Manager Service Interfaces
+ * 结果管理服务接口
+ */
+export interface GenerationResult {
+  id: string;
+  type: 'text' | 'image' | 'video';
+  content: string; // URL for media, text content for text
+  thumbnail?: string; // Base64 thumbnail for media
+  metadata: {
+    prompt: string;
+    model: string;
+    parameters: GenerationParameters;
+    timestamp: number;
+    source: 'chat' | 'parameter-panel';
+  };
+  status: 'generating' | 'completed' | 'failed';
+  error?: string; // Error message if status is 'failed'
+}
+
+export interface StoredResults {
+  version: string;
+  results: GenerationResult[];
+  lastCleanup: number;
+}
+
+export type ResultsListener = (results: GenerationResult[]) => void;
+
+/**
+ * Thumbnail Generator Interfaces
+ * 缩略图生成器接口
+ */
+export interface ThumbnailOptions {
+  width?: number;
+  height?: number;
+  quality?: number;
+  format?: 'jpeg' | 'png' | 'webp';
+}
+
+/**
+ * Enhanced Parameter Panel Props
+ * 增强参数面板属性
+ */
+export interface EnhancedParameterPanelProps extends ParameterPanelProps {
+  contentSyncService?: IContentSyncService;
+  resultsManager?: IResultsManagerService;
+  initialSyncedContent?: ContentSyncState;
+}
+
+/**
+ * Sidebar Results Area Props
+ * 侧边栏结果区域属性
+ */
+export interface SidebarResultsAreaProps {
+  results: GenerationResult[];
+  onProjectToCanvas: (resultId: string) => void;
+  onDeleteResult: (resultId: string) => void;
+  onDeleteResults: (resultIds: string[]) => void;
+  theme: 'light' | 'dark';
+  lang: 'zh' | 'en';
+  isLoading?: boolean;
+}
+
+/**
+ * Results Grid Item Props
+ * 结果网格项属性
+ */
+export interface ResultsGridItemProps {
+  result: GenerationResult;
+  isSelected: boolean;
+  onSelect: (resultId: string) => void;
+  onProjectToCanvas: (resultId: string) => void;
+  onDelete: (resultId: string) => void;
+  theme: 'light' | 'dark';
+  lang: 'zh' | 'en';
+}
+
+/**
+ * Content Sync Service Interface
+ * 内容同步服务接口
+ */
+export interface IContentSyncService {
+  syncFromChatDialog(
+    prompt: string,
+    attachments: ContentSyncState['attachments'],
+    mode: 'text' | 'image' | 'video',
+    modelId: string
+  ): void;
+  
+  syncToChatDialog(
+    prompt: string,
+    attachments: ContentSyncState['attachments']
+  ): void;
+  
+  subscribe(listener: ContentSyncListener): () => void;
+  getCurrentState(): ContentSyncState;
+  clearState(): void;
+  hasPendingContent(): boolean;
+  getStateSummary(): string;
+}
+
+/**
+ * Results Manager Service Interface
+ * 结果管理服务接口
+ */
+export interface IResultsManagerService {
+  addResult(result: Omit<GenerationResult, 'id' | 'metadata'> & {
+    metadata: Omit<GenerationResult['metadata'], 'timestamp'>;
+  }): string;
+  
+  updateResult(id: string, updates: Partial<GenerationResult>): void;
+  getResults(): GenerationResult[];
+  getResult(id: string): GenerationResult | undefined;
+  deleteResult(id: string): boolean;
+  deleteResults(ids: string[]): number;
+  subscribe(listener: ResultsListener): () => void;
+  clearAll(): void;
+  getStats(): {
+    total: number;
+    byType: Record<string, number>;
+    byStatus: Record<string, number>;
+    storageSize: number;
+  };
+}
+
+/**
+ * Thumbnail Generator Interface
+ * 缩略图生成器接口
+ */
+export interface IThumbnailGenerator {
+  generateImageThumbnail(imageUrl: string, options?: ThumbnailOptions): Promise<string>;
+  generateVideoThumbnail(videoUrl: string, options?: ThumbnailOptions, seekTime?: number): Promise<string>;
+  clearCache(): void;
+  getCacheStats(): { size: number; memoryUsage: number };
+  cleanupCache(maxSize?: number): void;
+  generateBatch(
+    items: Array<{ url: string; type: 'image' | 'video' }>,
+    options?: ThumbnailOptions
+  ): Promise<Array<{ url: string; thumbnail: string; error?: string }>>;
+}

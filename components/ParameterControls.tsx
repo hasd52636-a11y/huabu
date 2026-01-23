@@ -26,6 +26,7 @@ interface ParameterControlsProps {
   availableParameters: ModelParameter[];
   onParameterChange: (key: string, value: any) => void;
   validationErrors: ParameterValidationError[];
+  syncedParameters?: string[]; // 新增：标识哪些参数是同步来的
   theme?: 'light' | 'dark';
   lang?: 'zh' | 'en';
 }
@@ -37,6 +38,7 @@ const ParameterControls: React.FC<ParameterControlsProps> = ({
   availableParameters,
   onParameterChange,
   validationErrors,
+  syncedParameters = [],
   theme = 'light',
   lang = 'zh'
 }) => {
@@ -103,26 +105,40 @@ const ParameterControls: React.FC<ParameterControlsProps> = ({
     const value = parameters[param.key as keyof GenerationParameters];
     const errors = getParameterErrors(param.key);
     const hasError = errors.length > 0;
+    const isSynced = syncedParameters.includes(param.key);
     
-    // 基础样式
-    const baseInputStyles = `w-full p-2 sm:p-3 border rounded-lg transition-colors input-violet ${
+    // 基础样式 - 为同步内容添加特殊样式
+    const baseInputStyles = `w-full p-2 sm:p-3 border rounded-lg transition-all duration-200 input-violet ${
       hasError 
         ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20' 
+        : isSynced
+        ? 'border-blue-300 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm shadow-blue-200 dark:shadow-blue-800/30'
         : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800'
-    } text-slate-900 dark:text-white`;
+    } text-slate-900 dark:text-white ${isSynced ? 'ring-1 ring-blue-200 dark:ring-blue-700' : ''}`;
+
+    // 同步标识组件
+    const SyncBadge = () => isSynced ? (
+      <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full shadow-sm flex items-center gap-1">
+        <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+        {lang === 'zh' ? '已同步' : 'Synced'}
+      </div>
+    ) : null;
 
     switch (param.type) {
       case 'text':
         return (
-          <textarea
-            value={value as string || ''}
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onParameterChange(param.key, e.target.value)}
-            placeholder={param.key === 'prompt' ? t[lang].promptPlaceholder : t[lang].negativePromptPlaceholder}
-            className={`${baseInputStyles} textarea-violet resize-none`}
-            rows={param.key === 'prompt' ? 3 : 2}
-            aria-describedby={hasError ? `${param.key}-error` : undefined}
-            aria-invalid={hasError}
-          />
+          <div className="relative">
+            <textarea
+              value={value as string || ''}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onParameterChange(param.key, e.target.value)}
+              placeholder={param.key === 'prompt' ? t[lang].promptPlaceholder : t[lang].negativePromptPlaceholder}
+              className={`${baseInputStyles} textarea-violet resize-none`}
+              rows={param.key === 'prompt' ? 3 : 2}
+              aria-describedby={hasError ? `${param.key}-error` : undefined}
+              aria-invalid={hasError}
+            />
+            <SyncBadge />
+          </div>
         );
       
       case 'select':
