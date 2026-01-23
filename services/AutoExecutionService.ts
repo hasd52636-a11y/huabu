@@ -1082,8 +1082,6 @@ export class AutoExecutionService {
         }
         
         if (shouldDownload) {
-          const batchId = `automation_single_${this.currentBatchIndex || 0}_${Date.now()}`;
-          
           // 生成带编号的文件名（从001开始）
           const paddedIndex = String(dataIndex + 1).padStart(3, '0');
           const numberedFilename = `${paddedIndex}_${filename}`;
