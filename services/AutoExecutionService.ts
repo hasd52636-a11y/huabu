@@ -459,20 +459,32 @@ export class AutoExecutionService {
           const originalPrompt = currentBlock.originalPrompt || currentBlock.content || '';
           prompt = this.replaceBatchVariables(originalPrompt, batchDataItem, dataIndex, batchData.length);
         } else {
-          // 后续节点：查找前一个节点的输出作为输入
-          const previousNode = executionPlan[nodeIndex - 1];
-          const previousBlock = blocks.find(b => b.id === previousNode.blockId);
+          // 后续节点：使用连接引擎获取上游数据
+          const originalPrompt = currentBlock.originalPrompt || currentBlock.content || '';
           
-          if (previousBlock?.content) {
-            // 如果前一个节点有输出，使用它作为当前节点的输入
-            const originalPrompt = currentBlock.originalPrompt || currentBlock.content || '';
-            prompt = this.replaceNodeVariables(originalPrompt, previousBlock.content, batchDataItem, dataIndex, batchData.length);
+          // 导入连接引擎来获取上游数据
+          const { connectionEngine } = await import('./ConnectionEngine');
+          const upstreamData = connectionEngine.getUpstreamData(currentNode.blockId);
+          
+          if (upstreamData.length > 0) {
+            // 有上游数据，进行变量替换
+            let resolvedPrompt = originalPrompt;
+            
+            // 替换变量引用 [A01], [B01] 等
+            for (const data of upstreamData) {
+              const variablePattern = new RegExp(`\\[${data.blockNumber}\\]`, 'g');
+              resolvedPrompt = resolvedPrompt.replace(variablePattern, data.content || '');
+            }
+            
+            // 替换批量数据变量
+            prompt = this.replaceBatchVariables(resolvedPrompt, batchDataItem, dataIndex, batchData.length);
           } else {
-            // 作为备选，使用当前块的配置
-            const originalPrompt = currentBlock.originalPrompt || currentBlock.content || '';
+            // 没有上游数据，直接使用原始提示词
             prompt = this.replaceBatchVariables(originalPrompt, batchDataItem, dataIndex, batchData.length);
           }
         }
+
+        console.log(`[AutoExecutionService] 执行节点 ${currentNode.blockNumber} (${currentNode.blockType}), 提示词: ${prompt.substring(0, 100)}...`);
 
         // 执行当前节点 - 等待完成
         await this.onNodeExecute?.(currentNode.blockId, prompt);
@@ -484,11 +496,14 @@ export class AutoExecutionService {
         
         this.progress.executionHistory.push(executionRecord);
 
+        console.log(`[AutoExecutionService] 节点 ${currentNode.blockNumber} 执行完成，耗时: ${executionRecord.duration}ms`);
+
         // 计算下一个节点的等待时间
         const waitTime = this.calculateWaitTime(currentNode.blockType, executionRecord.duration);
         
         // 等待指定时间后执行下一个节点
         if (nodeIndex < executionPlan.length - 1) {
+          console.log(`[AutoExecutionService] 等待 ${waitTime} 秒后执行下一个节点...`);
           await this.delay(waitTime * 1000);
         }
 

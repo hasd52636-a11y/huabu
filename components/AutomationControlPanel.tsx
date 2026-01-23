@@ -14,7 +14,7 @@ interface AutomationControlPanelProps {
   sidebarWidth?: number;
   showSidebar?: boolean;
   onConfigUpdate?: (config: {
-    executionMode: 'sequential' | 'parallel' | 'custom';
+    executionMode: 'conservative' | 'standard' | 'fast' | 'custom';
     customInterval: number;
     enableSmartInterval: boolean;
     resultHandling: 'canvas' | 'download';
@@ -36,7 +36,7 @@ const AutomationControlPanel: React.FC<AutomationControlPanelProps> = ({
   onConfigUpdate
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [executionMode, setExecutionMode] = useState<'sequential' | 'parallel' | 'custom'>('sequential');
+  const [executionMode, setExecutionMode] = useState<'conservative' | 'standard' | 'fast' | 'custom'>('standard');
   const [customInterval, setCustomInterval] = useState(2000);
   const [enableSmartInterval, setEnableSmartInterval] = useState(true);
   const [resultHandling, setResultHandling] = useState<'canvas' | 'download'>('canvas');
@@ -57,9 +57,10 @@ const AutomationControlPanel: React.FC<AutomationControlPanelProps> = ({
       pauseExecution: '暂停执行',
       stopExecution: '停止执行',
       executionMode: '执行模式',
-      sequential: '顺序执行',
-      parallel: '并行执行',
-      custom: '自定义',
+      conservative: '保守模式 (2-5分钟)',
+      standard: '标准模式 (1-3分钟)',
+      fast: '快速模式 (30秒-1.5分钟)',
+      custom: '自定义间隔',
       interval: '间隔时间',
       smartInterval: '智能间隔',
       resultHandling: '结果处理',
@@ -87,9 +88,10 @@ const AutomationControlPanel: React.FC<AutomationControlPanelProps> = ({
       pauseExecution: 'Pause Execution',
       stopExecution: 'Stop Execution',
       executionMode: 'Execution Mode',
-      sequential: 'Sequential',
-      parallel: 'Parallel',
-      custom: 'Custom',
+      conservative: 'Conservative (2-5min)',
+      standard: 'Standard (1-3min)',
+      fast: 'Fast (30s-1.5min)',
+      custom: 'Custom Interval',
       interval: 'Interval',
       smartInterval: 'Smart Interval',
       resultHandling: 'Result Handling',
@@ -266,8 +268,9 @@ const AutomationControlPanel: React.FC<AutomationControlPanelProps> = ({
                 onChange={(e) => setExecutionMode(e.target.value as any)}
                 className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm"
               >
-                <option value="sequential">{t.sequential}</option>
-                <option value="parallel">{t.parallel}</option>
+                <option value="conservative">{t.conservative}</option>
+                <option value="standard">{t.standard}</option>
+                <option value="fast">{t.fast}</option>
                 <option value="custom">{t.custom}</option>
               </select>
             </div>
