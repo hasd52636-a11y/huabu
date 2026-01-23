@@ -28,7 +28,7 @@ export interface ShenmaVideoOptions {
   aspectRatio?: '16:9' | '9:16';
   duration?: 10 | 15 | 25;
   hd?: boolean;
-  referenceImage?: string;
+  referenceImage?: string | string[]; // 支持单个图片或图片数组
   watermark?: boolean;
   private?: boolean;
   characterUrl?: string;
@@ -519,6 +519,30 @@ export class ShenmaService {
     // 检查prompt是否为空
     if (!prompt || prompt.trim() === '') {
       throw new Error('Prompt cannot be empty for video generation');
+    }
+    
+    // 检查是否是VEO模型，如果是则使用专用方法
+    if (options?.model && options.model.includes('veo')) {
+      console.log('[ShenmaService] Detected VEO model, using generateVideoViaVeo3');
+      
+      const veoParams: Veo3VideoParams = {
+        prompt: prompt,
+        model: options.model as any,
+        aspect_ratio: options.aspectRatio || '16:9',
+        duration: options.duration?.toString() as any || '10',
+        quality: 'standard'
+      };
+      
+      // 添加参考图像支持
+      if (options.referenceImage) {
+        if (Array.isArray(options.referenceImage)) {
+          veoParams.reference_images = options.referenceImage;
+        } else {
+          veoParams.reference_images = [options.referenceImage];
+        }
+      }
+      
+      return await this.generateVideoViaVeo3(veoParams);
     }
     
     // 检查是否包含角色引用 (@{username} 语法)

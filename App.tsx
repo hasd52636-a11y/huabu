@@ -3319,18 +3319,42 @@ Canvas 智能创作平台
         throw new Error(lang === 'zh' ? '缺少模型ID' : 'Missing model ID');
       }
 
+      // 获取完整的provider配置
+      const legacyConfig = convertNewToLegacyConfig(modelConfig);
+      let providerSettings: ProviderSettings;
+
+      if (type === 'text') {
+        providerSettings = legacyConfig.text;
+      } else if (type === 'image') {
+        providerSettings = legacyConfig.image;
+      } else if (type === 'video') {
+        providerSettings = legacyConfig.video;
+      } else {
+        throw new Error(`${lang === 'zh' ? '不支持的内容类型' : 'Unsupported content type'}: ${type}`);
+      }
+
+      // 如果用户选择了特定模型，更新modelId
+      providerSettings = { ...providerSettings, modelId };
+
+      console.log(`[generateContentToResults] Using provider settings for ${type}:`, {
+        provider: providerSettings.provider,
+        modelId: providerSettings.modelId,
+        hasApiKey: !!providerSettings.apiKey,
+        baseUrl: providerSettings.baseUrl
+      });
+
       // 使用现有的AI服务适配器生成内容
       let result: string;
 
       if (type === 'text') {
         result = await aiServiceAdapter.generateText(
           { parts: [{ text: parameters.prompt }] }, 
-          { modelId }
+          providerSettings
         );
       } else if (type === 'image') {
         result = await aiServiceAdapter.generateImage(parameters.prompt, {
+          ...providerSettings,
           aspectRatio: parameters.aspectRatio || '1:1',
-          modelId,
           negativePrompt: parameters.negativePrompt,
           steps: parameters.steps,
           guidance: parameters.guidance,
@@ -3338,14 +3362,12 @@ Canvas 智能创作平台
         });
       } else if (type === 'video') {
         result = await aiServiceAdapter.generateVideo(parameters.prompt, {
+          ...providerSettings,
           duration: parameters.duration || 5,
           aspectRatio: parameters.aspectRatio || '16:9',
-          modelId,
           fps: parameters.fps,
           quality: parameters.quality
         });
-      } else {
-        throw new Error(`${lang === 'zh' ? '不支持的内容类型' : 'Unsupported content type'}: ${type}`);
       }
 
       if (!result) {

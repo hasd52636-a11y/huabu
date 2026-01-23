@@ -252,7 +252,18 @@ export class MultiProviderAIService implements AIServiceAdapter {
       // 合并所有文本parts，忽略inlineData（图片数据），因为图片数据不应该作为文字输入
       const textParts = contents.parts
         .filter((part: any) => part.text && !part.inlineData)
-        .map((part: any) => part.text);
+        .map((part: any) => {
+          let text = part.text;
+          // 清理图片生成中的前缀
+          if (text.includes('用户指令:')) {
+            text = text.replace(/^.*用户指令:\s*/, '').trim();
+          } else if (text.includes('参考图片已上传。用户指令:')) {
+            text = text.replace(/^.*参考图片已上传。用户指令:\s*/, '').trim();
+          } else if (text.includes('User Instruction:')) {
+            text = text.replace(/^.*User Instruction:\s*/, '').trim();
+          }
+          return text;
+        });
       
       if (textParts.length > 0) {
         return textParts.join(' ').trim();
@@ -767,9 +778,16 @@ export class MultiProviderAIService implements AIServiceAdapter {
         if (contents && contents.parts) {
           contents.parts.forEach((part: any) => {
             if (part.text) {
-              // 只提取用户指令部分，忽略其他辅助信息
-              if (part.text.includes('User Instruction:') || part.text.includes('指令:')) {
-                userInstruction = part.text;
+              // 提取用户指令部分，并清理前缀
+              if (part.text.includes('User Instruction:')) {
+                // 提取 "User Instruction: " 后面的内容
+                userInstruction = part.text.replace(/^.*User Instruction:\s*/, '').trim();
+              } else if (part.text.includes('指令:')) {
+                // 提取 "指令: " 后面的内容
+                userInstruction = part.text.replace(/^.*指令:\s*/, '').trim();
+              } else {
+                // 如果没有前缀，直接使用文本内容
+                userInstruction = part.text.trim();
               }
             } else if (part.inlineData) {
               // 从inlineData中获取图片数据
