@@ -135,34 +135,6 @@ const App: React.FC = () => {
     sessionStorage.setItem('cache-buster', cacheKey);
   }, []);
   
-  // Runtime verification system
-  useEffect(() => {
-    // Verify that our debug system is working
-    const verifyDebugSystem = () => {
-      console.log('[VEO-VERIFY] Debug system verification:', {
-        hasGetProviderSettings: typeof getProviderSettings === 'function',
-        hasModelConfig: !!modelConfig,
-        currentVideoModel: modelConfig?.video?.modelId,
-        timestamp: new Date().toISOString(),
-        buildVersion: 'VEO-FIX-2.0'
-      });
-      
-      // Test VEO model detection
-      const testVeoDetection = (modelId: string) => {
-        const isVeo = modelId && modelId.includes('veo');
-        console.log('[VEO-VERIFY] VEO detection test:', { modelId, isVeo });
-        return isVeo;
-      };
-      
-      // Test with known VEO models
-      testVeoDetection('veo3.1-pro');
-      testVeoDetection('veo3-fast');
-      testVeoDetection('sora_video2'); // Should be false
-    };
-    
-    verifyDebugSystem();
-  }, [modelConfig]);
-  
   // 检查是否为观看模式
   const shareId = getShareIdFromUrl();
   
@@ -350,6 +322,34 @@ const App: React.FC = () => {
   const [presetPrompts, setPresetPrompts] = useState<PresetPrompt[]>([]);
   const [selectedPromptIndex, setSelectedPromptIndex] = useState<number | null>(null);
   const [showPresetPromptModal, setShowPresetPromptModal] = useState(false);
+
+  // Runtime verification system
+  useEffect(() => {
+    // Verify that our debug system is working
+    const verifyDebugSystem = () => {
+      console.log('[VEO-VERIFY] Debug system verification:', {
+        hasGetProviderSettings: typeof getProviderSettings === 'function',
+        hasModelConfig: !!modelConfig,
+        currentVideoModel: modelConfig?.video?.modelId,
+        timestamp: new Date().toISOString(),
+        buildVersion: 'VEO-FIX-2.0'
+      });
+      
+      // Test VEO model detection
+      const testVeoDetection = (modelId: string) => {
+        const isVeo = modelId && modelId.includes('veo');
+        console.log('[VEO-VERIFY] VEO detection test:', { modelId, isVeo });
+        return isVeo;
+      };
+      
+      // Test with known VEO models
+      testVeoDetection('veo3.1-pro');
+      testVeoDetection('veo3-fast');
+      testVeoDetection('sora_video2'); // Should be false
+    };
+    
+    verifyDebugSystem();
+  }, [modelConfig]);
 
   const chatImageInputRef = useRef<HTMLInputElement>(null);
   const chatTextInputRef = useRef<HTMLInputElement>(null);
@@ -2163,7 +2163,7 @@ const App: React.FC = () => {
         const updatedBlock = updatedBlocks.find(b => b.id === blockId);
         if (updatedBlock && result && result.trim()) {
           console.log(`[handleGenerate] Updating connection engine for block ${updatedBlock.number} with new content`);
-          connectionEngine.updateBlockData(blockId, result, updatedBlock.type, updatedBlock.number, updatedBlock);
+          connectionEngine.propagateData(blockId, result, updatedBlock.type, updatedBlock.number, updatedBlock);
         }
         
         return updatedBlocks;

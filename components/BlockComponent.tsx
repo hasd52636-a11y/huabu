@@ -744,7 +744,7 @@ const BlockComponent: React.FC<BlockProps> = ({
           // 更新连接引擎数据缓存，确保下游模块能获取到新内容
           if (result.items[0].content && result.items[0].content.trim()) {
             const { connectionEngine } = await import('../services/ConnectionEngine');
-            connectionEngine.updateBlockData(block.id, result.items[0].content, block.type, block.number, {
+            connectionEngine.propagateData(block.id, result.items[0].content, block.type, block.number, {
               ...block,
               content: result.items[0].content
             });
@@ -773,7 +773,7 @@ const BlockComponent: React.FC<BlockProps> = ({
       }
 
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const content = event.target?.result as string;
         
         // 根据块类型处理文件内容
@@ -788,7 +788,7 @@ const BlockComponent: React.FC<BlockProps> = ({
           // 更新连接引擎数据缓存，确保下游模块能获取到新内容
           if (content && content.trim()) {
             const { connectionEngine } = await import('../services/ConnectionEngine');
-            connectionEngine.updateBlockData(block.id, content, block.type, block.number, {
+            connectionEngine.propagateData(block.id, content, block.type, block.number, {
               ...block,
               attachmentContent: content,
               attachmentFileName: file.name
@@ -1084,7 +1084,7 @@ const BlockComponent: React.FC<BlockProps> = ({
       // 更新连接引擎数据缓存，确保下游模块能获取到新内容
       if (enhancedImage && enhancedImage.trim()) {
         const { connectionEngine } = await import('../services/ConnectionEngine');
-        connectionEngine.updateBlockData(block.id, enhancedImage, block.type, block.number, {
+        connectionEngine.propagateData(block.id, enhancedImage, block.type, block.number, {
           ...block,
           content: enhancedImage,
           originalPrompt: `${block.originalPrompt || '图片'} - 已增强`
@@ -1131,7 +1131,7 @@ const BlockComponent: React.FC<BlockProps> = ({
       // 更新连接引擎数据缓存，确保下游模块能获取到新内容
       if (processedImage && processedImage.trim()) {
         const { connectionEngine } = await import('../services/ConnectionEngine');
-        connectionEngine.updateBlockData(block.id, processedImage, block.type, block.number, {
+        connectionEngine.propagateData(block.id, processedImage, block.type, block.number, {
           ...block,
           content: processedImage,
           originalPrompt: `${block.originalPrompt || '图片'} - 已移除背景`
@@ -1231,7 +1231,7 @@ const BlockComponent: React.FC<BlockProps> = ({
       // 更新连接引擎数据缓存，确保下游模块能获取到新内容
       if (newVideoUrl && newVideoUrl.trim()) {
         const { connectionEngine } = await import('../services/ConnectionEngine');
-        connectionEngine.updateBlockData(block.id, newVideoUrl, block.type, block.number, {
+        connectionEngine.propagateData(block.id, newVideoUrl, block.type, block.number, {
           ...block,
           content: newVideoUrl,
           originalPrompt: `${block.originalPrompt || '视频'} - 已替换角色`

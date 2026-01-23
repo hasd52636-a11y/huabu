@@ -107,12 +107,12 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
           
           return {
             id: registration.modelId,
-            name: registration.metadata.displayName || formatModelName(registration.modelId),
-            displayName: registration.metadata.displayName || formatModelName(registration.modelId),
+            name: registration.metadata.name || formatModelName(registration.modelId),
+            displayName: registration.metadata.name || formatModelName(registration.modelId),
             provider: platform as ProviderType,
             type: 'standard' as ModelType,
             capabilities: {
-              isRecommended: registration.priority >= 90,
+              isRecommended: registration.metadata.capabilities?.includes('recommended') || false,
               supportsImages: generationType === 'image' || registration.metadata.capabilities?.includes('multimodal'),
               supportsVideo: generationType === 'video',
               supportsInternet: registration.metadata.capabilities?.includes('internet'),
