@@ -258,7 +258,8 @@ const SimpleViewerPage: React.FC<SimpleViewerPageProps> = ({ shareId }) => {
           <div 
             className="relative bg-white"
             style={{
-              transform: `translate(${shareData.canvasState.pan.x}px, ${shareData.canvasState.pan.y}px)`,
+              // 应用与ShareKitViewerPage相同的偏移调整：向上和向左移动
+              transform: `translate(${shareData.canvasState.pan.x + 200}px, ${shareData.canvasState.pan.y + 180}px)`,
               minWidth: '200vw',
               minHeight: '200vh'
             }}

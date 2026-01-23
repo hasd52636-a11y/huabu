@@ -33,10 +33,11 @@ const generateSafeTransform = (pan: any, zoom: any) => {
   // 在分享页面中应用35%的缩小比例，保持左上角对齐
   const viewerScale = safeZoom * 0.65; // 缩小35%
   
-  // 添加偏移量：向右移动一个模块宽度(200px)，向下移动一个模块高度(150px)
-  // 大幅增加偏移量以确保内容不会太靠上和太靠左
-  const offsetX = 400; // 大幅增加向右偏移量
-  const offsetY = 350; // 大幅增加向下偏移量
+  // 根据用户要求：将画面向上和向左移动
+  // 向左移动：减少X偏移量（负值表示向左）
+  // 向上移动：减少Y偏移量（负值表示向上）
+  const offsetX = 200; // 减少向右偏移量，相当于向左移动
+  const offsetY = 180; // 减少向下偏移量，相当于向上移动
   const adjustedPanX = safePan.x + offsetX;
   const adjustedPanY = safePan.y + offsetY;
   

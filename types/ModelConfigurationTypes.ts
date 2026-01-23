@@ -43,6 +43,90 @@ export type GenerationType = 'text' | 'image' | 'video';
 export type ModelCheckPriority = 'high' | 'normal' | 'low';
 
 // ============================================================================
+// MODEL REGISTRY INTERFACES
+// ============================================================================
+
+/**
+ * Provider type
+ */
+export type ProviderType = 'shenma' | 'google' | 'openai' | 'anthropic' | 'local';
+
+/**
+ * Model metadata
+ */
+export interface ModelMetadata {
+  name: string;
+  description: string;
+  version: string;
+  capabilities: string[];
+  limitations: string[];
+  pricing?: {
+    inputTokens: number;
+    outputTokens: number;
+    currency: string;
+  };
+  contextWindow?: number;
+  maxOutputTokens?: number;
+}
+
+/**
+ * Model registration
+ */
+export interface ModelRegistration {
+  modelId: string;
+  generationType: GenerationType;
+  provider: ProviderType;
+  metadata: ModelMetadata;
+  isEnabled: boolean;
+  isDeprecated: boolean;
+  registeredAt: number;
+  lastUpdated: number;
+}
+
+/**
+ * Model lookup result
+ */
+export interface ModelLookupResult {
+  found: boolean;
+  registration?: ModelRegistration;
+  metadata?: ModelMetadata;
+  isAvailable: boolean;
+}
+
+/**
+ * Model Registry interface
+ */
+export interface ModelRegistry {
+  // Register model
+  registerModel(registration: ModelRegistration): void;
+  
+  // Unregister model
+  unregisterModel(modelId: string, generationType: GenerationType): boolean;
+  
+  // Lookup model
+  lookupModel(modelId: string, generationType: GenerationType): ModelLookupResult | null;
+  
+  // Lookup by type
+  lookupByType(generationType: GenerationType): ModelLookupResult[];
+  
+  // Lookup by provider
+  lookupByProvider(provider: ProviderType): ModelLookupResult[];
+  
+  // Get all models
+  getAllModels(): ModelRegistration[];
+  
+  // Search models
+  searchModels(criteria: {
+    query?: string;
+    generationType?: GenerationType;
+    provider?: ProviderType;
+    isEnabled?: boolean;
+    isDeprecated?: boolean;
+    capabilities?: string[];
+  }): ModelLookupResult[];
+}
+
+// ============================================================================
 // MODEL ID MAPPING INTERFACES
 // ============================================================================
 
@@ -65,6 +149,9 @@ export interface ModelIdMapper {
   // Get API ID for internal model ID
   getApiId(internalId: string, generationType: GenerationType): string | null;
   
+  // Map model ID (alias for getApiId for backward compatibility)
+  mapModelId(internalId: string, generationType: GenerationType): string | null;
+  
   // Get internal ID for API ID
   getInternalId(apiId: string, generationType: GenerationType): string | null;
   
@@ -76,6 +163,9 @@ export interface ModelIdMapper {
   
   // Get all mappings for a generation type
   getMappings(generationType: GenerationType): ModelIdMapping[];
+  
+  // Get all mappings
+  getAllMappings(): ModelIdMapping[];
   
   // Validate all mappings
   validateMappings(): Promise<ModelMappingValidationResult>;

@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef } from 'react';
 
 interface TaggedInputProps {
   value: string;
@@ -20,23 +20,34 @@ const TaggedInput = React.forwardRef<HTMLTextAreaElement, TaggedInputProps>(({
   lang = 'zh',
   onTagHover,
   upstreamData = []
-}, ref) => {
+}, forwardedRef) => {
+  
+  const internalRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = forwardedRef || internalRef;
   
   const insertTag = useCallback((blockNumber: string) => {
-    const tagText = `#${blockNumber}`;
+    const tagText = `[${blockNumber}]`;
     const newValue = value + (value ? ' ' : '') + tagText;
     onChange(newValue);
   }, [value, onChange]);
 
-  React.useImperativeHandle(ref, () => ({
+  React.useImperativeHandle(forwardedRef, () => ({
     insertTag,
-    focus: () => (ref as any)?.current?.focus(),
-    blur: () => (ref as any)?.current?.blur()
-  }), [insertTag]);
+    focus: () => {
+      if (textareaRef && 'current' in textareaRef && textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    },
+    blur: () => {
+      if (textareaRef && 'current' in textareaRef && textareaRef.current) {
+        textareaRef.current.blur();
+      }
+    }
+  }), [insertTag, textareaRef]);
 
   return (
     <textarea
-      ref={ref as any}
+      ref={textareaRef}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onKeyDown={onKeyDown}

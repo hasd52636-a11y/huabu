@@ -34,6 +34,14 @@ export class ModelIdMapper implements IModelIdMapper {
   }
 
   /**
+   * Map model ID (alias for getApiId for backward compatibility)
+   * This method is used by other services that expect mapModelId
+   */
+  mapModelId(internalId: string, generationType: GenerationType): string | null {
+    return this.getApiId(internalId, generationType);
+  }
+
+  /**
    * Get internal ID for API ID
    */
   getInternalId(apiId: string, generationType: GenerationType): string | null {
@@ -419,6 +427,13 @@ export class ModelIdMapper implements IModelIdMapper {
       mapping.isActive = isActive;
       mapping.lastValidated = Date.now();
     }
+  }
+
+  /**
+   * Get all mappings
+   */
+  getAllMappings(): ModelIdMapping[] {
+    return Array.from(this.mappings.values());
   }
 
   /**

@@ -7,9 +7,9 @@
 
 import {
   UnifiedModelInterface as IUnifiedModelInterface,
-  ModelRequest,
-  ModelResponse,
-  ModelError,
+  UnifiedModelRequest,
+  UnifiedModelResponse,
+  ModelConfigurationError,
   GenerationType,
   ModelTransitionRequest,
   ModelTransitionResponse
@@ -41,7 +41,7 @@ export class UnifiedModelInterface implements IUnifiedModelInterface {
   /**
    * Execute model request with unified interface
    */
-  async executeModelRequest(request: ModelRequest): Promise<ModelResponse> {
+  async executeModelRequest(request: UnifiedModelRequest): Promise<UnifiedModelResponse> {
     const startTime = Date.now();
     
     try {

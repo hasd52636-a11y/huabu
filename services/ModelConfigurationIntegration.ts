@@ -17,10 +17,10 @@ import { ConfigurationStorage } from './ConfigurationStorage';
 
 import {
   GenerationType,
-  ModelRequest,
-  ModelResponse,
-  ValidationRequest,
-  ValidationResult,
+  UnifiedModelRequest,
+  UnifiedModelResponse,
+  ConfigurationValidationRequest,
+  ConfigurationValidationResult,
   ModelLookupResult
 } from '../types/ModelConfigurationTypes';
 
@@ -143,7 +143,7 @@ export class ModelConfigurationIntegration {
   /**
    * Execute model request through unified interface
    */
-  async executeModelRequest(request: ModelRequest): Promise<ModelResponse> {
+  async executeModelRequest(request: UnifiedModelRequest): Promise<UnifiedModelResponse> {
     this.ensureInitialized();
     return await this.unifiedInterface.executeModelRequest(request);
   }

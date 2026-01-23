@@ -282,14 +282,18 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
         if (!validation.isValid) {
           validationError = validation.error || 'Model validation failed';
           
-          // Try to get model mapping for debugging
-          const mapping = modelConfigurationIntegration.getModelMapping(
-            selectedModelId, 
-            generationType as 'text' | 'image' | 'video'
-          );
-          
-          if (!mapping.isValid) {
-            console.warn(`[ModelSelector] Invalid model mapping for ${selectedModelId}:`, mapping);
+          // Try to get model mapping for debugging - only if initialized
+          try {
+            const mapping = modelConfigurationIntegration.getModelMapping(
+              selectedModelId, 
+              generationType as 'text' | 'image' | 'video'
+            );
+            
+            if (!mapping.isValid) {
+              console.warn(`[ModelSelector] Invalid model mapping for ${selectedModelId}:`, mapping);
+            }
+          } catch (error) {
+            console.warn(`[ModelSelector] Could not get model mapping (system may not be initialized):`, error);
           }
         }
       }).catch(error => {
