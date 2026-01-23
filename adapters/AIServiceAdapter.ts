@@ -180,17 +180,62 @@ export class MultiProviderAIService implements AIServiceAdapter {
 
     if (settings.provider === 'zhipu') {
       console.log('[AIServiceAdapter] Creating/updating ZhipuService instance');
+      
+      // 使用用户选择的模型，如果没有则使用默认模型
+      const llmModel = this.getZhipuModelForType('text', settings.modelId) || 'glm-4-flash';
+      const imageModel = this.getZhipuModelForType('image', settings.modelId) || 'cogview-3-flash';
+      const videoModel = this.getZhipuModelForType('video', settings.modelId) || 'cogvideox-flash';
+      
+      console.log('[AIServiceAdapter] Zhipu models:', { llmModel, imageModel, videoModel, userSelected: settings.modelId });
+      
       this.zhipuService = new ZhipuService({
         provider: 'zhipu',
         baseUrl: settings.baseUrl || 'https://open.bigmodel.cn/api/paas/v4',
         apiKey: settings.apiKey || '',
-        llmModel: 'glm-4-flash',
-        imageModel: 'cogview-3-flash',
-        videoModel: 'cogvideox-flash',
+        llmModel,
+        imageModel,
+        videoModel,
         visionModel: 'glm-4v-flash'
       });
       console.log('[AIServiceAdapter] ✓ ZhipuService initialized/updated');
     }
+  }
+
+  /**
+   * 获取智谱服务支持的模型，根据类型和用户选择
+   */
+  private getZhipuModelForType(type: 'text' | 'image' | 'video', userModelId?: string): string | null {
+    if (!userModelId || !userModelId.trim()) {
+      return null;
+    }
+    
+    const model = userModelId.toLowerCase();
+    
+    // 智谱文本模型
+    if (type === 'text') {
+      const zhipuTextModels = ['glm-4-flash', 'glm-4', 'glm-4-plus', 'glm-4v-flash', 'glm-4v'];
+      if (zhipuTextModels.includes(model)) {
+        return userModelId;
+      }
+    }
+    
+    // 智谱图片模型
+    if (type === 'image') {
+      const zhipuImageModels = ['cogview-3-flash', 'cogview-3', 'cogview-3-plus'];
+      if (zhipuImageModels.includes(model)) {
+        return userModelId;
+      }
+    }
+    
+    // 智谱视频模型
+    if (type === 'video') {
+      const zhipuVideoModels = ['cogvideox-flash', 'cogvideox', 'cogvideox-2b'];
+      if (zhipuVideoModels.includes(model)) {
+        return userModelId;
+      }
+    }
+    
+    return null; // 不支持的模型返回null，使用默认模型
   }
 
   /**
@@ -492,12 +537,18 @@ export class MultiProviderAIService implements AIServiceAdapter {
             quality: 'standard'
           };
           
-          // 从contents中提取选项
+          // 优先使用用户选择的模型，然后从contents中提取选项
+          if (settings.modelId && settings.modelId.trim()) {
+            console.log(`[AIServiceAdapter] Using user-selected image model: ${settings.modelId}`);
+            options.model = settings.modelId;
+          }
+          
+          // 从contents中提取选项（如果contents中有model且用户没有选择，则使用contents中的）
           if (contents && typeof contents === 'object') {
             if (contents.aspectRatio) options.aspectRatio = contents.aspectRatio;
             if (contents.imageSize) options.imageSize = contents.imageSize;
             if (contents.count) options.count = contents.count;
-            if (contents.model) options.model = contents.model;
+            if (contents.model && !settings.modelId) options.model = contents.model; // 只有用户没选择时才使用contents中的model
             if (contents.style) options.style = contents.style;
             // 新增：支持Volc API选项
             if (contents.isVolcAPI) options.isVolcAPI = contents.isVolcAPI;
@@ -552,9 +603,24 @@ export class MultiProviderAIService implements AIServiceAdapter {
 
         if (settings.provider === 'zhipu' && this.zhipuService) {
           const prompt = this.convertContents(contents);
-          const result = await this.zhipuService.generateImage(prompt, {
+          
+          // 智谱服务只能使用智谱自己的模型，不能使用神马的模型
+          const imageOptions: any = {
             size: '1024x1024'
-          });
+          };
+          
+          // 只有当用户选择的是智谱支持的模型时才使用
+          if (settings.modelId && settings.modelId.trim()) {
+            const zhipuImageModels = ['cogview-3-flash', 'cogview-3', 'cogview-3-plus'];
+            if (zhipuImageModels.includes(settings.modelId)) {
+              console.log(`[AIServiceAdapter] Using user-selected Zhipu image model: ${settings.modelId}`);
+              imageOptions.model = settings.modelId;
+            } else {
+              console.log(`[AIServiceAdapter] User selected model "${settings.modelId}" is not supported by Zhipu, using default`);
+            }
+          }
+          
+          const result = await this.zhipuService.generateImage(prompt, imageOptions);
 
           // 更新token消耗
           if (this.tokenUpdateCallback) {
@@ -787,20 +853,25 @@ export class MultiProviderAIService implements AIServiceAdapter {
         // 图片将单独传递，不合并到prompt中
 
         if (settings.provider === 'shenma' && this.shenmaService) {
-          // 使用智能视频模型选择策略
-          const videoStrategy = this.getVideoModelStrategy({
+          // 优先使用用户选择的模型，否则使用智能策略
+          const userSelectedModel = settings.modelId;
+          const videoStrategy = this.getEnhancedVideoStrategy(userSelectedModel, {
             duration,
             aspectRatio,
             quality,
             priority: 'quality' // 默认优先质量
           });
 
-          console.log(`[AIServiceAdapter] Video generation strategy:`, videoStrategy);
+          console.log(`[AIServiceAdapter] Video model selection:`, {
+            userSelected: userSelectedModel,
+            primary: videoStrategy.primary,
+            fallback: videoStrategy.fallback
+          });
           
           const videoOptions: any = {
             aspectRatio,
             duration,
-            model: videoStrategy.primary // 使用主选模型
+            model: videoStrategy.primary // 现在会优先使用用户选择的模型
           };
 
           console.log(`[AIServiceAdapter] Final video options being sent to ShenmaService:`, {
@@ -926,10 +997,24 @@ export class MultiProviderAIService implements AIServiceAdapter {
         }
 
         if (settings.provider === 'zhipu' && this.zhipuService) {
-          const result = await this.zhipuService.generateVideo(formattedPrompt, {
+          // 智谱服务只能使用智谱自己的视频模型
+          const videoOptions: any = {
             duration: 10,
             imageUrl: referenceImages[0]
-          });
+          };
+          
+          // 只有当用户选择的是智谱支持的视频模型时才使用
+          if (settings.modelId && settings.modelId.trim()) {
+            const zhipuVideoModels = ['cogvideox-flash', 'cogvideox', 'cogvideox-2b'];
+            if (zhipuVideoModels.includes(settings.modelId)) {
+              console.log(`[AIServiceAdapter] Using user-selected Zhipu video model: ${settings.modelId}`);
+              videoOptions.model = settings.modelId;
+            } else {
+              console.log(`[AIServiceAdapter] User selected model "${settings.modelId}" is not supported by Zhipu, using default`);
+            }
+          }
+          
+          const result = await this.zhipuService.generateVideo(formattedPrompt, videoOptions);
           
           if (!result) {
             throw new Error('Video generation returned null result');
@@ -1032,6 +1117,64 @@ export class MultiProviderAIService implements AIServiceAdapter {
         }
       }
     }
+  }
+
+  /**
+   * 增强的视频模型选择策略 - 优先使用用户选择的模型
+   */
+  private getEnhancedVideoStrategy(
+    userModel: string | undefined,
+    requirements: {
+      duration?: number;
+      aspectRatio?: '16:9' | '9:16';
+      quality?: 'standard' | 'hd';
+      priority?: 'speed' | 'quality' | 'compatibility';
+    }
+  ): { primary: string; fallback: string; extended?: string } {
+    
+    // If user selected a specific model, prioritize it
+    if (userModel && userModel.trim()) {
+      console.log(`[AIServiceAdapter] Using user-selected video model: ${userModel}`);
+      
+      return {
+        primary: userModel,
+        fallback: this.getCompatibleFallback(userModel),
+        extended: this.getVideoModelStrategy(requirements).primary
+      };
+    }
+    
+    // Otherwise use existing automatic strategy
+    console.log('[AIServiceAdapter] No user model selected, using automatic strategy');
+    return this.getVideoModelStrategy(requirements);
+  }
+
+  /**
+   * 获取兼容的备选模型 - 基于模型系列的智能备选
+   */
+  private getCompatibleFallback(userModel: string): string {
+    const model = userModel.toLowerCase();
+    
+    // VEO model fallbacks
+    if (model.startsWith('veo')) {
+      if (model.includes('pro')) return 'veo3';
+      if (model.includes('fast')) return 'veo3';
+      return 'veo3-fast';
+    }
+    
+    // Sora model fallbacks  
+    if (model.startsWith('sora')) {
+      if (model.includes('portrait')) return 'sora_video2';
+      if (model.includes('landscape')) return 'sora_video2';
+      return 'sora_video2-landscape';
+    }
+    
+    // WanX model fallbacks
+    if (model.includes('wanx') || model.includes('wan')) {
+      return 'wanx2.1-vace-plus';
+    }
+    
+    // Default fallback to most stable model
+    return 'sora_video2';
   }
 
   /**

@@ -3327,8 +3327,19 @@ Canvas 智能创作平台
 
   // Parameter Panel handlers
   const handleOpenParameterPanel = (type: 'image' | 'video', modelId?: string) => {
+    const selectedModelId = modelId || (type === 'image' ? modelConfig.image.modelId : modelConfig.video.modelId);
+    
+    // 检查是否选择了模型
+    if (!selectedModelId || selectedModelId.trim() === '') {
+      showError(
+        lang === 'zh' ? '请先选择模型' : 'Please select a model first',
+        lang === 'zh' ? `请先选择${type === 'image' ? '图像' : '视频'}模型，然后再打开参数面板` : `Please select a ${type} model before opening the parameter panel`
+      );
+      return;
+    }
+    
     setParameterPanelType(type);
-    setParameterPanelModel(modelId || (type === 'image' ? modelConfig.image.modelId : modelConfig.video.modelId));
+    setParameterPanelModel(selectedModelId);
     setShowParameterPanel(true);
   };
 
@@ -4446,8 +4457,17 @@ ${block.content}
                     <div className="flex-1">
                       <button
                         onClick={() => handleOpenParameterPanel('image', modelConfig.image.modelId)}
-                        className="w-full h-[44px] p-2 bg-violet-500 hover:bg-violet-600 text-white rounded-lg transition-colors flex items-center justify-center gap-1 text-xs font-medium"
-                        title={lang === 'zh' ? '图像参数设置' : 'Image Parameters'}
+                        disabled={!modelConfig.image.modelId || modelConfig.image.modelId.trim() === ''}
+                        className={`w-full h-[44px] p-2 rounded-lg transition-colors flex items-center justify-center gap-1 text-xs font-medium ${
+                          !modelConfig.image.modelId || modelConfig.image.modelId.trim() === ''
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-violet-500 hover:bg-violet-600 text-white'
+                        }`}
+                        title={
+                          !modelConfig.image.modelId || modelConfig.image.modelId.trim() === ''
+                            ? (lang === 'zh' ? '请先选择图像模型' : 'Please select an image model first')
+                            : (lang === 'zh' ? '图像参数设置' : 'Image Parameters')
+                        }
                       >
                         <Settings size={14} />
                         <span className="hidden sm:inline">{lang === 'zh' ? '参数' : 'Params'}</span>
@@ -4496,8 +4516,17 @@ ${block.content}
                     <div className="flex-1">
                       <button
                         onClick={() => handleOpenParameterPanel('video', modelConfig.video.modelId)}
-                        className="w-full h-[44px] p-2 bg-violet-500 hover:bg-violet-600 text-white rounded-lg transition-colors flex items-center justify-center gap-1 text-xs font-medium"
-                        title={lang === 'zh' ? '视频参数设置' : 'Video Parameters'}
+                        disabled={!modelConfig.video.modelId || modelConfig.video.modelId.trim() === ''}
+                        className={`w-full h-[44px] p-2 rounded-lg transition-colors flex items-center justify-center gap-1 text-xs font-medium ${
+                          !modelConfig.video.modelId || modelConfig.video.modelId.trim() === ''
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-violet-500 hover:bg-violet-600 text-white'
+                        }`}
+                        title={
+                          !modelConfig.video.modelId || modelConfig.video.modelId.trim() === ''
+                            ? (lang === 'zh' ? '请先选择视频模型' : 'Please select a video model first')
+                            : (lang === 'zh' ? '视频参数设置' : 'Video Parameters')
+                        }
                       >
                         <Settings size={14} />
                         <span className="hidden sm:inline">{lang === 'zh' ? '参数' : 'Params'}</span>
