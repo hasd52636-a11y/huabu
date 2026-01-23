@@ -86,23 +86,41 @@ export class AutoExecutionService {
 
     // 为每个块创建执行节点
     for (const block of blocks) {
+      // 防御性编程：确保 block 有必要的属性
+      if (!block || !block.id) {
+        console.warn('[AutoExecutionService] Invalid block found, skipping:', block);
+        continue;
+      }
+
       const dependencies = connections
         .filter(conn => conn.toId === block.id)
         .map(conn => conn.fromId);
 
+      // 确保 blockType 是有效的
+      const blockType = block.type || 'text';
+      if (!['text', 'image', 'video'].includes(blockType)) {
+        console.warn(`[AutoExecutionService] Invalid block type: ${blockType}, using 'text' as default`);
+      }
+
       nodes.push({
         blockId: block.id,
-        blockNumber: block.number,
-        blockType: block.type,
+        blockNumber: block.number || `Block_${nodes.length + 1}`,
+        blockType: blockType as BlockType,
         dependencies,
-        estimatedDuration: this.estimateExecutionTime(block.type)
+        estimatedDuration: this.estimateExecutionTime(blockType as BlockType)
       });
+    }
+
+    if (nodes.length === 0) {
+      console.warn('[AutoExecutionService] No valid blocks found for execution');
+      return [];
     }
 
     // 按依赖关系排序（拓扑排序）
     const sortedNodes = this.topologicalSort(nodes);
     this.executionNodes = sortedNodes;
     
+    console.log(`[AutoExecutionService] Analyzed workflow: ${sortedNodes.length} nodes`);
     return sortedNodes;
   }
 
@@ -310,7 +328,7 @@ export class AutoExecutionService {
       image: 60,   // 图片生成约60秒
       video: 180   // 视频生成约3分钟
     };
-    return estimates[blockType];
+    return estimates[blockType] || estimates.text; // 如果 blockType 无效，使用 text 的默认值
   }
 
   /**
@@ -318,7 +336,17 @@ export class AutoExecutionService {
    */
   private calculateTotalEstimatedTime(nodes: ExecutionNode[]): number {
     return nodes.reduce((total, node) => {
-      const interval = this.DEFAULT_INTERVALS[this.config.mode][node.blockType];
+      // 防御性编程：确保 blockType 是有效的
+      const blockType = node.blockType || 'text'; // 默认为 text
+      const modeIntervals = this.DEFAULT_INTERVALS[this.config.mode];
+      
+      if (!modeIntervals) {
+        console.warn(`[AutoExecutionService] Unknown execution mode: ${this.config.mode}, using standard mode`);
+        const interval = this.DEFAULT_INTERVALS.standard[blockType] || this.DEFAULT_INTERVALS.standard.text;
+        return total + node.estimatedDuration + interval;
+      }
+      
+      const interval = modeIntervals[blockType] || modeIntervals.text; // 如果 blockType 无效，使用 text 作为默认值
       return total + node.estimatedDuration + interval;
     }, 0) * 1000; // 转换为毫秒
   }
