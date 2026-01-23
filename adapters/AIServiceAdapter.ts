@@ -796,6 +796,13 @@ export class MultiProviderAIService implements AIServiceAdapter {
           });
 
           console.log(`[AIServiceAdapter] Video generation strategy:`, videoStrategy);
+          
+          const videoOptions: any = {
+            aspectRatio,
+            duration,
+            model: videoStrategy.primary // 使用主选模型
+          };
+
           console.log(`[AIServiceAdapter] Final video options being sent to ShenmaService:`, {
             aspectRatio: videoOptions.aspectRatio,
             duration: videoOptions.duration,
@@ -804,12 +811,6 @@ export class MultiProviderAIService implements AIServiceAdapter {
             hasCharacterUrl: !!videoOptions.characterUrl,
             hasCharacterTimestamps: !!videoOptions.characterTimestamps
           });
-
-          const videoOptions: any = {
-            aspectRatio,
-            duration,
-            model: videoStrategy.primary // 使用主选模型
-          };
           
           // 传递参考图像数组
           if (referenceImages.length > 0) {
