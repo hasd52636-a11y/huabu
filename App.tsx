@@ -2085,7 +2085,14 @@ const App: React.FC = () => {
           hasCharacterTimestamps: !!videoContents.characterTimestamps
         });
         
-        result = await aiServiceAdapter.generateVideo(videoContents, legacyConfig.video);
+        // 使用用户选择的视频模型
+        const videoSettings = getProviderSettings(modelConfig, 'video');
+        console.log('[handleGenerate] Using video model from UI selection:', {
+          selectedModel: modelConfig.video.modelId,
+          provider: videoSettings.provider,
+          modelId: videoSettings.modelId
+        });
+        result = await aiServiceAdapter.generateVideo(videoContents, videoSettings);
       }
       
       // 更新块内容，并设置originalPrompt
@@ -2227,7 +2234,7 @@ ${inputText || "Generate from attachment"}
     }
     
     try {
-      // 对于文本模式，使用用户选择的模型；其他模式使用配置中的默认模型
+      // 对于所有模式，都使用用户选择的模型
       let settings: ProviderSettings;
       if (currentMode === 'text') {
         // 创建临时配置以使用选择的文本模型
@@ -2236,8 +2243,17 @@ ${inputText || "Generate from attachment"}
           text: { provider: modelConfig.text.provider, modelId: selectedTextModel }
         };
         settings = getProviderSettings(tempConfig, 'text');
+      } else if (currentMode === 'image') {
+        // 使用用户选择的图像模型
+        settings = getProviderSettings(modelConfig, 'image');
       } else {
-        settings = currentMode === 'image' ? legacyConfig.image : legacyConfig.video;
+        // 使用用户选择的视频模型
+        settings = getProviderSettings(modelConfig, 'video');
+        console.log('[handleSidebarSend] Using video model from UI selection:', {
+          selectedModel: modelConfig.video.modelId,
+          provider: settings.provider,
+          modelId: settings.modelId
+        });
       }
       
       let result = '';
@@ -3082,12 +3098,15 @@ Canvas 智能创作平台
 
     try {
       // Use the enhanced batch processor with minimization support
+      // 使用用户选择的视频模型
+      const videoSettings = getProviderSettings(modelConfig, 'video');
+      
       if (txtFile) {
         // File-based processing
         await batchProcessor.startBatchProcessingEnhanced(
           { type: 'file', file: txtFile },
           config,
-          legacyConfig.video,
+          videoSettings,
           selectedFrames || []
         );
       } else {
@@ -3095,7 +3114,7 @@ Canvas 智能创作平台
         await batchProcessor.startBatchProcessingEnhanced(
           { type: 'blocks', blocks: selectedBlocks, videoPrompts },
           config,
-          legacyConfig.video,
+          videoSettings,
           selectedFrames || []
         );
       }
