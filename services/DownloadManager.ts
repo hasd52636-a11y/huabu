@@ -227,14 +227,26 @@ export class DownloadManager {
     
     if (batchItems.length === 0) return;
 
+    console.log(`[DownloadManager] 开始处理批次 ${batchId}，共 ${batchItems.length} 个文件`);
+
     // 对于自动化批量下载，使用顺序下载避免浏览器限制
     if (this.config.enableSilentDownload) {
-      for (const item of batchItems) {
-        await this.downloadItem(item);
+      // 顺序下载，每个文件之间有短暂延迟
+      for (let i = 0; i < batchItems.length; i++) {
+        const item = batchItems[i];
         
-        // 在下载之间添加延迟，避免浏览器阻止
-        if (this.config.batchDownloadDelay && this.config.batchDownloadDelay > 0) {
-          await new Promise(resolve => setTimeout(resolve, this.config.batchDownloadDelay));
+        console.log(`[DownloadManager] 下载进度: ${i + 1}/${batchItems.length} - ${item.filename}`);
+        
+        try {
+          await this.downloadItem(item);
+          
+          // 在下载之间添加延迟，避免浏览器阻止
+          if (i < batchItems.length - 1 && this.config.batchDownloadDelay && this.config.batchDownloadDelay > 0) {
+            await new Promise(resolve => setTimeout(resolve, this.config.batchDownloadDelay));
+          }
+        } catch (error) {
+          console.error(`[DownloadManager] 下载失败: ${item.filename}`, error);
+          // 继续下载其他文件，不中断整个批次
         }
       }
     } else {
@@ -249,6 +261,7 @@ export class DownloadManager {
       }
     }
 
+    console.log(`[DownloadManager] 批次 ${batchId} 处理完成`);
     this.checkBatchCompletion(batchId);
   }
 
@@ -406,34 +419,106 @@ export class DownloadManager {
   }
 
   /**
-   * 静默下载方法 - 使用现代浏览器API
+   * 静默下载方法 - 真正的静默下载实现
    */
   private async triggerSilentDownload(blob: Blob, filename: string, downloadPath?: string): Promise<void> {
     try {
-      // 对于自动化批量下载，直接使用传统方法但不显示文件选择器
-      console.log(`[DownloadManager] 自动化静默下载: ${filename}`);
+      console.log(`[DownloadManager] 静默下载: ${filename}`);
       
-      // 创建隐藏的下载链接
+      // 方案1: 使用最优化的传统下载方法（最兼容，最少弹窗）
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
+      
+      // 设置下载属性 - 关键优化
       link.href = url;
       link.download = filename;
       link.style.display = 'none';
+      link.style.position = 'absolute';
+      link.style.left = '-9999px';
+      link.style.top = '-9999px';
+      link.style.width = '1px';
+      link.style.height = '1px';
+      link.style.opacity = '0';
       
-      // 添加到DOM并立即点击
+      // 设置额外属性减少浏览器干扰
+      link.setAttribute('target', '_self'); // 改为 _self 减少弹窗
+      link.setAttribute('rel', 'noopener');
+      
+      // 添加到DOM的隐藏位置
       document.body.appendChild(link);
-      link.click();
       
-      // 立即清理
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      // 立即触发下载 - 使用用户交互上下文
+      try {
+        // 模拟用户点击事件
+        const clickEvent = new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          view: window
+        });
+        
+        link.dispatchEvent(clickEvent);
+        
+        console.log(`[DownloadManager] ✓ 静默下载触发: ${filename}`);
+        
+      } catch (clickError) {
+        // 降级到直接点击
+        link.click();
+        console.log(`[DownloadManager] ✓ 降级下载触发: ${filename}`);
+      }
       
-      console.log(`[DownloadManager] ✓ 静默下载完成: ${filename}`);
+      // 延迟清理，确保下载开始
+      setTimeout(() => {
+        try {
+          if (document.body.contains(link)) {
+            document.body.removeChild(link);
+          }
+          URL.revokeObjectURL(url);
+        } catch (cleanupError) {
+          console.warn('[DownloadManager] 清理下载链接时出错:', cleanupError);
+        }
+      }, 1000); // 增加清理延迟确保下载完成
       
     } catch (error) {
       console.warn('[DownloadManager] 静默下载失败，使用传统方法:', error);
       this.triggerTraditionalDownload(blob, filename);
     }
+  }
+
+  /**
+   * 优化的传统下载方法 - 减少用户干扰
+   */
+  private triggerOptimizedTraditionalDownload(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    // 设置下载属性
+    link.href = url;
+    link.download = filename;
+    link.style.display = 'none';
+    link.style.position = 'absolute';
+    link.style.left = '-9999px';
+    link.style.top = '-9999px';
+    
+    // 设置额外属性尝试减少浏览器干扰
+    link.setAttribute('target', '_blank');
+    link.setAttribute('rel', 'noopener noreferrer');
+    
+    document.body.appendChild(link);
+    
+    // 使用 requestAnimationFrame 确保在下一帧执行
+    requestAnimationFrame(() => {
+      link.click();
+      
+      // 延迟清理，确保下载开始
+      setTimeout(() => {
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
+        URL.revokeObjectURL(url);
+      }, 500);
+    });
+    
+    console.log(`[DownloadManager] ✓ 优化传统下载: ${filename}`);
   }
 
   /**

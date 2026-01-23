@@ -96,9 +96,12 @@ export class AutoExecutionService {
       this.downloadManager = new DownloadManager();
       this.downloadManager.updateConfig({
         enableSilentDownload: true,
-        batchDownloadDelay: 500,
+        batchDownloadDelay: 200, // 减少延迟，加快下载速度
         autoDownload: true,
-        enableNotifications: false // 自动化模式下禁用通知避免干扰
+        enableNotifications: false, // 自动化模式下禁用通知避免干扰
+        maxConcurrentDownloads: 1, // 改为顺序下载，减少浏览器阻止
+        maxRetries: 1, // 减少重试次数，避免重复弹窗
+        retryDelay: 1000 // 减少重试延迟
       });
     }
   }
@@ -606,7 +609,6 @@ export class AutoExecutionService {
               await this.checkAndDownloadSingleNode(currentNode, currentBlock, dataIndex);
             } else {
               console.log(`[AutoExecutionService] 最终输出节点 ${currentNode.blockNumber} 无可下载内容，跳过下载`);
-              // 移除弹窗，静默跳过
             }
           } else {
             console.log(`[AutoExecutionService] 节点 ${currentNode.blockNumber} 不是最终输出节点，跳过下载`);
@@ -1048,11 +1050,11 @@ export class AutoExecutionService {
           
           if (isVideoUrl || isDataVideo || hasVideoExtension) {
             shouldDownload = true;
-            filename = `batch_${dataIndex + 1}_${node.blockNumber}_video.mp4`;
+            filename = `${node.blockNumber}_video.mp4`;
           } else if (currentContent.length > 10) {
             // 如果不是直接的视频URL，但有内容，保存为文本文件
             shouldDownload = true;
-            filename = `batch_${dataIndex + 1}_${node.blockNumber}_video_info.txt`;
+            filename = `${node.blockNumber}_video_info.txt`;
           }
         } else if (block.type === 'image') {
           // 图片内容 - 更智能的检测和处理
@@ -1062,43 +1064,51 @@ export class AutoExecutionService {
           
           if (isDataImage) {
             shouldDownload = true;
-            filename = `batch_${dataIndex + 1}_${node.blockNumber}_image.png`;
+            filename = `${node.blockNumber}_image.png`;
           } else if (isImageUrl || hasImageExtension) {
             shouldDownload = true;
-            filename = `batch_${dataIndex + 1}_${node.blockNumber}_image.jpg`;
+            filename = `${node.blockNumber}_image.jpg`;
           } else if (currentContent.length > 10) {
             // 如果不是直接的图片URL，但有内容，保存为文本文件
             shouldDownload = true;
-            filename = `batch_${dataIndex + 1}_${node.blockNumber}_image_info.txt`;
+            filename = `${node.blockNumber}_image_info.txt`;
           }
         } else if (block.type === 'text') {
           // 文本内容 - 保存所有有意义的文本
           if (currentContent.length > 0) {
             shouldDownload = true;
-            filename = `batch_${dataIndex + 1}_${node.blockNumber}_text.txt`;
+            filename = `${node.blockNumber}_text.txt`;
           }
         }
         
         if (shouldDownload) {
           const batchId = `automation_single_${this.currentBatchIndex || 0}_${Date.now()}`;
           
+          // 生成带编号的文件名（从001开始）
+          const paddedIndex = String(dataIndex + 1).padStart(3, '0');
+          const numberedFilename = `${paddedIndex}_${filename}`;
+          
           // 确保使用最新的内容
           console.log(`[AutoExecutionService] 准备下载节点 ${node.blockNumber}:`, {
-            filename,
+            originalFilename: filename,
+            numberedFilename,
+            batchIndex: dataIndex + 1,
             contentType: typeof currentContent,
             contentLength: currentContent.length,
             contentPreview: currentContent.substring(0, 100) + '...'
           });
           
+          const batchId = `automation_single_${this.currentBatchIndex || 0}_${Date.now()}`;
+          
           this.downloadManager.addDownload(
             currentContent,
-            filename,
+            numberedFilename, // 使用带编号的文件名
             undefined, // 使用浏览器默认下载路径
             `automation_execution_${Date.now()}`,
             batchId
           );
           
-          console.log(`[AutoExecutionService] ✓ 成功添加下载: ${filename}`);
+          console.log(`[AutoExecutionService] ✓ 成功添加下载: ${numberedFilename}`);
           
           // 立即处理下载队列
           await this.downloadManager.processBatch(batchId);
