@@ -1560,9 +1560,17 @@ const BlockComponent: React.FC<BlockProps> = ({
       });
       
       // 使用新的图像裁剪API
+      const cropParams = {
+        x: 0,
+        y: 0, 
+        width: 100,
+        height: 100,
+        aspectRatio: selectedRatio,
+        smartCrop: true
+      };
       const croppedImage = await shenmaService.cropImage(
         block.content,
-        `裁剪为${selectedRatio}比例，保持主要内容居中`
+        cropParams
       );
       
       onUpdate(block.id, { 
@@ -1611,9 +1619,14 @@ const BlockComponent: React.FC<BlockProps> = ({
       });
       
       // 使用新的风格迁移API
+      const styleParams = {
+        targetStyle: selectedStyle,
+        strength: 0.8,
+        preserveContent: true
+      };
       const styledImage = await shenmaService.transferImageStyle(
         block.content,
-        `转换为${selectedStyle}，保持原有构图和主要元素`
+        styleParams
       );
       
       onUpdate(block.id, { 
@@ -1656,9 +1669,13 @@ const BlockComponent: React.FC<BlockProps> = ({
       });
       
       // 使用新的添加元素API
+      const addParams = {
+        element: element,
+        blendMode: 'normal' as const
+      };
       const editedImage = await shenmaService.addImageElement(
         block.content,
-        element
+        addParams
       );
       
       onUpdate(block.id, { 
@@ -1706,9 +1723,14 @@ const BlockComponent: React.FC<BlockProps> = ({
       });
       
       // 使用新的替换元素API
+      const replaceParams = {
+        targetElement: oldElement,
+        replacementElement: newElement,
+        preserveBackground: true
+      };
       const editedImage = await shenmaService.replaceImageElement(
         block.content,
-        `将${oldElement}替换为${newElement}`
+        replaceParams
       );
       
       onUpdate(block.id, { 
