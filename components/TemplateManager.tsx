@@ -8,6 +8,54 @@ import {
   FileText, Layers, Link, Calendar, Zap
 } from 'lucide-react';
 
+// 添加全局样式来美化滚动条
+const addScrollbarStyles = () => {
+  if (typeof document !== 'undefined' && !document.getElementById('custom-scrollbar-styles')) {
+    const style = document.createElement('style');
+    style.id = 'custom-scrollbar-styles';
+    style.textContent = `
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 12px;
+      }
+      
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: rgba(168, 85, 247, 0.1);
+        border-radius: 6px;
+      }
+      
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(168, 85, 247, 0.6);
+        border-radius: 6px;
+        border: 2px solid transparent;
+        background-clip: content-box;
+      }
+      
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgba(168, 85, 247, 0.8);
+        background-clip: content-box;
+      }
+      
+      .custom-scrollbar::-webkit-scrollbar-thumb:active {
+        background: rgba(147, 51, 234, 0.9);
+        background-clip: content-box;
+      }
+      
+      .dark .custom-scrollbar::-webkit-scrollbar-track {
+        background: rgba(147, 51, 234, 0.2);
+      }
+      
+      .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(147, 51, 234, 0.7);
+      }
+      
+      .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgba(147, 51, 234, 0.9);
+      }
+    `;
+    document.head.appendChild(style);
+  }
+};
+
 interface TemplateManagerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -104,6 +152,7 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
   useEffect(() => {
     if (isOpen) {
       loadTemplates();
+      addScrollbarStyles(); // 添加滚动条样式
     }
   }, [isOpen]);
 
@@ -561,13 +610,18 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
 
         {/* Save Dialog */}
         {showSaveDialog && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[450] p-2">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[450] p-4">
             <div className={`
-              rounded-3xl p-12 w-[95vw] h-[95vh] overflow-y-auto
+              rounded-3xl p-8 w-[96vw] max-w-6xl max-h-[96vh] overflow-y-auto custom-scrollbar
               ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}
               shadow-2xl border-4 border-purple-400 dark:border-purple-500
               bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20
-            `}>
+            `}
+            style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: theme === 'dark' ? '#9333ea #1e1b4b' : '#a855f7 #f3e8ff',
+              scrollBehavior: 'smooth'
+            }}>
               <h3 className="text-4xl font-bold mb-10 text-purple-700 dark:text-purple-300 flex items-center gap-4">
                 <Save size={40} />
                 {lang === 'zh' ? '保存工作流' : 'Save Workflow'}
