@@ -52,6 +52,7 @@ export class AutoExecutionService {
   private onCreateBlock?: (block: Block) => void;
   private resultHandling?: 'canvas' | 'download'; // 结果处理方式
   private currentBatchIndex?: number; // 当前批次索引
+  private isAutomationMode: boolean = false; // 是否为自动化模式
   
   // 新增：事件驱动执行相关
   private pendingNodes: Map<string, { resolve: () => void; reject: (error: Error) => void }> = new Map();
@@ -87,7 +88,6 @@ export class AutoExecutionService {
    */
   analyzeWorkflow(blocks: Block[], connections: Connection[]): ExecutionNode[] {
     const nodes: ExecutionNode[] = [];
-    const blockMap = new Map(blocks.map(b => [b.id, b]));
 
     // 为每个块创建执行节点
     for (const block of blocks) {
@@ -149,6 +149,9 @@ export class AutoExecutionService {
     this.onProgressUpdate = onProgressUpdate;
     this.onCreateBlock = onCreateBlock;
     this.resultHandling = resultHandling;
+    
+    // 设置为自动化执行模式
+    this.isAutomationMode = true;
     
     // 分析工作流
     const executionPlan = this.analyzeWorkflow(blocks, connections);
@@ -407,7 +410,6 @@ export class AutoExecutionService {
         connections,
         workflowClone,
         currentData,
-        startNode,
         dataIndex,
         batchData
       );
@@ -441,7 +443,6 @@ export class AutoExecutionService {
     connections: Connection[],
     executionPlan: ExecutionNode[],
     batchDataItem: string,
-    startNode: ExecutionNode,
     dataIndex: number,
     batchData: string[]
   ): Promise<void> {
@@ -540,10 +541,6 @@ export class AutoExecutionService {
           console.log(`[AutoExecutionService] 短暂缓冲后执行下一个节点...`);
           await this.delay(1000); // 只需1秒缓冲时间
         }
-        if (nodeIndex < executionPlan.length - 1) {
-          console.log(`[AutoExecutionService] 等待 ${waitTime} 秒后执行下一个节点...`);
-          await this.delay(waitTime * 1000);
-        }
 
       } catch (error) {
         // 记录失败
@@ -580,7 +577,6 @@ export class AutoExecutionService {
           x: undefined, // 让 addBlock 自动计算位置
           y: undefined, // 让 addBlock 自动计算位置
           // 添加批量生成标识，便于后续整理
-          isBatchGenerated: true,
           batchIndex: this.currentBatchIndex || 0
         };
         
@@ -628,32 +624,6 @@ export class AutoExecutionService {
     // 如果没有找到任何占位符，将批量数据追加到提示词末尾
     if (result === prompt && batchDataItem.trim()) {
       result = `${prompt}\n\n${batchDataItem}`;
-    }
-    
-    return result;
-  }
-
-  /**
-   * 替换节点间变量
-   */
-  private replaceNodeVariables(
-    prompt: string, 
-    previousContent: string, 
-    batchDataItem: string, 
-    currentIndex: number, 
-    totalCount: number
-  ): string {
-    let result = prompt;
-    
-    // 前一个节点的输出
-    result = result.replace(/\{\s*(previous|prev|output|result)\s*\}/gi, previousContent);
-    
-    // 批量数据变量
-    result = this.replaceBatchVariables(result, batchDataItem, currentIndex, totalCount);
-    
-    // 如果没有找到任何占位符，将前一个节点的输出追加到提示词末尾
-    if (result === prompt && previousContent.trim()) {
-      result = `${prompt}\n\n${previousContent}`;
     }
     
     return result;

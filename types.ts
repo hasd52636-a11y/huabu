@@ -635,6 +635,9 @@ export interface Block {
   multiImageGroupId?: string; // 所属多图组ID
   multiImageIndex?: number;   // 在多图组中的索引
   isMultiImageSource?: boolean; // 是否为多图源模块
+  
+  // 批量生成相关字段
+  batchIndex?: number; // 批量生成时的索引
 }
 
 export interface Connection {
