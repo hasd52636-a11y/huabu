@@ -5188,6 +5188,7 @@ ${block.content}
           currentCanvas={getCurrentCanvasState()}
           onLoadTemplate={handleLoadTemplate}
           lang={lang}
+          theme={theme}
         />
       )}
 
