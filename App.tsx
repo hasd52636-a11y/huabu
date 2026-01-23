@@ -259,6 +259,7 @@ const App: React.FC = () => {
 
   // Automation Template State
   const [isAutomationTemplate, setIsAutomationTemplate] = useState(false);
+  const [currentTemplateFinalOutputModules, setCurrentTemplateFinalOutputModules] = useState<string[]>([]);
   const [showBatchInputConfig, setShowBatchInputConfig] = useState(false);
   const [batchInputSource, setBatchInputSource] = useState<BatchInputSource | null>(null);
   
@@ -3663,13 +3664,14 @@ Canvas 智能创作平台
     };
   };
 
-  const handleLoadTemplate = (canvasState: CanvasState, isAutomation?: boolean) => {
+  const handleLoadTemplate = (canvasState: CanvasState, isAutomation?: boolean, template?: any) => {
     try {
       console.log('[App] Loading template:', { 
         isAutomation, 
         blocksCount: canvasState.blocks?.length, 
         connectionsCount: canvasState.connections?.length,
-        hasSettings: !!canvasState.settings
+        hasSettings: !!canvasState.settings,
+        hasFinalOutputModules: !!(template?.automationConfig?.finalOutputModules)
       });
       
       // Comprehensive validation of canvas state
@@ -3731,6 +3733,17 @@ Canvas 智能创作平台
       // Set automation template state
       setIsAutomationTemplate(isAutomation || false);
       
+      // 如果是自动化模板，设置最终输出模块到AutoExecutionService
+      if (isAutomation && template?.automationConfig?.finalOutputModules) {
+        setCurrentTemplateFinalOutputModules(template.automationConfig.finalOutputModules);
+        import('./services/AutoExecutionService').then(({ autoExecutionService }) => {
+          autoExecutionService.setTemplateFinalOutputModules(template.automationConfig.finalOutputModules);
+          console.log('[App] 设置模板最终输出模块:', template.automationConfig.finalOutputModules);
+        });
+      } else {
+        setCurrentTemplateFinalOutputModules([]);
+      }
+      
       // Update connection engine with loaded connections (with error handling)
       try {
         if (connections.length > 0) {
@@ -3786,6 +3799,7 @@ Canvas 智能创作平台
       setPan({ x: 0, y: 0 });
       setSelectedIds([]);
       setIsAutomationTemplate(false);
+      setCurrentTemplateFinalOutputModules([]);
     }
   };
 
@@ -3911,7 +3925,8 @@ Canvas 智能创作平台
             y: createdBlock?.y,
             batchIndex: newBlock.batchIndex
           });
-        }
+        },
+        currentTemplateFinalOutputModules // 传递模板配置的最终输出模块
       );
     } catch (error) {
       console.error('Failed to start automation execution:', error);

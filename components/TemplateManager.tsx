@@ -34,6 +34,7 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
   const [newTemplateName, setNewTemplateName] = useState('');
   const [newTemplateDescription, setNewTemplateDescription] = useState('');
   const [isAutomationTemplate, setIsAutomationTemplate] = useState(false);
+  const [finalOutputModules, setFinalOutputModules] = useState<string[]>([]); // 最终输出模块列表
 
   const t = {
     zh: {
@@ -128,17 +129,36 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
       return;
     }
 
+    // 验证自动化模板的下载节点选择
+    if (isAutomation && finalOutputModules.length === 0) {
+      setError(lang === 'zh' 
+        ? '自动化模板至少需要选择一个下载节点' 
+        : 'Automation template requires at least one download node'
+      );
+      return;
+    }
+
     try {
       setIsLoading(true);
+      
+      // 创建增强的模板数据，包含最终输出模块信息
+      const enhancedCanvas = {
+        ...currentCanvas,
+        // 添加最终输出模块标记到模板元数据中
+        finalOutputModules: isAutomation ? finalOutputModules : undefined
+      };
+      
       await templateManager.saveTemplate(
-        currentCanvas, 
+        enhancedCanvas, 
         name, 
         newTemplateDescription || undefined,
-        isAutomation
+        isAutomation,
+        finalOutputModules // 传递最终输出模块列表
       );
       setNewTemplateName('');
       setNewTemplateDescription('');
       setIsAutomationTemplate(false);
+      setFinalOutputModules([]);
       setShowSaveDialog(false);
       await loadTemplates();
       showSuccess(t.saveSuccess);
@@ -147,6 +167,31 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // 智能分析最终输出模块
+  const analyzeFinalOutputModules = (canvas: CanvasState): string[] => {
+    if (!canvas.blocks || !canvas.connections) {
+      return canvas.blocks?.map(b => b.number || b.id) || [];
+    }
+    
+    const finalModules: string[] = [];
+    
+    // 找出没有下游连接的模块（最终输出模块）
+    for (const block of canvas.blocks) {
+      const hasDownstreamConnections = canvas.connections.some(conn => conn.fromId === block.id);
+      if (!hasDownstreamConnections) {
+        finalModules.push(block.number || block.id);
+      }
+    }
+    
+    // 如果没有找到最终模块，返回最后一个模块
+    if (finalModules.length === 0 && canvas.blocks.length > 0) {
+      const lastBlock = canvas.blocks[canvas.blocks.length - 1];
+      finalModules.push(lastBlock.number || lastBlock.id);
+    }
+    
+    return finalModules;
   };
 
   // 智能分析是否应该推荐为自动化模板
@@ -167,7 +212,10 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
   // 打开保存对话框时自动分析
   const handleOpenSaveDialog = () => {
     const shouldRecommendAutomation = analyzeAutomationPotential(currentCanvas);
+    const detectedFinalModules = analyzeFinalOutputModules(currentCanvas);
+    
     setIsAutomationTemplate(shouldRecommendAutomation);
+    setFinalOutputModules(detectedFinalModules);
     setShowSaveDialog(true);
   };
 
@@ -195,8 +243,8 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
         isAutomation: template.isAutomation
       });
       
-      // Call the parent component's load handler
-      onLoadTemplate(canvas, template.isAutomation);
+      // Call the parent component's load handler with template object
+      onLoadTemplate(canvas, template.isAutomation, template);
       
       // Close the modal and show success
       onClose();
@@ -415,6 +463,14 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
                     </div>
                   )}
 
+                  {/* Download Nodes Badge */}
+                  {template.isAutomation && template.metadata?.finalOutputModules && template.metadata.finalOutputModules.length > 0 && (
+                    <div className="absolute -top-2 -left-2 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                      <Download size={12} />
+                      {template.metadata.finalOutputModules.length}
+                    </div>
+                  )}
+
                   <div className="flex items-start justify-between mb-3">
                     <h3 className={`font-medium text-slate-900 dark:text-white truncate flex-1 pr-2 ${applyTextEnhancements('', { enhanced: true, summary: true, chineseOptimized: true })}`}>
                       {template.name}
@@ -477,6 +533,12 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
                       <Link size={12} />
                       {template.metadata?.connectionCount || 0}{t.connections}
                     </div>
+                    {template.isAutomation && template.metadata?.finalOutputModules && (
+                      <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                        <Download size={12} />
+                        {template.metadata.finalOutputModules.length} {lang === 'zh' ? '下载节点' : 'download nodes'}
+                      </div>
+                    )}
                   </div>
 
                   <div className="text-xs text-slate-500 dark:text-slate-400">
@@ -533,6 +595,128 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
                     }
                   `}
                 />
+                
+                {/* 最终输出模块选择（仅自动化模板显示） */}
+                {isAutomationTemplate && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium">
+                        {lang === 'zh' ? '下载节点选择' : 'Download Node Selection'}
+                      </label>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // 全选
+                            const allModuleIds = currentCanvas.blocks?.map(b => b.number || b.id) || [];
+                            setFinalOutputModules(allModuleIds);
+                          }}
+                          className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                        >
+                          {lang === 'zh' ? '全选' : 'Select All'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // 智能选择（最终输出节点）
+                            const smartSelection = analyzeFinalOutputModules(currentCanvas);
+                            setFinalOutputModules(smartSelection);
+                          }}
+                          className="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
+                        >
+                          {lang === 'zh' ? '智能选择' : 'Smart Select'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFinalOutputModules([])}
+                          className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-900/50 transition-colors"
+                        >
+                          {lang === 'zh' ? '清空' : 'Clear'}
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="max-h-40 overflow-y-auto border rounded-lg p-3 bg-gray-50 dark:bg-gray-700">
+                      {currentCanvas.blocks?.length === 0 ? (
+                        <div className="text-center text-gray-500 dark:text-gray-400 py-4">
+                          {lang === 'zh' ? '当前画布没有模块' : 'No modules in current canvas'}
+                        </div>
+                      ) : (
+                        currentCanvas.blocks?.map(block => {
+                          const moduleId = block.number || block.id;
+                          const isSelected = finalOutputModules.includes(moduleId);
+                          const isRecommended = analyzeFinalOutputModules(currentCanvas).includes(moduleId);
+                          
+                          return (
+                            <label key={block.id} className={`flex items-center gap-3 py-2 px-2 rounded cursor-pointer transition-colors ${
+                              isSelected 
+                                ? 'bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700' 
+                                : 'hover:bg-gray-100 dark:hover:bg-gray-600'
+                            }`}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setFinalOutputModules(prev => [...prev, moduleId]);
+                                  } else {
+                                    setFinalOutputModules(prev => prev.filter(id => id !== moduleId));
+                                  }
+                                }}
+                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                              />
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-sm">
+                                    [{moduleId}]
+                                  </span>
+                                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                    block.type === 'text' 
+                                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                                      : block.type === 'image'
+                                      ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                                      : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                                  }`}>
+                                    {block.type === 'text' ? (lang === 'zh' ? '文本' : 'Text') : 
+                                     block.type === 'image' ? (lang === 'zh' ? '图片' : 'Image') : 
+                                     (lang === 'zh' ? '视频' : 'Video')}
+                                  </span>
+                                  {isRecommended && (
+                                    <span className="text-xs px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full">
+                                      {lang === 'zh' ? '推荐' : 'Recommended'}
+                                    </span>
+                                  )}
+                                </div>
+                                {(block.originalPrompt || block.content) && (
+                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">
+                                    {(block.originalPrompt || block.content || '').substring(0, 50)}...
+                                  </div>
+                                )}
+                              </div>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                    
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                      <div className="flex items-start gap-2">
+                        <div className="text-blue-600 dark:text-blue-400 mt-0.5">💡</div>
+                        <div className="text-sm text-blue-700 dark:text-blue-300">
+                          <div className="font-medium mb-1">
+                            {lang === 'zh' ? '下载节点说明：' : 'Download Node Instructions:'}
+                          </div>
+                          <ul className="text-xs space-y-1 text-blue-600 dark:text-blue-400">
+                            <li>• {lang === 'zh' ? '选中的节点在自动化执行完成后会自动下载结果' : 'Selected nodes will automatically download results after automation execution'}</li>
+                            <li>• {lang === 'zh' ? '"智能选择"会自动选择工作流的最终输出节点（推荐）' : '"Smart Select" automatically chooses final output nodes (recommended)'}</li>
+                            <li>• {lang === 'zh' ? '如果不选择任何节点，将不会自动下载任何结果' : 'If no nodes are selected, no results will be automatically downloaded'}</li>
+                            <li>• {lang === 'zh' ? '可以随时在模板管理中修改下载节点设置' : 'Download node settings can be modified anytime in template management'}</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 {/* 自动化模板选择 */}
                 <div className="flex items-center gap-3 p-3 border rounded-lg bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">

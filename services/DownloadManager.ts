@@ -342,53 +342,34 @@ export class DownloadManager {
    */
   private triggerBrowserDownload(blob: Blob, filename: string, downloadPath?: string): void {
     const url = URL.createObjectURL(blob);
+    
+    // 如果启用了静默下载，尝试使用静默方法
+    if (this.config.enableSilentDownload) {
+      this.triggerSilentDownload(blob, filename, downloadPath);
+      return;
+    }
+    
+    // 传统下载方法
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
-    
-    // 静默下载优化：设置属性避免弹窗
     link.style.display = 'none';
     link.setAttribute('target', '_blank');
     
-    // If download path is specified, we can't directly control it in browsers
-    // This would require a browser extension or native app integration
-    if (downloadPath) {
-      console.log(`Download path specified: ${downloadPath}/${filename}`);
-    }
+    document.body.appendChild(link);
     
-    // 使用更可靠的静默下载方法
-    try {
-      // 方法1：尝试使用 showSaveFilePicker API (Chrome 86+)
-      if ('showSaveFilePicker' in window && this.config.enableSilentDownload !== false) {
-        this.triggerSilentDownload(blob, filename, downloadPath);
-        return;
-      }
-      
-      // 方法2：传统方法但优化用户体验
-      document.body.appendChild(link);
-      
-      // 使用 setTimeout 确保在下一个事件循环中执行，避免阻塞
-      setTimeout(() => {
-        link.click();
-        
-        // 延迟清理，确保下载开始
-        setTimeout(() => {
-          if (document.body.contains(link)) {
-            document.body.removeChild(link);
-          }
-          URL.revokeObjectURL(url);
-        }, 100);
-      }, 0);
-      
-    } catch (error) {
-      console.warn('Download failed, falling back to standard method:', error);
-      
-      // 降级方案：标准下载
-      document.body.appendChild(link);
+    // 使用 setTimeout 确保在下一个事件循环中执行，避免阻塞
+    setTimeout(() => {
       link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }
+      
+      // 延迟清理，确保下载开始
+      setTimeout(() => {
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
+        URL.revokeObjectURL(url);
+      }, 100);
+    }, 0);
   }
 
   /**
@@ -396,28 +377,28 @@ export class DownloadManager {
    */
   private async triggerSilentDownload(blob: Blob, filename: string, downloadPath?: string): Promise<void> {
     try {
-      // 使用 File System Access API 实现真正的静默下载
-      if ('showSaveFilePicker' in window) {
-        const fileHandle = await (window as any).showSaveFilePicker({
-          suggestedName: filename,
-          types: [{
-            description: 'Video files',
-            accept: {
-              'video/*': ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm']
-            }
-          }]
-        });
-        
-        const writable = await fileHandle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-        
-        console.log(`File saved silently: ${filename}`);
-        return;
-      }
+      // 对于自动化批量下载，直接使用传统方法但不显示文件选择器
+      console.log(`[DownloadManager] 自动化静默下载: ${filename}`);
+      
+      // 创建隐藏的下载链接
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.style.display = 'none';
+      
+      // 添加到DOM并立即点击
+      document.body.appendChild(link);
+      link.click();
+      
+      // 立即清理
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      console.log(`[DownloadManager] ✓ 静默下载完成: ${filename}`);
+      
     } catch (error) {
-      // 用户取消或API不支持，降级到传统方法
-      console.log('Silent download not available, using traditional method');
+      console.warn('[DownloadManager] 静默下载失败，使用传统方法:', error);
       this.triggerTraditionalDownload(blob, filename);
     }
   }

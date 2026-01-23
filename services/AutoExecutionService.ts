@@ -57,6 +57,7 @@ export class AutoExecutionService {
   private currentBatchIndex?: number; // 当前批次索引
   private isAutomationMode: boolean = false; // 是否为自动化模式
   private downloadManager?: DownloadManager; // 下载管理器（可选）
+  private templateFinalOutputModules?: string[]; // 模板中指定的最终输出模块
   
   // 新增：事件驱动执行相关
   private pendingNodes: Map<string, { resolve: () => void; reject: (error: Error) => void }> = new Map();
@@ -158,7 +159,8 @@ export class AutoExecutionService {
     onProgressUpdate?: (progress: ExecutionProgress) => void,
     batchData?: string[], // 批量数据数组
     resultHandling?: 'canvas' | 'download', // 结果处理方式
-    onCreateBlock?: (block: Block) => void // 创建新模块的回调
+    onCreateBlock?: (block: Block) => void, // 创建新模块的回调
+    templateFinalOutputModules?: string[] // 模板指定的最终输出模块
   ): Promise<void> {
     if (this.isRunning) {
       throw new Error('自动执行已在进行中');
@@ -168,6 +170,12 @@ export class AutoExecutionService {
     this.onProgressUpdate = onProgressUpdate;
     this.onCreateBlock = onCreateBlock;
     this.resultHandling = resultHandling;
+    
+    // 设置模板的最终输出模块配置
+    if (templateFinalOutputModules && templateFinalOutputModules.length > 0) {
+      this.setTemplateFinalOutputModules(templateFinalOutputModules);
+      console.log('[AutoExecutionService] 使用模板配置的下载节点:', templateFinalOutputModules);
+    }
     
     // 设置为自动化执行模式
     this.isAutomationMode = true;
@@ -575,10 +583,33 @@ export class AutoExecutionService {
         const isLastNode = nodeIndex === executionPlan.length - 1;
         await this.checkContentGeneration(currentNode, currentBlock, isLastNode);
 
-        // 只在最后一个节点进行下载
-        if (isLastNode && this.resultHandling === 'download' && this.downloadManager) {
-          console.log(`[AutoExecutionService] 最后一个节点，开始下载检查...`);
-          await this.checkAndDownloadSingleNode(currentNode, currentBlock, dataIndex);
+        // 检查是否需要下载当前节点的内容（只下载最终输出节点）
+        if (this.resultHandling === 'download' && this.downloadManager) {
+          let isFinalOutputNode = false;
+          
+          // 优先使用模板中指定的最终输出模块
+          if (this.templateFinalOutputModules && this.templateFinalOutputModules.length > 0) {
+            isFinalOutputNode = this.templateFinalOutputModules.includes(currentNode.blockNumber);
+            console.log(`[AutoExecutionService] 使用模板指定的最终输出模块: ${currentNode.blockNumber} -> ${isFinalOutputNode}`);
+          } else {
+            // 如果模板没有指定，则智能检测
+            const finalOutputNodes = this.getFinalOutputNodes(executionPlan, connections);
+            isFinalOutputNode = finalOutputNodes.some(finalNode => finalNode.blockId === currentNode.blockId);
+            console.log(`[AutoExecutionService] 智能检测最终输出模块: ${currentNode.blockNumber} -> ${isFinalOutputNode}`);
+          }
+          
+          if (isFinalOutputNode) {
+            // 检查当前节点是否有可下载的内容
+            const hasDownloadableContent = await this.hasDownloadableContent(currentNode, currentBlock);
+            if (hasDownloadableContent) {
+              console.log(`[AutoExecutionService] 最终输出节点 ${currentNode.blockNumber} 有可下载内容，开始下载...`);
+              await this.checkAndDownloadSingleNode(currentNode, currentBlock, dataIndex);
+            } else {
+              console.log(`[AutoExecutionService] 最终输出节点 ${currentNode.blockNumber} 无可下载内容`);
+            }
+          } else {
+            console.log(`[AutoExecutionService] 节点 ${currentNode.blockNumber} 不是最终输出节点，跳过下载`);
+          }
         }
 
         // 只需要很短的缓冲时间，确保数据传播
@@ -857,6 +888,82 @@ export class AutoExecutionService {
   }
 
   /**
+   * 设置模板的最终输出模块
+   */
+  setTemplateFinalOutputModules(finalOutputModules?: string[]): void {
+    this.templateFinalOutputModules = finalOutputModules;
+    console.log('[AutoExecutionService] 设置最终输出模块:', finalOutputModules);
+  }
+
+  /**
+   * 智能检测最终输出模块（没有下游连接的模块）
+   */
+  private getFinalOutputNodes(executionPlan: ExecutionNode[], connections: Connection[]): ExecutionNode[] {
+    const finalNodes: ExecutionNode[] = [];
+    
+    for (const node of executionPlan) {
+      // 检查是否有下游连接（作为fromId的连接）
+      const hasDownstreamConnections = connections.some(conn => conn.fromId === node.blockId);
+      
+      if (!hasDownstreamConnections) {
+        // 没有下游连接，这是一个最终输出节点
+        finalNodes.push(node);
+        console.log(`[AutoExecutionService] 检测到最终输出节点: ${node.blockNumber} (${node.blockType})`);
+      }
+    }
+    
+    // 如果没有找到最终节点（可能是循环或单个节点），返回最后一个节点
+    if (finalNodes.length === 0 && executionPlan.length > 0) {
+      const lastNode = executionPlan[executionPlan.length - 1];
+      finalNodes.push(lastNode);
+      console.log(`[AutoExecutionService] 未找到最终节点，使用最后一个节点: ${lastNode.blockNumber}`);
+    }
+    
+    return finalNodes;
+  }
+
+  /**
+   * 检查节点是否有可下载的内容
+   */
+  private async hasDownloadableContent(node: ExecutionNode, block: Block): Promise<boolean> {
+    try {
+      // 重新获取最新的block内容
+      const { connectionEngine } = await import('./ConnectionEngine');
+      const latestBlock = connectionEngine.getBlockById(block.id);
+      const currentContent = latestBlock?.content || block.content;
+      
+      if (!currentContent || !currentContent.trim()) {
+        return false;
+      }
+      
+      // 检查内容类型
+      if (block.type === 'video') {
+        return currentContent.startsWith('http') || 
+               currentContent.startsWith('https') || 
+               currentContent.startsWith('data:video/') ||
+               currentContent.includes('.mp4') ||
+               currentContent.includes('.avi') ||
+               currentContent.includes('.mov') ||
+               currentContent.includes('.webm');
+      } else if (block.type === 'image') {
+        return currentContent.startsWith('data:image/') ||
+               currentContent.startsWith('http') ||
+               currentContent.startsWith('https') ||
+               currentContent.includes('.png') ||
+               currentContent.includes('.jpg') ||
+               currentContent.includes('.jpeg') ||
+               currentContent.includes('.gif') ||
+               currentContent.includes('.webp');
+      }
+      
+      return false;
+    } catch (error) {
+      console.error(`[AutoExecutionService] 检查可下载内容失败:`, error);
+      return false;
+    }
+  }
+
+  /**
    * 检查并下载单个节点的内容 - 增强版，支持重试和更详细的检测
    */
   private async checkAndDownloadSingleNode(
@@ -940,6 +1047,14 @@ export class AutoExecutionService {
         if (shouldDownload) {
           const batchId = `automation_single_${this.currentBatchIndex || 0}_${Date.now()}`;
           
+          // 确保使用最新的内容
+          console.log(`[AutoExecutionService] 准备下载节点 ${node.blockNumber}:`, {
+            filename,
+            contentType: typeof currentContent,
+            contentLength: currentContent.length,
+            contentPreview: currentContent.substring(0, 100) + '...'
+          });
+          
           this.downloadManager.addDownload(
             currentContent,
             filename,
@@ -949,6 +1064,10 @@ export class AutoExecutionService {
           );
           
           console.log(`[AutoExecutionService] ✓ 成功添加下载: ${filename}`);
+          
+          // 立即处理下载队列
+          await this.downloadManager.processBatch(batchId);
+          
           return; // 成功，退出重试循环
         } else {
           console.log(`[AutoExecutionService] ℹ 节点 ${node.blockNumber} 内容不支持下载:`, currentContent.substring(0, 100));

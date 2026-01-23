@@ -12,7 +12,13 @@ export class TemplateManager {
   /**
    * Saves current canvas state as a template with automation support
    */
-  async saveTemplate(canvas: CanvasState, name: string, description?: string, isAutomation?: boolean): Promise<Template> {
+  async saveTemplate(
+    canvas: CanvasState, 
+    name: string, 
+    description?: string, 
+    isAutomation?: boolean,
+    finalOutputModules?: string[]
+  ): Promise<Template> {
     // For automation templates, clear only generated output but keep prompts and configurations
     const canvasStateToSave = isAutomation ? {
       ...canvas,
@@ -34,14 +40,16 @@ export class TemplateManager {
       metadata: {
         blockCount: canvas.blocks.length,
         connectionCount: canvas.connections.length,
-        hasFileInput: canvas.attachments ? canvas.attachments.length > 0 : false
+        hasFileInput: canvas.attachments ? canvas.attachments.length > 0 : false,
+        finalOutputModules: isAutomation ? finalOutputModules : undefined // 添加到元数据中用于UI显示
       },
       // Automation template fields
       isAutomation: isAutomation || false,
       automationConfig: isAutomation ? {
         mode: 'standard',
         pauseOnError: true,
-        enableSmartInterval: true
+        enableSmartInterval: true,
+        finalOutputModules: finalOutputModules || [] // 保存最终输出模块列表
       } : undefined
     };
 
