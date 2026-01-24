@@ -5,7 +5,7 @@ import { applyTextEnhancements } from '../src/utils/textClarity';
 import { SaveDialogModal, WorkflowNode, SaveConfiguration } from './SaveDialog';
 import { 
   Save, FolderOpen, Download, Upload, Copy, Trash2, 
-  Search, Plus, X, Edit3, Check, AlertCircle, 
+  Search, X, Edit3, AlertCircle, 
   FileText, Layers, Link, Calendar, Zap
 } from 'lucide-react';
 
@@ -407,7 +407,7 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[400] flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-7xl max-h-[95vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
           <h2 className={`text-2xl font-bold text-slate-900 dark:text-white ${applyTextEnhancements('', { enhanced: true, highContrast: true, chineseOptimized: true })}`}>{t.title}</h2>

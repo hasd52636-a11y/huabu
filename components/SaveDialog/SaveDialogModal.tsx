@@ -1,9 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Save, X, AlertCircle } from 'lucide-react';
-import { ResponsiveModalContainer } from './ResponsiveModalContainer';
-import { ScrollableContentArea } from './ScrollableContentArea';
-import { NodeSelectionPanel } from './NodeSelectionPanel';
-import { useViewportConstraints } from './ViewportConstraints';
 
 export interface WorkflowNode {
   id: string;
@@ -45,21 +41,14 @@ export const SaveDialogModal: React.FC<SaveDialogModalProps> = ({
   onClose,
   nodes,
   onSave,
-  maxHeight = '90vh',
-  responsive = true,
   lang,
   theme
 }) => {
-  const { constraints, getWidth, getHeight } = useViewportConstraints({
-    maxHeight
-  });
-
   // State management
   const [workflowName, setWorkflowName] = useState('');
   const [workflowDescription, setWorkflowDescription] = useState('');
   const [saveAsAutomation, setSaveAsAutomation] = useState(false);
   const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
-  const [selectionMode, setSelectionMode] = useState<'all' | 'smart' | 'manual'>('smart');
   const [error, setError] = useState<string | null>(null);
 
   const t = {
@@ -152,10 +141,23 @@ export const SaveDialogModal: React.FC<SaveDialogModalProps> = ({
       
       setSaveAsAutomation(shouldRecommendAutomation);
       setSelectedNodes(detectedFinalModules);
-      setSelectionMode('smart');
       setError(null);
     }
   }, [isOpen, nodes]);
+
+  // Handle ESC key
+  useEffect(() => {
+    const handleEscKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        handleClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscKey);
+      return () => document.removeEventListener('keydown', handleEscKey);
+    }
+  }, [isOpen]);
 
   const handleSave = async () => {
     // Validation
@@ -205,175 +207,196 @@ export const SaveDialogModal: React.FC<SaveDialogModalProps> = ({
     onClose();
   };
 
+  if (!isOpen) return null;
+
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      handleClose();
+    }
+  };
+
   return (
-    <ResponsiveModalContainer
-      isOpen={isOpen}
-      onClose={onClose}
-      maxWidth={{
-        mobile: '95vw',
-        tablet: '85vw',
-        desktop: '75vw'
-      }}
-      maxHeight={responsive ? getHeight() : maxHeight}
+    <div 
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[450] flex items-center justify-center p-4"
+      onClick={handleBackdropClick}
     >
-      {/* Fixed Header */}
-      <div className="flex-shrink-0 p-8 border-b-2 border-purple-300 dark:border-purple-600">
-      <div className="flex items-center justify-between">
-        <h3 className="text-4xl font-bold text-purple-700 dark:text-purple-300 flex items-center gap-4">
-          <Save size={40} />
-          {t.title}
-        </h3>
-        <button
-          onClick={handleClose}
-          className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-        >
-          <X size={32} />
-        </button>
-      </div>
-      </div>
-
-      <ScrollableContentArea
-        maxHeight="calc(90vh - 200px)"
-        showScrollIndicators={true}
-        maintainHeaderFooter={true}
-      >
-        <div className="space-y-10">
-          {/* Error Display */}
-          {error && (
-            <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-3">
-              <AlertCircle className="text-red-600 dark:text-red-400" size={20} />
-              <span className="text-red-700 dark:text-red-300">{error}</span>
-            </div>
-          )}
-
-          {/* Workflow Name Input */}
-          <input 
-            type="text" 
-            placeholder={t.workflowName}
-            value={workflowName}
-            onChange={(e) => setWorkflowName(e.target.value)}
-            className={`
-              w-full p-8 border-4 rounded-2xl text-2xl font-medium
-              ${theme === 'dark' 
-                ? 'bg-gray-800 border-purple-500 text-white placeholder-gray-400' 
-                : 'bg-white border-purple-400 text-gray-900 placeholder-gray-500'
-              }
-              focus:border-purple-600 focus:ring-4 focus:ring-purple-200 dark:focus:ring-purple-800 transition-all
-              shadow-lg
-            `}
-          />
-
-          {/* Workflow Description Input */}
-          <textarea 
-            placeholder={t.workflowDescription}
-            value={workflowDescription}
-            onChange={(e) => setWorkflowDescription(e.target.value)}
-            className={`
-              w-full p-8 border-4 rounded-2xl h-40 text-xl resize-none
-              ${theme === 'dark' 
-                ? 'bg-gray-800 border-purple-500 text-white placeholder-gray-400' 
-                : 'bg-white border-purple-400 text-gray-900 placeholder-gray-500'
-              }
-              focus:border-purple-600 focus:ring-4 focus:ring-purple-200 dark:focus:ring-purple-800 transition-all
-              shadow-lg
-            `}
-          />
-          
-          {/* Node Selection Panel (only shown for automation templates) */}
-          {saveAsAutomation && (
-            <NodeSelectionPanel
-              nodes={nodes}
-              selectedNodes={selectedNodes}
-              onSelectionChange={setSelectedNodes}
-              selectionMode={selectionMode}
-              onModeChange={(mode) => setSelectionMode(mode as 'all' | 'smart' | 'manual')}
-              lang={lang}
-              theme={theme}
-              analyzeFinalOutputModules={analyzeFinalOutputModules}
-            />
-          )}
-
-          {/* Download Instructions (only shown for automation templates) */}
-          {saveAsAutomation && (
-            <div className="bg-purple-100 dark:bg-purple-900/30 border-3 border-purple-300 dark:border-purple-700 rounded-2xl p-6 shadow-lg">
-              <div className="flex items-start gap-3">
-                <div className="text-purple-600 dark:text-purple-400 mt-1 text-2xl">💡</div>
-                <div className="text-lg text-purple-800 dark:text-purple-200">
-                  <div className="font-bold mb-3 text-xl">
-                    {t.downloadNodesInstructions}
-                  </div>
-                  <ul className="text-base space-y-2 text-purple-700 dark:text-purple-300">
-                    <li>• {t.instruction1}</li>
-                    <li>• {t.instruction2}</li>
-                    <li>• {t.instruction3}</li>
-                    <li>• {t.instruction4}</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* Save as Automation Checkbox */}
-          <div className="flex items-center gap-4 p-6 border-3 border-purple-300 dark:border-purple-600 rounded-2xl bg-purple-100 dark:bg-purple-900/30 shadow-lg">
-            <input
-              type="checkbox"
-              id="automation-checkbox"
-              checked={saveAsAutomation}
-              onChange={(e) => setSaveAsAutomation(e.target.checked)}
-              className="w-8 h-8 text-purple-600 bg-gray-100 border-gray-300 rounded-lg focus:ring-purple-500 dark:focus:ring-purple-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-            />
-            <label htmlFor="automation-checkbox" className="flex-1 cursor-pointer">
-              <div className="font-bold text-xl text-purple-800 dark:text-purple-200 mb-2">
-                {t.saveAsAutomationTitle}
-              </div>
-              <div className="text-lg text-purple-700 dark:text-purple-300">
-                {t.saveAsAutomationDesc}
-              </div>
-            </label>
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border-2 border-purple-400 dark:border-purple-500 w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
+        {/* Header - 固定 */}
+        <div className="flex-shrink-0 p-4 border-b border-purple-300 dark:border-purple-600">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-bold text-purple-700 dark:text-purple-300 flex items-center gap-2">
+              <Save size={20} />
+              {t.title}
+            </h3>
+            <button
+              onClick={handleClose}
+              className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+            >
+              <X size={20} />
+            </button>
           </div>
+        </div>
 
-          {/* Automation Warning */}
-          {saveAsAutomation && (
-            <div className="p-6 border-4 border-amber-400 dark:border-amber-500 rounded-2xl bg-amber-100 dark:bg-amber-900/30 shadow-lg">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="text-amber-600 dark:text-amber-400 mt-1 flex-shrink-0" size={24} />
-                <div className="text-lg">
-                  <div className="font-bold text-xl text-amber-800 dark:text-amber-200 mb-3">
-                    {t.importantNotice}
+        {/* Content - 可滚动 */}
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="space-y-3">
+            {/* Error Display */}
+            {error && (
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2">
+                <AlertCircle className="text-red-600 dark:text-red-400" size={16} />
+                <span className="text-red-700 dark:text-red-300 text-sm">{error}</span>
+              </div>
+            )}
+
+            {/* Workflow Name and Description - 一行布局 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input 
+                type="text" 
+                placeholder={t.workflowName}
+                value={workflowName}
+                onChange={(e) => setWorkflowName(e.target.value)}
+                className={`
+                  w-full p-3 border-2 rounded-lg text-sm font-medium
+                  ${theme === 'dark' 
+                    ? 'bg-gray-800 border-purple-500 text-white placeholder-gray-400' 
+                    : 'bg-white border-purple-400 text-gray-900 placeholder-gray-500'
+                  }
+                  focus:border-purple-600 focus:ring-2 focus:ring-purple-200 dark:focus:ring-purple-800 transition-all
+                  shadow-sm
+                `}
+              />
+              <input 
+                type="text"
+                placeholder={t.workflowDescription}
+                value={workflowDescription}
+                onChange={(e) => setWorkflowDescription(e.target.value)}
+                className={`
+                  w-full p-3 border-2 rounded-lg text-sm
+                  ${theme === 'dark' 
+                    ? 'bg-gray-800 border-purple-500 text-white placeholder-gray-400' 
+                    : 'bg-white border-purple-400 text-gray-900 placeholder-gray-500'
+                  }
+                  focus:border-purple-600 focus:ring-2 focus:ring-purple-200 dark:focus:ring-purple-800 transition-all
+                  shadow-sm
+                `}
+              />
+            </div>
+            
+            {/* Save as Automation Checkbox - 降低高度 */}
+            <div className="flex items-center gap-3 p-3 border-2 border-purple-300 dark:border-purple-600 rounded-lg bg-purple-100 dark:bg-purple-900/30 shadow-sm">
+              <input
+                type="checkbox"
+                id="automation-checkbox"
+                checked={saveAsAutomation}
+                onChange={(e) => setSaveAsAutomation(e.target.checked)}
+                className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 dark:focus:ring-purple-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              />
+              <label htmlFor="automation-checkbox" className="flex-1 cursor-pointer">
+                <div className="font-bold text-sm text-purple-800 dark:text-purple-200">
+                  {t.saveAsAutomationTitle}
+                </div>
+                <div className="text-xs text-purple-700 dark:text-purple-300">
+                  {t.saveAsAutomationDesc}
+                </div>
+              </label>
+            </div>
+
+            {/* Node Selection Panel (only shown for automation templates) - 降低高度 */}
+            {saveAsAutomation && (
+              <div className="border-2 border-purple-300 dark:border-purple-700 rounded-lg p-3 bg-purple-50 dark:bg-purple-900/20">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-purple-700 dark:text-purple-300">下载节点选择</span>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setSelectedNodes(nodes.map((n: WorkflowNode) => n.id))}
+                      className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                    >
+                      全选
+                    </button>
+                    <button
+                      onClick={() => setSelectedNodes(analyzeFinalOutputModules(nodes))}
+                      className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+                    >
+                      智能选择
+                    </button>
+                    <button
+                      onClick={() => setSelectedNodes([])}
+                      className="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+                    >
+                      清空
+                    </button>
                   </div>
-                  <div className="text-amber-700 dark:text-amber-300 leading-relaxed">
-                    {t.automationWarning}
+                </div>
+                <div className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                  当前画布没有模块
+                </div>
+              </div>
+            )}
+
+            {/* 合并的说明和提醒 - 横排布局 */}
+            {saveAsAutomation && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {/* 下载节点说明 */}
+                <div className="bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <div className="text-purple-600 dark:text-purple-400 text-sm">💡</div>
+                    <div className="text-xs text-purple-800 dark:text-purple-200">
+                      <div className="font-bold mb-1 text-sm">
+                        {t.downloadNodesInstructions}
+                      </div>
+                      <ul className="text-xs space-y-0.5 text-purple-700 dark:text-purple-300">
+                        <li>• {t.instruction1}</li>
+                        <li>• {t.instruction2}</li>
+                        <li>• {t.instruction3}</li>
+                        <li>• {t.instruction4}</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 重要提醒 */}
+                <div className="bg-amber-100 dark:bg-amber-900/30 border border-amber-400 dark:border-amber-500 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="text-amber-600 dark:text-amber-400 flex-shrink-0" size={16} />
+                    <div className="text-xs">
+                      <div className="font-bold text-sm text-amber-800 dark:text-amber-200 mb-1">
+                        {t.importantNotice}
+                      </div>
+                      <div className="text-amber-700 dark:text-amber-300 leading-relaxed">
+                        {t.automationWarning}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </ScrollableContentArea>
 
-      {/* Fixed Footer */}
-      <div className="flex-shrink-0 p-8 border-t-2 border-purple-300 dark:border-purple-600">
-        <div className="flex justify-end gap-4">
-          <button 
-            onClick={handleClose}
-            className={`
-              px-8 py-4 rounded-2xl text-xl font-bold shadow-lg transition-all transform hover:scale-105
-              ${theme === 'dark' 
-                ? 'bg-gray-600 hover:bg-gray-500 text-white' 
-                : 'bg-gray-500 hover:bg-gray-600 text-white'
-              }
-            `}
-          >
-            {t.cancel}
-          </button>
-          <button 
-            onClick={handleSave}
-            className="px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl text-xl font-bold shadow-lg transition-all transform hover:scale-105"
-          >
-            {t.save}
-          </button>
+        {/* Footer - 固定 */}
+        <div className="flex-shrink-0 p-4 border-t border-purple-300 dark:border-purple-600 bg-gray-50 dark:bg-gray-800">
+          <div className="flex justify-end gap-2">
+            <button 
+              onClick={handleClose}
+              className={`
+                px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-all
+                ${theme === 'dark' 
+                  ? 'bg-gray-600 hover:bg-gray-500 text-white' 
+                  : 'bg-gray-500 hover:bg-gray-600 text-white'
+                }
+              `}
+            >
+              {t.cancel}
+            </button>
+            <button 
+              onClick={handleSave}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium shadow-sm transition-all"
+            >
+              {t.save}
+            </button>
+          </div>
         </div>
       </div>
-    </ResponsiveModalContainer>
+    </div>
   );
 };

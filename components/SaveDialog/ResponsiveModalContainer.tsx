@@ -30,6 +30,50 @@ export const ResponsiveModalContainer: React.FC<ResponsiveModalContainerProps> =
   onClose
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
+  const [adaptiveWidth, setAdaptiveWidth] = useState<string>('');
+
+  // Calculate adaptive width based on available space
+  useEffect(() => {
+    if (isOpen) {
+      const updateAdaptiveWidth = () => {
+        const viewportWidth = window.innerWidth;
+        const availableWidth = viewportWidth - 100; // Account for padding
+        
+        // Check if there might be a parameter panel open (common width ~400-500px)
+        const hasRightPanel = document.querySelector('[class*="parameter"]') || 
+                             document.querySelector('[class*="sidebar"]') ||
+                             viewportWidth < 1400; // Assume constrained space on smaller screens
+        
+        let targetWidth: string;
+        
+        if (viewportWidth < 768) {
+          // Mobile
+          targetWidth = maxWidth.mobile;
+        } else if (viewportWidth < 1024) {
+          // Tablet
+          targetWidth = maxWidth.tablet;
+        } else {
+          // Desktop - adjust based on available space
+          if (hasRightPanel || availableWidth < 1200) {
+            // Constrained space - use smaller width
+            targetWidth = '55vw';
+          } else {
+            // Full space available
+            targetWidth = maxWidth.desktop;
+          }
+        }
+        
+        setAdaptiveWidth(targetWidth);
+      };
+
+      updateAdaptiveWidth();
+      window.addEventListener('resize', updateAdaptiveWidth);
+      
+      return () => {
+        window.removeEventListener('resize', updateAdaptiveWidth);
+      };
+    }
+  }, [isOpen, maxWidth]);
 
   // Handle escape key
   useEffect(() => {
@@ -59,6 +103,8 @@ export const ResponsiveModalContainer: React.FC<ResponsiveModalContainerProps> =
 
   if (!isOpen) return null;
 
+  const finalWidth = adaptiveWidth || maxWidth.desktop;
+
   return (
     <div 
       className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[450] flex items-center justify-center p-4"
@@ -74,24 +120,13 @@ export const ResponsiveModalContainer: React.FC<ResponsiveModalContainerProps> =
           ${className}
         `}
         style={{
-          width: `min(${maxWidth.mobile}, 100vw)`,
+          width: finalWidth,
           maxHeight,
           height: 'fit-content',
-          minHeight: '300px'
+          minHeight: '400px',
+          maxWidth: '90vw'
         }}
       >
-        <style jsx>{`
-          @media (min-width: 768px) {
-            div {
-              width: min(${maxWidth.tablet}, 100vw) !important;
-            }
-          }
-          @media (min-width: 1024px) {
-            div {
-              width: min(${maxWidth.desktop}, 100vw) !important;
-            }
-          }
-        `}</style>
         {children}
       </div>
     </div>
