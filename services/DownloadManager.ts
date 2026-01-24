@@ -118,6 +118,13 @@ export class DownloadManager {
   }
 
   /**
+   * Get current download configuration
+   */
+  getConfig(): DownloadConfig {
+    return { ...this.config };
+  }
+
+  /**
    * Add video to download queue
    */
   addDownload(videoUrl: string, filename?: string, downloadPath?: string, executionId?: string, batchId?: string): string {

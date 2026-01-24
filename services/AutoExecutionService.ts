@@ -604,6 +604,14 @@ export class AutoExecutionService {
           if (isFinalOutputNode) {
             // 检查当前节点是否有可下载的内容
             const hasDownloadableContent = await this.hasDownloadableContent(currentNode, currentBlock);
+            console.log(`[AutoExecutionService] 最终输出节点 ${currentNode.blockNumber} 下载检查:`, {
+              hasDownloadableContent,
+              blockType: currentBlock.type,
+              contentLength: currentContent?.length || 0,
+              contentPreview: currentContent?.substring(0, 50) || 'empty',
+              downloadManagerExists: !!this.downloadManager
+            });
+            
             if (hasDownloadableContent) {
               console.log(`[AutoExecutionService] 最终输出节点 ${currentNode.blockNumber} 有可下载内容，开始下载...`);
               await this.checkAndDownloadSingleNode(currentNode, currentBlock, dataIndex);
@@ -1094,7 +1102,9 @@ export class AutoExecutionService {
             batchIndex: dataIndex + 1,
             contentType: typeof currentContent,
             contentLength: currentContent.length,
-            contentPreview: currentContent.substring(0, 100) + '...'
+            contentPreview: currentContent.substring(0, 100) + '...',
+            downloadManagerExists: !!this.downloadManager,
+            downloadManagerConfig: this.downloadManager?.getConfig() || 'no-download-manager'
           });
           
           const batchId = `automation_single_${this.currentBatchIndex || 0}_${Date.now()}`;
