@@ -192,9 +192,15 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
 
   // Convert canvas blocks to WorkflowNode format
   const convertCanvasToNodes = (canvas: CanvasState): WorkflowNode[] => {
+    console.log('[TemplateManager] Converting canvas to nodes:', {
+      hasBlocks: !!canvas.blocks,
+      blocksLength: canvas.blocks?.length || 0,
+      blocks: canvas.blocks
+    });
+    
     if (!canvas.blocks) return [];
     
-    return canvas.blocks.map(block => ({
+    const nodes = canvas.blocks.map(block => ({
       id: block.id,
       name: block.number || block.id,
       type: block.type || 'text',
@@ -203,6 +209,9 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
       isRequired: true,
       size: 100
     }));
+    
+    console.log('[TemplateManager] Converted nodes:', nodes);
+    return nodes;
   };
 
   const handleSaveConfiguration = async (config: SaveConfiguration) => {

@@ -328,7 +328,38 @@ export const SaveDialogModal: React.FC<SaveDialogModalProps> = ({
                   </div>
                 </div>
                 <div className="text-xs text-gray-600 dark:text-gray-400 mb-2">
-                  当前画布没有模块
+                  {nodes.length === 0 ? (
+                    lang === 'zh' ? '当前画布没有模块' : 'No modules in current canvas'
+                  ) : (
+                    <div className="space-y-1">
+                      <div className="font-medium text-purple-700 dark:text-purple-300">
+                        {lang === 'zh' ? `可选择的节点 (${nodes.length}个):` : `Available nodes (${nodes.length}):`}
+                      </div>
+                      <div className="max-h-16 overflow-y-auto">
+                        <div className="flex flex-wrap gap-1">
+                          {nodes.map(node => (
+                            <label key={node.id} className="flex items-center gap-1 text-xs cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-800/30 px-2 py-1 rounded border border-purple-200 dark:border-purple-600">
+                              <input
+                                type="checkbox"
+                                checked={selectedNodes.includes(node.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedNodes([...selectedNodes, node.id]);
+                                  } else {
+                                    setSelectedNodes(selectedNodes.filter(id => id !== node.id));
+                                  }
+                                }}
+                                className="w-3 h-3 text-purple-600 rounded"
+                              />
+                              <span className="font-mono">
+                                {node.name}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
