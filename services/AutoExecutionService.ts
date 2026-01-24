@@ -449,11 +449,8 @@ export class AutoExecutionService {
         batchData
       );
       
-      // 计算下一个数据项的等待时间 - 确保有足够时间保存结果
-      const waitTime = Math.max(
-        this.calculateWaitTime('text'), // 基础间隔
-        10 // 最少10秒缓冲时间，确保结果保存完成
-      );
+      // 计算下一个数据项的等待时间 - 减少不必要的等待
+      const waitTime = 2; // 只需要2秒缓冲时间，确保结果保存完成
       
       // 等待指定时间后继续下一个数据项
       if (dataIndex < batchData.length - 1) { // 不是最后一个数据项
@@ -491,6 +488,11 @@ export class AutoExecutionService {
       const currentBlock = blocks.find(b => b.id === currentNode.blockId);
       
       if (!currentBlock) {
+        console.error(`[AutoExecutionService] ❌ 找不到节点: ${currentNode.blockId}`, {
+          nodeId: currentNode.blockId,
+          nodeNumber: currentNode.blockNumber,
+          availableBlocks: blocks.map(b => ({ id: b.id, number: b.number }))
+        });
         throw new Error(`找不到节点: ${currentNode.blockId}`);
       }
 
@@ -580,11 +582,10 @@ export class AutoExecutionService {
         
         this.progress.executionHistory.push(executionRecord);
 
-        console.log(`[AutoExecutionService] 节点 ${currentNode.blockNumber} 执行完成，耗时: ${executionRecord.duration}ms`);
+        console.log(`[AutoExecutionService] ✅ 节点 ${currentNode.blockNumber} 执行完成，耗时: ${executionRecord.duration}ms`);
 
-        // 检查内容是否生成完成（用于流程控制）
-        const isLastNode = nodeIndex === executionPlan.length - 1;
-        await this.checkContentGeneration(currentNode, currentBlock, isLastNode);
+        // 简短缓冲时间确保数据传播完成
+        await this.delay(500);
 
         // 检查是否需要下载当前节点的内容（只下载最终输出节点）
         if (this.resultHandling === 'download' && this.downloadManager) {
@@ -637,9 +638,14 @@ export class AutoExecutionService {
         
         this.progress.executionHistory.push(executionRecord);
         
+        console.error(`[AutoExecutionService] ❌ 节点 ${currentNode.blockNumber} 执行失败:`, error);
+        
         if (this.config.pauseOnError) {
+          console.log(`[AutoExecutionService] ⏸️ 配置为遇错暂停，停止执行`);
           this.handleExecutionError(error as Error);
           return;
+        } else {
+          console.log(`[AutoExecutionService] ⏭️ 配置为遇错继续，跳过当前节点继续执行`);
         }
       }
     }
@@ -727,10 +733,17 @@ export class AutoExecutionService {
    * 通知节点完成 - 由外部调用（如handleGenerate完成时）
    */
   notifyNodeCompletion(nodeId: string, success: boolean = true, error?: Error): void {
-    console.log(`[AutoExecutionService] 节点 ${nodeId} 完成通知，成功: ${success}`);
+    console.log(`[AutoExecutionService] 🔔 节点完成通知: ${nodeId}, 成功: ${success}`);
+    console.log(`[AutoExecutionService] 📊 当前状态:`, {
+      pendingNodesCount: this.pendingNodes.size,
+      completedNodesCount: this.completedNodes.size,
+      hasPendingForThisNode: this.pendingNodes.has(nodeId),
+      isAlreadyCompleted: this.completedNodes.has(nodeId)
+    });
     
     if (success) {
       this.completedNodes.add(nodeId);
+      console.log(`[AutoExecutionService] ✅ 节点 ${nodeId} 标记为已完成`);
     }
     
     // 触发等待该节点的回调
@@ -741,12 +754,15 @@ export class AutoExecutionService {
     // 解决等待的Promise
     const pending = this.pendingNodes.get(nodeId);
     if (pending) {
+      console.log(`[AutoExecutionService] 🚀 解决等待的Promise: ${nodeId}`);
       if (success) {
         pending.resolve();
       } else {
         pending.reject(error || new Error(`节点 ${nodeId} 执行失败`));
       }
       this.pendingNodes.delete(nodeId);
+    } else {
+      console.log(`[AutoExecutionService] ⚠️ 没有找到等待的Promise: ${nodeId}`);
     }
   }
 
@@ -754,18 +770,23 @@ export class AutoExecutionService {
    * 等待节点完成 - 返回Promise
    */
   private waitForNodeCompletion(nodeId: string): Promise<void> {
+    console.log(`[AutoExecutionService] ⏳ 开始等待节点完成: ${nodeId}`);
+    
     // 如果节点已经完成，立即返回
     if (this.completedNodes.has(nodeId)) {
+      console.log(`[AutoExecutionService] ✅ 节点 ${nodeId} 已经完成，立即返回`);
       return Promise.resolve();
     }
     
     // 创建Promise等待节点完成
     return new Promise<void>((resolve, reject) => {
+      console.log(`[AutoExecutionService] 📝 注册等待Promise: ${nodeId}`);
       this.pendingNodes.set(nodeId, { resolve, reject });
       
       // 设置超时保护（防止永久等待）
       setTimeout(() => {
         if (this.pendingNodes.has(nodeId)) {
+          console.log(`[AutoExecutionService] ⏰ 节点 ${nodeId} 等待超时，删除等待Promise`);
           this.pendingNodes.delete(nodeId);
           reject(new Error(`节点 ${nodeId} 执行超时`));
         }
@@ -977,9 +998,15 @@ export class AutoExecutionService {
         const hasImageExtension = /\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?|$)/i.test(currentContent);
         const containsImageKeywords = /image|img|photo|picture/i.test(currentContent);
         
-        const isDownloadable = isDataImage || isImageUrl || hasImageExtension || containsImageKeywords;
+        // 检查是否是base64图片（没有data:前缀的纯base64）
+        const isBase64Image = currentContent.length > 1000 && /^[A-Za-z0-9+/]+=*$/.test(currentContent.substring(0, 100));
+        
+        const isDownloadable = isDataImage || isImageUrl || hasImageExtension || containsImageKeywords || isBase64Image;
         console.log(`[AutoExecutionService] 图片内容检测:`, {
-          isImageUrl, isDataImage, hasImageExtension, containsImageKeywords, isDownloadable
+          isImageUrl, isDataImage, hasImageExtension, containsImageKeywords, isBase64Image, isDownloadable,
+          contentLength: currentContent.length,
+          contentStart: currentContent.substring(0, 50),
+          isAutomationMode: this.isAutomationMode
         });
         
         return isDownloadable;
@@ -1071,7 +1098,13 @@ export class AutoExecutionService {
           const isDataImage = currentContent.startsWith('data:image/');
           const hasImageExtension = /\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?|$)/i.test(currentContent);
           
+          // 检查是否是base64图片（没有data:前缀的纯base64）
+          const isBase64Image = currentContent.length > 1000 && /^[A-Za-z0-9+/]+=*$/.test(currentContent.substring(0, 100));
+          
           if (isDataImage) {
+            shouldDownload = true;
+            filename = `${node.blockNumber}_image.png`;
+          } else if (isBase64Image) {
             shouldDownload = true;
             filename = `${node.blockNumber}_image.png`;
           } else if (isImageUrl || hasImageExtension) {

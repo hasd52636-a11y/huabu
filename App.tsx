@@ -2181,19 +2181,33 @@ const App: React.FC = () => {
       });
       
       // 在setBlocks之后通知AutoExecutionService节点完成
-      if (result && result.trim()) {
-        // 使用动态导入但不在回调中使用await
-        import('./services/AutoExecutionService').then(({ autoExecutionService }) => {
-          autoExecutionService.notifyNodeCompletion(blockId, true);
-        });
-      }
+      // 注意：即使结果为空，也要通知节点完成，避免自动化流程卡住
+      console.log(`[handleGenerate] 🔔 通知AutoExecutionService节点完成: ${blockId}`, {
+        hasResult: !!result,
+        resultLength: result?.length || 0,
+        resultTrimmed: result?.trim().length || 0,
+        resultPreview: result?.substring(0, 100) || 'empty'
+      });
+      
+      // 使用动态导入但不在回调中使用await
+      import('./services/AutoExecutionService').then(({ autoExecutionService }) => {
+        console.log(`[handleGenerate] 🔔 调用notifyNodeCompletion: ${blockId}`);
+        // 即使结果为空也通知完成，让自动化流程继续
+        autoExecutionService.notifyNodeCompletion(blockId, true);
+      }).catch(error => {
+        console.error(`[handleGenerate] ❌ 动态导入AutoExecutionService失败:`, error);
+      });
     } catch (err) {
       console.error(err);
       setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, status: 'error' } : b));
       
       // 通知AutoExecutionService节点失败
+      console.log(`[handleGenerate] ❌ 生成失败，通知AutoExecutionService节点失败: ${blockId}`, err);
       import('./services/AutoExecutionService').then(({ autoExecutionService }) => {
+        console.log(`[handleGenerate] 🔔 调用notifyNodeCompletion (失败): ${blockId}`);
         autoExecutionService.notifyNodeCompletion(blockId, false, err as Error);
+      }).catch(error => {
+        console.error(`[handleGenerate] ❌ 动态导入AutoExecutionService失败:`, error);
       });
       
       // 显示错误提示
