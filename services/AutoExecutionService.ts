@@ -584,10 +584,7 @@ export class AutoExecutionService {
 
         console.log(`[AutoExecutionService] ✅ 节点 ${currentNode.blockNumber} 执行完成，耗时: ${executionRecord.duration}ms`);
 
-        // 简短缓冲时间确保数据传播完成
-        await this.delay(500);
-
-        // 检查是否需要下载当前节点的内容（只下载最终输出节点）
+        // 立即检查并下载当前节点的内容（防止被后续操作覆盖）
         if (this.resultHandling === 'download' && this.downloadManager) {
           let isFinalOutputNode = false;
           
@@ -603,32 +600,15 @@ export class AutoExecutionService {
           }
           
           if (isFinalOutputNode) {
-            // 检查当前节点是否有可下载的内容
-            const hasDownloadableContent = await this.hasDownloadableContent(currentNode, currentBlock);
-            
-            // 获取当前内容用于日志显示
-            const { connectionEngine } = await import('./ConnectionEngine');
-            const latestBlock = connectionEngine.getBlockById(currentBlock.id);
-            const currentContent = latestBlock?.content || currentBlock.content;
-            
-            console.log(`[AutoExecutionService] 最终输出节点 ${currentNode.blockNumber} 下载检查:`, {
-              hasDownloadableContent,
-              blockType: currentBlock.type,
-              contentLength: currentContent?.length || 0,
-              contentPreview: currentContent?.substring(0, 50) || 'empty',
-              downloadManagerExists: !!this.downloadManager
-            });
-            
-            if (hasDownloadableContent) {
-              console.log(`[AutoExecutionService] 最终输出节点 ${currentNode.blockNumber} 有可下载内容，开始下载...`);
-              await this.checkAndDownloadSingleNode(currentNode, currentBlock, dataIndex);
-            } else {
-              console.log(`[AutoExecutionService] 最终输出节点 ${currentNode.blockNumber} 无可下载内容，跳过下载`);
-            }
+            console.log(`[AutoExecutionService] 🔄 立即检查并下载最终输出节点 ${currentNode.blockNumber}...`);
+            await this.checkAndDownloadSingleNode(currentNode, currentBlock, dataIndex);
           } else {
             console.log(`[AutoExecutionService] 节点 ${currentNode.blockNumber} 不是最终输出节点，跳过下载`);
           }
         }
+
+        // 简短缓冲时间确保数据传播完成
+        await this.delay(500);
 
         // 只需要很短的缓冲时间，确保数据传播
         if (nodeIndex < executionPlan.length - 1) {
@@ -961,7 +941,7 @@ export class AutoExecutionService {
   }
 
   /**
-   * 检查节点是否有可下载的内容 - 智能检测版
+   * 检查节点是否有可下载的内容 - 简化版：生成成功就下载
    */
   private async hasDownloadableContent(node: ExecutionNode, block: Block): Promise<boolean> {
     try {
@@ -983,52 +963,23 @@ export class AutoExecutionService {
         isDataUrl: currentContent.startsWith('data:')
       });
       
+      // 简化逻辑：只要有内容就可以下载
       if (block.type === 'video') {
-        // 视频内容检测 - 支持多种格式
-        const isVideoUrl = currentContent.startsWith('http') || currentContent.startsWith('https');
-        const isDataVideo = currentContent.startsWith('data:video/');
-        const hasVideoExtension = /\.(mp4|avi|mov|wmv|flv|webm|mkv)(\?|$)/i.test(currentContent);
-        const containsVideoKeywords = /video|mp4|stream|media/i.test(currentContent);
-        
-        const isDownloadable = isVideoUrl || isDataVideo || hasVideoExtension || containsVideoKeywords;
-        console.log(`[AutoExecutionService] 视频内容检测:`, {
-          isVideoUrl, isDataVideo, hasVideoExtension, containsVideoKeywords, isDownloadable
-        });
-        
-        return isDownloadable;
+        console.log(`[AutoExecutionService] 视频节点有内容，可以下载`);
+        return true; // 视频节点有内容就下载
         
       } else if (block.type === 'image') {
-        // 图片内容检测 - 支持多种格式
-        const isImageUrl = currentContent.startsWith('http') || currentContent.startsWith('https');
-        const isDataImage = currentContent.startsWith('data:image/');
-        const hasImageExtension = /\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?|$)/i.test(currentContent);
-        const containsImageKeywords = /image|img|photo|picture/i.test(currentContent);
-        
-        // 检查是否是base64图片（没有data:前缀的纯base64）
-        const isBase64Image = currentContent.length > 1000 && /^[A-Za-z0-9+/]+=*$/.test(currentContent.substring(0, 100));
-        
-        const isDownloadable = isDataImage || isImageUrl || hasImageExtension || containsImageKeywords || isBase64Image;
-        console.log(`[AutoExecutionService] 图片内容检测:`, {
-          isImageUrl, isDataImage, hasImageExtension, containsImageKeywords, isBase64Image, isDownloadable,
-          contentLength: currentContent.length,
-          contentStart: currentContent.substring(0, 50),
-          isAutomationMode: this.isAutomationMode
-        });
-        
-        return isDownloadable;
+        console.log(`[AutoExecutionService] 图片节点有内容，可以下载`);
+        return true; // 图片节点有内容就下载
         
       } else if (block.type === 'text') {
         // 文本内容 - 对于自动化模式，下载所有有内容的文本
-        const hasUrl = /https?:\/\/[^\s]+/i.test(currentContent);
-        const hasContent = currentContent.length > 0; // 改为只要有内容就可以下载
-        
-        const isDownloadable = hasUrl || hasContent;
+        const hasContent = currentContent.length > 0;
         console.log(`[AutoExecutionService] 文本内容检测:`, {
-          hasUrl, hasContent, isDownloadable, contentLength: currentContent.length,
+          hasContent, contentLength: currentContent.length,
           isAutomationMode: this.isAutomationMode
         });
-        
-        return isDownloadable;
+        return hasContent;
       }
       
       return false;
@@ -1090,9 +1041,16 @@ export class AutoExecutionService {
           const isDataVideo = currentContent.startsWith('data:video/');
           const hasVideoExtension = /\.(mp4|avi|mov|wmv|flv|webm|mkv)(\?|$)/i.test(currentContent);
           
+          // 新增：检查是否包含视频相关信息
+          const containsVideoInfo = /video|mp4|stream|media|url/i.test(currentContent);
+          
           if (isVideoUrl || isDataVideo || hasVideoExtension) {
             shouldDownload = true;
             filename = `${node.blockNumber}_video.mp4`;
+          } else if (containsVideoInfo && currentContent.length > 10) {
+            // 如果包含视频相关信息，保存为文本文件以便查看
+            shouldDownload = true;
+            filename = `${node.blockNumber}_video_info.txt`;
           } else if (currentContent.length > 10) {
             // 如果不是直接的视频URL，但有内容，保存为文本文件
             shouldDownload = true;
@@ -1105,7 +1063,10 @@ export class AutoExecutionService {
           const hasImageExtension = /\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?|$)/i.test(currentContent);
           
           // 检查是否是base64图片（没有data:前缀的纯base64）
-          const isBase64Image = currentContent.length > 1000 && /^[A-Za-z0-9+/]+=*$/.test(currentContent.substring(0, 100));
+          const isBase64Image = currentContent.length > 50 && /^[A-Za-z0-9+/]+=*$/.test(currentContent);
+          
+          // 新增：检查是否包含base64图片数据（更宽松的检测）
+          const containsBase64Data = currentContent.length > 50 && /[A-Za-z0-9+/]{30,}/.test(currentContent);
           
           if (isDataImage) {
             shouldDownload = true;
@@ -1113,6 +1074,16 @@ export class AutoExecutionService {
           } else if (isBase64Image) {
             shouldDownload = true;
             filename = `${node.blockNumber}_image.png`;
+            // 为纯base64数据添加data URL前缀
+            currentContent = `data:image/png;base64,${currentContent}`;
+          } else if (containsBase64Data) {
+            shouldDownload = true;
+            filename = `${node.blockNumber}_image.png`;
+            // 尝试提取base64数据
+            const base64Match = currentContent.match(/[A-Za-z0-9+/]{100,}={0,2}/);
+            if (base64Match) {
+              currentContent = `data:image/png;base64,${base64Match[0]}`;
+            }
           } else if (isImageUrl || hasImageExtension) {
             shouldDownload = true;
             filename = `${node.blockNumber}_image.jpg`;
