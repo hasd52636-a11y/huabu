@@ -605,6 +605,12 @@ export class AutoExecutionService {
           if (isFinalOutputNode) {
             // 检查当前节点是否有可下载的内容
             const hasDownloadableContent = await this.hasDownloadableContent(currentNode, currentBlock);
+            
+            // 获取当前内容用于日志显示
+            const { connectionEngine } = await import('./ConnectionEngine');
+            const latestBlock = connectionEngine.getBlockById(currentBlock.id);
+            const currentContent = latestBlock?.content || currentBlock.content;
+            
             console.log(`[AutoExecutionService] 最终输出节点 ${currentNode.blockNumber} 下载检查:`, {
               hasDownloadableContent,
               blockType: currentBlock.type,
