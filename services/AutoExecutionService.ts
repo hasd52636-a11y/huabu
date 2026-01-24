@@ -977,13 +977,14 @@ export class AutoExecutionService {
         return isDownloadable;
         
       } else if (block.type === 'text') {
-        // 文本内容 - 如果包含URL或有意义的内容就可以下载
+        // 文本内容 - 对于自动化模式，下载所有有内容的文本
         const hasUrl = /https?:\/\/[^\s]+/i.test(currentContent);
-        const hasContent = currentContent.length > 10;
+        const hasContent = currentContent.length > 0; // 改为只要有内容就可以下载
         
         const isDownloadable = hasUrl || hasContent;
         console.log(`[AutoExecutionService] 文本内容检测:`, {
-          hasUrl, hasContent, isDownloadable, contentLength: currentContent.length
+          hasUrl, hasContent, isDownloadable, contentLength: currentContent.length,
+          isAutomationMode: this.isAutomationMode
         });
         
         return isDownloadable;
