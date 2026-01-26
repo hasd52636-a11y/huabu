@@ -22,6 +22,7 @@
     "@mediapipe/hands": "^0.4.1675469240",
     "@tensorflow/tfjs": "^4.22.0",
     "@tensorflow/tfjs-backend-webgl": "^4.22.0",
+    "@vercel/analytics": "^1.6.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.0.0",
     "lucide-react": "^0.562.0",
