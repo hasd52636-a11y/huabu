@@ -8,6 +8,7 @@ import {
   ChevronDown, Database, Sliders, ExternalLink, ShieldCheck, ListOrdered, FolderOpen, User, PanelLeft, PanelRight, Share2, Volume2, Grid
 } from 'lucide-react';
 import { Block, Connection, BlockType, ModelConfig, ProviderType, ProviderSettings, BatchConfig, BatchGenerationState, ExportLayout, FrameData, PresetPrompt, CanvasState, BatchInputSource, Character, NewModelConfig, getProviderSettings, convertLegacyToNewConfig, convertNewToLegacyConfig, MenuConfig } from './types';
+import { Analytics } from '@vercel/analytics/react';
 
 // 新的分享功能 - 使用 real-time-share-kit
 import ToolbarShareButton from './components/ToolbarShareButton';
@@ -5394,6 +5395,9 @@ ${block.content}
         onClose={() => setShowVoiceSettings(false)}
         currentLang={lang}
       />
+
+      {/* Vercel Web Analytics */}
+      <Analytics />
 
     </div>
   );
